@@ -15,6 +15,27 @@ class FastRouter:
         if command in {"repeat", "repeat that", "do that again", "again", "repeat last action"}:
             return {"type": "repeat_last_action"}
 
+        if command in {"volume up", "increase volume", "turn volume up", "louder"}:
+            return {"type": "volume_up"}
+
+        if command in {"volume down", "decrease volume", "turn volume down", "quieter"}:
+            return {"type": "volume_down"}
+
+        if command in {"mute", "mute volume", "turn volume off"}:
+            return {"type": "volume_mute"}
+
+        if command in {
+            "play pause", "play or pause", "pause music",
+            "resume music", "toggle play pause",
+        }:
+            return {"type": "media_play_pause"}
+
+        if command in {"minimize window", "minimize this window", "minimize"}:
+            return {"type": "minimize_window"}
+
+        if command in {"maximize window", "maximize this window", "maximize"}:
+            return {"type": "maximize_window"}
+
         application_patterns = [
             (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
             (r"^(open|launch|start) (calculator|calc)$", "calculator"),
