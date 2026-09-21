@@ -45,6 +45,8 @@ Allowed intent types:
 - memory_remember: type, key, value
 - memory_summary: type
 - memory_clear: type
+- memory_recall: type, key
+- memory_forget: type, key
 - unknown: type
 
 Browser rules:
