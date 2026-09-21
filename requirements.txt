@@ -5,3 +5,4 @@ ollama
 faster-whisper
 Pillow
 playwright
+PySide6
