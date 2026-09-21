@@ -6,6 +6,8 @@ from brain.intent_engine import IntentEngine
 from intelligence.fast_router import FastRouter
 from core.context import ConversationContext
 from core.validator import ActionValidator
+from core.memory import PersistentMemory
+from core.settings import Settings
 
 from actions.applications import ApplicationManager
 from actions.browser import BrowserManager
@@ -17,7 +19,9 @@ from actions.registry import ActionRegistry
 class Kritam:
 
     def __init__(self):
-        self.name = "Kritam"
+        self.settings = Settings()
+        self.name = self.settings.get("assistant_name", "Kritam")
+        self.memory = PersistentMemory()
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
         self.text_to_speech = TextToSpeech()
@@ -82,6 +86,28 @@ class Kritam:
             if not self.validator.validate(intent):
                 self.text_to_speech.speak("I can't perform that action yet.")
                 self.context.add_turn(text, intent, False)
+                continue
+
+            if intent["type"] == "memory_remember":
+                success = self.memory.remember(intent["key"], intent["value"])
+                self.context.add_turn(text, intent, success)
+                self.text_to_speech.speak(
+                    "I'll remember that." if success else "I couldn't save that memory."
+                )
+                continue
+
+            if intent["type"] == "memory_summary":
+                summary = self.memory.summary()
+                self.text_to_speech.speak(summary)
+                self.context.add_turn(text, intent, True)
+                continue
+
+            if intent["type"] == "memory_clear":
+                success = self.memory.clear()
+                self.context.add_turn(text, intent, success)
+                self.text_to_speech.speak(
+                    "Saved memory cleared." if success else "I couldn't clear saved memory."
+                )
                 continue
 
             if intent["type"] == "conversation":
