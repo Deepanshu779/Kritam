@@ -9,6 +9,9 @@ class ApplicationManager:
             "calculator": "calc.exe",
             "paint": "mspaint.exe",
             "chrome": "chrome.exe",
+            "task manager": "taskmgr.exe",
+            "file explorer": "explorer.exe",
+            "settings": "ms-settings:",
         }
 
     def open_application(self, application_name):
