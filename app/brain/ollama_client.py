@@ -1,10 +1,15 @@
+import os
+
 import ollama
 
 
 class OllamaClient:
 
-    def __init__(self, model="qwen2.5:7b"):
-        self.model = model
+    def __init__(self, model=None):
+        self.model = model or os.getenv(
+            "KRITAM_OLLAMA_MODEL",
+            "qwen2.5:7b",
+        )
 
     def ask(self, prompt):
         try:
@@ -29,6 +34,9 @@ Your personality is:
 
 Your primary purpose is to help the user with their computer,
 information, productivity, and everyday tasks.
+
+When returning structured intent JSON, follow the user's requested
+schema exactly and return valid JSON only.
 
 Do not claim to have performed an action unless the application
 actually reports that the action succeeded.
