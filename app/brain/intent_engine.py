@@ -30,7 +30,7 @@ class IntentEngine:
 
         return data if isinstance(data, dict) else None
 
-    def understand(self, text):
+    def understand(self, text, context=None):
         command = text.lower().strip()
 
         aliases = {
@@ -55,6 +55,8 @@ class IntentEngine:
             key = "application" if intent_type == "open_application" else "website"
             return {"type": intent_type, key: value}
 
+        history = context.recent_summary() if context else "No previous conversation."
+
         prompt = f"""
 Analyze the user's request and return ONLY one valid JSON object.
 
@@ -64,7 +66,6 @@ Allowed intent types:
    - Fields: type, response
 
 2. open_application
-   - Launch a desktop application.
    - Fields: type, application
 
 3. open_website
@@ -84,28 +85,11 @@ Allowed intent types:
 7. unknown
    - Fields: type
 
-Examples:
+Recent conversation context:
+{history}
 
-User: Hello
-Output: {{"type":"conversation","response":"Hello! How can I help?"}}
-
-User: How are you?
-Output: {{"type":"conversation","response":"I'm doing good. How can I help?"}}
-
-User: Open Chrome
-Output: {{"type":"open_application","application":"chrome"}}
-
-User: Open YouTube
-Output: {{"type":"open_website","website":"youtube"}}
-
-User: Search the web for Python decorators
-Output: {{"type":"search_web","query":"Python decorators"}}
-
-User: Open my Downloads folder
-Output: {{"type":"open_folder","folder":"downloads"}}
-
-User: Take a screenshot
-Output: {{"type":"take_screenshot"}}
+Use recent context only when the current request refers to something
+previously discussed. Do not invent details.
 
 User: {text}
 
