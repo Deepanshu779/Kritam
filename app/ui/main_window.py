@@ -32,7 +32,11 @@ class Worker(QObject):
         try:
             if self.listen:
                 text = self.assistant.listen_once()
-                self.finished.emit({"kind": "voice", "text": text})
+                if not text:
+                    self.finished.emit({"kind": "voice", "text": "", "success": False})
+                    return
+                result = self.assistant.process_text(text, speak=False)
+                self.finished.emit({"kind": "voice", "text": text, **result})
             else:
                 result = self.assistant.process_text(self.command, speak=False)
                 self.finished.emit({"kind": "command", **result})
@@ -276,16 +280,12 @@ class MainWindow(QMainWindow):
         if result["kind"] == "voice":
             text = result.get("text", "")
             if text:
-                self.command_input.setText(text)
-                self._add_message(f"Voice: {text}", True)
-                self._set_busy(False, "Ready")
-                self._send_text()
+                self._add_message(text, True)
+                self._add_message(result.get("response", "Done."), False)
             else:
-                self._set_busy(False, "Ready")
                 self._add_message("I couldn't hear a command.", False)
-            return
-
-        self._add_message(result.get("response", "Done."), False)
+        else:
+            self._add_message(result.get("response", "Done."), False)
         self._set_busy(False, "Ready")
         self._refresh_task()
         self._refresh_memory()
