@@ -42,6 +42,9 @@ Allowed intent types:
 - browser_close_tab: type
 - open_folder: type, folder
 - take_screenshot: type
+- memory_remember: type, key, value
+- memory_summary: type
+- memory_clear: type
 - unknown: type
 
 Browser rules:
