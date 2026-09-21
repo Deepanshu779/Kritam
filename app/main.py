@@ -1,9 +1,14 @@
-from core.assistant import Kritam
+import sys
 
 
 def main():
-    assistant = Kritam()
-    assistant.start()
+    if "--console" in sys.argv:
+        from core.assistant import Kritam
+        Kritam().start()
+        return
+
+    from ui.app import run
+    raise SystemExit(run())
 
 
 if __name__ == "__main__":
