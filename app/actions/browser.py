@@ -13,9 +13,14 @@ class BrowserManager:
 
     def __init__(self):
         self._playwright = None
-        self._browser = None
+        self._context = None
         self._page = None
         self._results = []
+        self._user_data_dir = os.path.join(
+            os.path.expanduser("~"),
+            ".kritam",
+            "browser-profile",
+        )
 
     def open_website(self, name):
         url = self.WEBSITES.get(name.lower().strip())
@@ -35,7 +40,10 @@ class BrowserManager:
         if not query:
             return False
         try:
-            os.startfile("https://www.google.com/search?q=" + urllib.parse.quote_plus(query))
+            os.startfile(
+                "https://www.google.com/search?q="
+                + urllib.parse.quote_plus(query)
+            )
             return True
         except (OSError, ValueError):
             return False
@@ -46,12 +54,20 @@ class BrowserManager:
     def _ensure_browser(self):
         if self._page is not None:
             return True
+
         try:
             from playwright.sync_api import sync_playwright
+
+            os.makedirs(self._user_data_dir, exist_ok=True)
             self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=False)
-            self._page = self._browser.new_page()
+            self._context = self._playwright.chromium.launch_persistent_context(
+                self._user_data_dir,
+                headless=False,
+            )
+            pages = self._context.pages
+            self._page = pages[0] if pages else self._context.new_page()
             return True
+
         except Exception as error:
             print(f"Browser automation error: {error}")
             print("Run: python -m playwright install chromium")
@@ -62,13 +78,16 @@ class BrowserManager:
         query = query.strip()
         if not query or not self._ensure_browser():
             return False
+
         try:
             self._page.goto(
-                "https://www.google.com/search?q=" + urllib.parse.quote_plus(query),
+                "https://www.google.com/search?q="
+                + urllib.parse.quote_plus(query),
                 wait_until="domcontentloaded",
                 timeout=15000,
             )
             self._page.wait_for_timeout(1000)
+
             links = self._page.locator("a:has(h3)")
             self._results = []
 
@@ -76,10 +95,15 @@ class BrowserManager:
                 link = links.nth(index)
                 title = link.locator("h3").inner_text()
                 href = link.get_attribute("href")
-                self._results.append({"index": index + 1, "title": title, "href": href})
+                self._results.append({
+                    "index": index + 1,
+                    "title": title,
+                    "href": href,
+                })
                 print(f"{index + 1}. {title} -> {href}")
 
             return bool(self._results)
+
         except Exception as error:
             print(f"Browser search error: {error}")
             return False
@@ -90,29 +114,54 @@ class BrowserManager:
     def open_result(self, number):
         if self._page is None or not 1 <= number <= len(self._results):
             return False
+
         try:
             links = self._page.locator("a:has(h3)")
             links.nth(number - 1).click()
-            self._page.wait_for_load_state("domcontentloaded", timeout=10000)
+            self._page.wait_for_load_state(
+                "domcontentloaded",
+                timeout=10000,
+            )
             return True
         except Exception as error:
             print(f"Browser result error: {error}")
             return False
 
-    def open_first_result(self):
-        return self.open_result(1)
-
-    def handle_open_first_result(self, intent):
-        return self.open_first_result()
-
     def handle_open_result(self, intent):
         return self.open_result(int(intent.get("number", 0)))
+
+    def open_result_by_text(self, text):
+        if self._page is None or not text.strip():
+            return False
+
+        target = text.lower().strip()
+
+        for result in self._results:
+            if target in result["title"].lower():
+                try:
+                    self._page.goto(
+                        result["href"],
+                        wait_until="domcontentloaded",
+                        timeout=10000,
+                    )
+                    return True
+                except Exception as error:
+                    print(f"Browser result text error: {error}")
+                    return False
+
+        return False
+
+    def handle_open_result_by_text(self, intent):
+        return self.open_result_by_text(intent.get("text", ""))
 
     def go_back(self):
         if self._page is None:
             return False
         try:
-            self._page.go_back(wait_until="domcontentloaded", timeout=10000)
+            self._page.go_back(
+                wait_until="domcontentloaded",
+                timeout=10000,
+            )
             return True
         except Exception as error:
             print(f"Browser back error: {error}")
@@ -121,10 +170,38 @@ class BrowserManager:
     def handle_go_back(self, intent):
         return self.go_back()
 
+    def new_tab(self):
+        if not self._ensure_browser():
+            return False
+        try:
+            self._page = self._context.new_page()
+            return True
+        except Exception as error:
+            print(f"New tab error: {error}")
+            return False
+
+    def handle_new_tab(self, intent):
+        return self.new_tab()
+
+    def close_tab(self):
+        if self._page is None:
+            return False
+        try:
+            self._page.close()
+            pages = self._context.pages if self._context else []
+            self._page = pages[-1] if pages else None
+            return self._page is not None
+        except Exception as error:
+            print(f"Close tab error: {error}")
+            return False
+
+    def handle_close_tab(self, intent):
+        return self.close_tab()
+
     def _close_browser(self):
         try:
-            if self._browser:
-                self._browser.close()
+            if self._context:
+                self._context.close()
         except Exception:
             pass
         try:
@@ -132,7 +209,7 @@ class BrowserManager:
                 self._playwright.stop()
         except Exception:
             pass
-        self._browser = None
+        self._context = None
         self._playwright = None
         self._page = None
         self._results = []
