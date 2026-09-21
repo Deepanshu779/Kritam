@@ -36,14 +36,21 @@ Allowed intent types:
 - search_web: type, query
 - browser_search: type, query
 - browser_open_result: type, number (1-5)
+- browser_open_result_by_text: type, text
 - browser_back: type
+- browser_new_tab: type
+- browser_close_tab: type
 - open_folder: type, folder
 - take_screenshot: type
 - unknown: type
 
-For browser_open_result, use it when the user asks to open a numbered
-search result such as "open result 3" or "open the third result".
-For browser_back, use it for "go back" or equivalent browser navigation.
+Browser rules:
+- "open result 3" or "open the third result" -> browser_open_result.
+- "open the result about Python" -> browser_open_result_by_text with text "Python".
+- "go back" -> browser_back.
+- "new tab" -> browser_new_tab.
+- "close tab" -> browser_close_tab.
+Never invent a result number or result title.
 
 Recent context:
 {history}
