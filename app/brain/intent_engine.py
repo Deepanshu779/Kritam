@@ -14,8 +14,8 @@ class IntentEngine:
             return None
 
         text = response.strip()
-        text = re.sub(r"^\s*\`\`\`(?:json)?\s*", "", text, flags=re.IGNORECASE)
-        text = re.sub(r"\s*\`\`\`\s*$", "", text)
+        fence = chr(96) * 3
+        text = text.replace(fence + "json", "").replace(fence, "").strip()
 
         start = text.find("{")
         end = text.rfind("}")
@@ -75,14 +75,24 @@ Allowed intent types:
 4. search_web
    - Fields: type, query
 
-5. open_folder
+5. browser_search
+   - Fields: type, query
+   - Use when the user explicitly asks Kritam to search using the
+     controlled browser and display or inspect search results.
+
+6. browser_open_first_result
+   - Fields: type
+   - Use when the user asks to open the first result from the current
+     browser search.
+
+7. open_folder
    - Supported folders: downloads, documents, desktop, pictures.
    - Fields: type, folder
 
-6. take_screenshot
+8. take_screenshot
    - Fields: type
 
-7. unknown
+9. unknown
    - Fields: type
 
 Recent conversation context:
