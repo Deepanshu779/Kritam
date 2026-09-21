@@ -34,6 +34,9 @@ class Kritam:
 
             audio = self.listener.listen()
 
+            if audio is None:
+                continue
+
             text = self.speech_to_text.convert(audio)
 
             if not text:
