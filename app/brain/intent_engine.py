@@ -49,6 +49,7 @@ Allowed intent types:
 - memory_forget: type, key
 - history_summary: type
 - task_status: type
+- ai_status: type
 - set_setting: type, key, value
 - unknown: type
 
