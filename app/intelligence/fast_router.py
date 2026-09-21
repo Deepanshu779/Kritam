@@ -24,34 +24,29 @@ class FastRouter:
                 return dict(previous)
             return {"type": "unknown"}
 
-        if command in {
-            "volume up", "increase volume", "turn volume up", "louder"
-        }:
+        if command in {"volume up", "increase volume", "turn volume up", "louder"}:
             return {"type": "volume_up"}
 
-        if command in {
-            "volume down", "decrease volume", "turn volume down", "quieter"
-        }:
+        if command in {"volume down", "decrease volume", "turn volume down", "quieter"}:
             return {"type": "volume_down"}
 
         if command in {"mute", "mute volume", "turn volume off"}:
             return {"type": "volume_mute"}
 
-        if command in {
-            "play pause", "play or pause", "pause music",
-            "resume music", "toggle play pause",
-        }:
+        if command in {"play pause", "play or pause", "pause music", "resume music", "toggle play pause"}:
             return {"type": "media_play_pause"}
 
-        if command in {
-            "minimize window", "minimize this window", "minimize"
-        }:
+        if command in {"minimize window", "minimize this window", "minimize"}:
             return {"type": "minimize_window"}
 
-        if command in {
-            "maximize window", "maximize this window", "maximize"
-        }:
+        if command in {"maximize window", "maximize this window", "maximize"}:
             return {"type": "maximize_window"}
+
+        if command in {
+            "open first result", "open the first result",
+            "open first search result", "open the first search result",
+        }:
+            return {"type": "browser_open_first_result"}
 
         application_patterns = [
             (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
@@ -78,6 +73,16 @@ class FastRouter:
             if re.fullmatch(pattern, command):
                 return {"type": "open_website", "website": website}
 
+        browser_search_patterns = (
+            r"^(browse|browser|search in browser|search the browser) (.+)$",
+            r"^(search and show|search with browser) (.+)$",
+        )
+
+        for pattern in browser_search_patterns:
+            match = re.fullmatch(pattern, command)
+            if match:
+                return {"type": "browser_search", "query": match.group(2)}
+
         search_patterns = (
             r"^(now )?search(?: google)? for (.+)$",
             r"^search (.+) on google$",
@@ -102,10 +107,7 @@ class FastRouter:
             if re.fullmatch(pattern, command):
                 return {"type": "open_folder", "folder": folder}
 
-        if re.fullmatch(
-            r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen",
-            command,
-        ):
+        if re.fullmatch(r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen", command):
             return {"type": "take_screenshot"}
 
         if command in {"hello", "hi", "hey", "hey kritam"}:
