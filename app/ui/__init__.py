@@ -1,0 +1,1 @@
+"""Kritam desktop user interface."""
