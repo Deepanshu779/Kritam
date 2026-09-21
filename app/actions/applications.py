@@ -1,0 +1,24 @@
+import os
+
+
+class ApplicationManager:
+
+    def __init__(self):
+        self.applications = {
+            "notepad": "notepad.exe",
+            "calculator": "calc.exe",
+            "paint": "mspaint.exe",
+        }
+
+    def open_application(self, application_name):
+        application_name = application_name.lower().strip()
+
+        if application_name not in self.applications:
+            return False
+
+        try:
+            os.startfile(self.applications[application_name])
+            return True
+
+        except Exception:
+            return False
