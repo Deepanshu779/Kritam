@@ -8,6 +8,7 @@ class ApplicationManager:
             "notepad": "notepad.exe",
             "calculator": "calc.exe",
             "paint": "mspaint.exe",
+            "chrome": "chrome.exe",
         }
 
     def open_application(self, application_name):
