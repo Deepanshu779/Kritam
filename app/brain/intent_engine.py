@@ -1,4 +1,5 @@
 import json
+import re
 
 from brain.ollama_client import OllamaClient
 
@@ -8,68 +9,103 @@ class IntentEngine:
     def __init__(self):
         self.llm = OllamaClient()
 
-    def understand(self, text):
+    def _extract_json(self, response):
+        if not response:
+            return None
 
+        text = response.strip()
+        text = re.sub(r"^\s*\`\`\`(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*\`\`\`\s*$", "", text)
+
+        start = text.find("{")
+        end = text.rfind("}")
+
+        if start != -1 and end > start:
+            text = text[start:end + 1]
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+
+        return data if isinstance(data, dict) else None
+
+    def understand(self, text):
         command = text.lower().strip()
 
-        # Common application aliases
-        if command in [
-            "open notepad",
-            "open notebook",
-            "open note",
-            "open text editor",
-            "open text pad",
-        ]:
-            return {
-                "type": "open_application",
-                "application": "notepad"
-            }
+        aliases = {
+            "open notepad": ("open_application", "notepad"),
+            "open notebook": ("open_application", "notepad"),
+            "open note": ("open_application", "notepad"),
+            "open text editor": ("open_application", "notepad"),
+            "open text pad": ("open_application", "notepad"),
+            "open calculator": ("open_application", "calculator"),
+            "open calc": ("open_application", "calculator"),
+            "open paint": ("open_application", "paint"),
+            "open chrome": ("open_application", "chrome"),
+            "start chrome": ("open_application", "chrome"),
+            "open youtube": ("open_website", "youtube"),
+            "open google": ("open_website", "google"),
+            "open github": ("open_website", "github"),
+            "open gmail": ("open_website", "gmail"),
+        }
 
-        if command in [
-            "open calculator",
-            "open calc",
-        ]:
-            return {
-                "type": "open_application",
-                "application": "calculator"
-            }
-
-        if command in [
-            "open paint",
-        ]:
-            return {
-                "type": "open_application",
-                "application": "paint"
-            }
+        if command in aliases:
+            intent_type, value = aliases[command]
+            key = "application" if intent_type == "open_application" else "website"
+            return {"type": intent_type, key: value}
 
         prompt = f"""
-Analyze the user's request and return ONLY valid JSON.
+Analyze the user's request and return ONLY one valid JSON object.
 
-Possible intent types:
+Allowed intent types:
 
 1. conversation
-2. open_application
-3. unknown
+   - Fields: type, response
 
-For application requests, identify the application.
+2. open_application
+   - Launch a desktop application.
+   - Fields: type, application
+
+3. open_website
+   - Supported websites: youtube, google, github, gmail.
+   - Fields: type, website
+
+4. search_web
+   - Fields: type, query
+
+5. open_folder
+   - Supported folders: downloads, documents, desktop, pictures.
+   - Fields: type, folder
+
+6. take_screenshot
+   - Fields: type
+
+7. unknown
+   - Fields: type
 
 Examples:
 
 User: Hello
-Output:
-{{"type": "conversation", "response": "Hello!"}}
+Output: {{"type":"conversation","response":"Hello! How can I help?"}}
 
 User: How are you?
-Output:
-{{"type": "conversation", "response": "I'm doing good. How can I help?"}}
+Output: {{"type":"conversation","response":"I'm doing good. How can I help?"}}
 
-User: Open Notepad
-Output:
-{{"type": "open_application", "application": "notepad"}}
+User: Open Chrome
+Output: {{"type":"open_application","application":"chrome"}}
 
-User: Open Calculator
-Output:
-{{"type": "open_application", "application": "calculator"}}
+User: Open YouTube
+Output: {{"type":"open_website","website":"youtube"}}
+
+User: Search the web for Python decorators
+Output: {{"type":"search_web","query":"Python decorators"}}
+
+User: Open my Downloads folder
+Output: {{"type":"open_folder","folder":"downloads"}}
+
+User: Take a screenshot
+Output: {{"type":"take_screenshot"}}
 
 User: {text}
 
@@ -77,16 +113,9 @@ Return ONLY JSON.
 """
 
         response = self.llm.ask(prompt)
+        intent = self._extract_json(response)
 
-        if not response:
-            return {
-                "type": "unknown"
-            }
+        if intent is None:
+            return {"type": "unknown"}
 
-        try:
-            return json.loads(response)
-
-        except json.JSONDecodeError:
-            return {
-                "type": "unknown"
-            }
+        return intent
