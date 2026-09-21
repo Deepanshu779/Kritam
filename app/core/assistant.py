@@ -70,7 +70,7 @@ class Kritam:
                 self.text_to_speech.speak("Okay. See you later.")
                 break
 
-            intent = self.fast_router.route(text)
+            intent = self.fast_router.route(text, context=self.context)
 
             if intent is not None:
                 print(f"Kritam Fast Intent: {intent}")
