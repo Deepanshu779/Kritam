@@ -37,3 +37,9 @@ class ConversationContext:
             return None
 
         return dict(self.last_successful_intent)
+
+    def last_intent_of_type(self, intent_type):
+        for item in reversed(self.history):
+            if item.get("success") and item.get("intent", {}).get("type") == intent_type:
+                return dict(item["intent"])
+        return None
