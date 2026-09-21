@@ -39,6 +39,9 @@ class Kritam:
         self.action_registry.register("browser_search", self.browser_manager.handle_browser_search)
         self.action_registry.register("browser_open_result", self.browser_manager.handle_open_result)
         self.action_registry.register("browser_back", self.browser_manager.handle_go_back)
+        self.action_registry.register("browser_open_result_by_text", self.browser_manager.handle_open_result_by_text)
+        self.action_registry.register("browser_new_tab", self.browser_manager.handle_new_tab)
+        self.action_registry.register("browser_close_tab", self.browser_manager.handle_close_tab)
         self.action_registry.register("open_folder", self.file_manager.handle_open_folder)
         self.action_registry.register("take_screenshot", self.system_manager.handle_screenshot)
         self.action_registry.register("volume_up", self.system_manager.handle_volume_up)
@@ -103,6 +106,12 @@ class Kritam:
                     self.text_to_speech.speak(f"Opening result {intent['number']}.")
                 elif t == "browser_back":
                     self.text_to_speech.speak("Going back.")
+                elif t == "browser_open_result_by_text":
+                    self.text_to_speech.speak("Opening the matching result.")
+                elif t == "browser_new_tab":
+                    self.text_to_speech.speak("New tab opened.")
+                elif t == "browser_close_tab":
+                    self.text_to_speech.speak("Tab closed.")
                 elif t == "open_folder":
                     self.text_to_speech.speak(f"Opening {intent['folder']}.")
                 elif t == "take_screenshot":
