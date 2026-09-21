@@ -20,6 +20,12 @@ class ActionValidator:
 
     ALLOWED_SYSTEM_ACTIONS = {
         "take_screenshot",
+        "volume_up",
+        "volume_down",
+        "volume_mute",
+        "media_play_pause",
+        "minimize_window",
+        "maximize_window",
     }
 
     def validate(self, intent):
