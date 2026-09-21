@@ -21,6 +21,9 @@ class FastRouter:
         if command in {"task status", "what is the task status", "how is the task going", "what are you doing"}:
             return {"type": "task_status"}
 
+        if command in {"ai status", "ai health", "is ai available", "is the ai working", "check ai"}:
+            return {"type": "ai_status"}
+
         match = re.fullmatch(r"(?:change|set) (?:your )?name to (.+)", command)
         if match:
             return {"type": "set_setting", "key": "assistant_name", "value": match.group(1).strip()}
