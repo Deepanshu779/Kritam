@@ -43,6 +43,12 @@ class Kritam:
         self.action_registry.register("search_web", self.browser_manager.handle_search_web)
         self.action_registry.register("open_folder", self.file_manager.handle_open_folder)
         self.action_registry.register("take_screenshot", self.system_manager.handle_screenshot)
+        self.action_registry.register("volume_up", self.system_manager.handle_volume_up)
+        self.action_registry.register("volume_down", self.system_manager.handle_volume_down)
+        self.action_registry.register("volume_mute", self.system_manager.handle_volume_mute)
+        self.action_registry.register("media_play_pause", self.system_manager.handle_media_play_pause)
+        self.action_registry.register("minimize_window", self.system_manager.handle_minimize_window)
+        self.action_registry.register("maximize_window", self.system_manager.handle_maximize_window)
 
     def start(self):
         print(f"{self.name} is starting...")
@@ -112,5 +118,17 @@ class Kritam:
                     self.text_to_speech.speak(f"Opening {intent['folder']}.")
                 elif action_type == "take_screenshot":
                     self.text_to_speech.speak("Screenshot saved.")
+                elif action_type == "volume_up":
+                    self.text_to_speech.speak("Volume increased.")
+                elif action_type == "volume_down":
+                    self.text_to_speech.speak("Volume decreased.")
+                elif action_type == "volume_mute":
+                    self.text_to_speech.speak("Volume muted.")
+                elif action_type == "media_play_pause":
+                    self.text_to_speech.speak("Playback toggled.")
+                elif action_type == "minimize_window":
+                    self.text_to_speech.speak("Window minimized.")
+                elif action_type == "maximize_window":
+                    self.text_to_speech.speak("Window maximized.")
             else:
                 self.text_to_speech.speak("I couldn't complete that action.")
