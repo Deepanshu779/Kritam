@@ -1,3 +1,6 @@
+import re
+
+
 class FastRouter:
 
     def route(self, text):
@@ -9,65 +12,77 @@ class FastRouter:
             if words[:half] == words[half:]:
                 command = " ".join(words[:half])
 
-        application_aliases = {
-            "open notepad": "notepad",
-            "open notebook": "notepad",
-            "open note": "notepad",
-            "open text editor": "notepad",
-            "open text pad": "notepad",
-            "open calculator": "calculator",
-            "open calc": "calculator",
-            "open paint": "paint",
-            "open chrome": "chrome",
-            "start chrome": "chrome",
-        }
+        application_patterns = [
+            (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
+            (r"^(open|launch|start) (calculator|calc)$", "calculator"),
+            (r"^(open|launch|start) paint$", "paint"),
+            (r"^(open|launch|start) (chrome|google chrome)$", "chrome"),
+            (r"^(open|launch|start) task manager$", "task manager"),
+            (r"^(open|launch|start) (file explorer|explorer)$", "file explorer"),
+            (r"^(open|launch|start) settings$", "settings"),
+        ]
 
-        if command in application_aliases:
-            return {"type": "open_application", "application": application_aliases[command]}
+        for pattern, application in application_patterns:
+            if re.fullmatch(pattern, command):
+                return {
+                    "type": "open_application",
+                    "application": application,
+                }
 
-        website_aliases = {
-            "open youtube": "youtube",
-            "open google": "google",
-            "open github": "github",
-            "open gmail": "gmail",
-        }
+        website_patterns = [
+            (r"^(open|visit|go to) youtube$", "youtube"),
+            (r"^(open|visit|go to) google$", "google"),
+            (r"^(open|visit|go to) github$", "github"),
+            (r"^(open|visit|go to) gmail$", "gmail"),
+        ]
 
-        if command in website_aliases:
-            return {"type": "open_website", "website": website_aliases[command]}
+        for pattern, website in website_patterns:
+            if re.fullmatch(pattern, command):
+                return {
+                    "type": "open_website",
+                    "website": website,
+                }
 
-        search_prefixes = ("search google for ", "search for ", "google ")
-        for prefix in search_prefixes:
-            if command.startswith(prefix):
-                query = command[len(prefix):].strip()
+        search_patterns = (
+            r"^search(?: google)? for (.+)$",
+            r"^search (.+) on google$",
+            r"^google (.+)$",
+        )
+
+        for pattern in search_patterns:
+            match = re.fullmatch(pattern, command)
+            if match:
+                query = match.group(1).strip()
                 if query:
                     return {"type": "search_web", "query": query}
 
-        folder_aliases = {
-            "open downloads": "downloads",
-            "open download folder": "downloads",
-            "open documents": "documents",
-            "open documents folder": "documents",
-            "open desktop": "desktop",
-            "open desktop folder": "desktop",
-            "open pictures": "pictures",
-            "open pictures folder": "pictures",
-        }
+        folder_patterns = [
+            (r"^(open|show) downloads?( folder)?$", "downloads"),
+            (r"^(open|show) documents?( folder)?$", "documents"),
+            (r"^(open|show) desktop( folder)?$", "desktop"),
+            (r"^(open|show) pictures?( folder)?$", "pictures"),
+        ]
 
-        if command in folder_aliases:
-            return {"type": "open_folder", "folder": folder_aliases[command]}
+        for pattern, folder in folder_patterns:
+            if re.fullmatch(pattern, command):
+                return {"type": "open_folder", "folder": folder}
 
-        if command in {
-            "take screenshot",
-            "take a screenshot",
-            "capture screen",
-            "screenshot",
-        }:
+        if re.fullmatch(
+            r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen",
+            command,
+        ):
             return {"type": "take_screenshot"}
 
-        if command in {"hello", "hi", "hey"}:
-            return {"type": "conversation", "response": "Hello! How can I help?"}
+        if command in {"hello", "hi", "hey", "hey kritam"}:
+            return {
+                "type": "conversation",
+                "response": "Hello! How can I help?",
+            }
 
         if command in {"how are you", "how are you doing"}:
-            return {"type": "conversation", "response": "I'm doing good. How can I help?"}
+            return {
+                "type": "conversation",
+                "response": "I'm doing good. How can I help?",
+            }
 
         return None
