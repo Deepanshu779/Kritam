@@ -48,6 +48,7 @@ Allowed intent types:
 - memory_recall: type, key
 - memory_forget: type, key
 - history_summary: type
+- task_status: type
 - unknown: type
 
 Browser rules:
