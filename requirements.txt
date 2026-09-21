@@ -2,3 +2,5 @@ SpeechRecognition
 PyAudio
 pyttsx3
 ollama
+faster-whisper
+Pillow
