@@ -18,6 +18,9 @@ class FastRouter:
         if command in {"what did i do recently", "show recent commands", "show command history", "what have i done recently"}:
             return {"type": "history_summary"}
 
+        if command in {"task status", "what is the task status", "how is the task going", "what are you doing"}:
+            return {"type": "task_status"}
+
         if command in {"what do you remember", "show my memories", "show memories", "what do you know about me"}:
             return {"type": "memory_summary"}
 
