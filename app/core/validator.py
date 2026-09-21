@@ -1,7 +1,13 @@
 class ActionValidator:
 
     ALLOWED_APPLICATIONS = {
-        "notepad", "calculator", "paint", "chrome",
+        "notepad",
+        "calculator",
+        "paint",
+        "chrome",
+        "task manager",
+        "file explorer",
+        "settings",
     }
 
     ALLOWED_WEBSITES = {
@@ -26,16 +32,25 @@ class ActionValidator:
             return True
 
         if intent_type == "open_application":
-            return intent.get("application", "").lower().strip() in self.ALLOWED_APPLICATIONS
+            return (
+                intent.get("application", "").lower().strip()
+                in self.ALLOWED_APPLICATIONS
+            )
 
         if intent_type == "open_website":
-            return intent.get("website", "").lower().strip() in self.ALLOWED_WEBSITES
+            return (
+                intent.get("website", "").lower().strip()
+                in self.ALLOWED_WEBSITES
+            )
 
         if intent_type == "search_web":
             return bool(intent.get("query", "").strip())
 
         if intent_type == "open_folder":
-            return intent.get("folder", "").lower().strip() in self.ALLOWED_FOLDERS
+            return (
+                intent.get("folder", "").lower().strip()
+                in self.ALLOWED_FOLDERS
+            )
 
         if intent_type in self.ALLOWED_SYSTEM_ACTIONS:
             return True
