@@ -10,6 +10,7 @@ from core.validator import ActionValidator
 from actions.applications import ApplicationManager
 from actions.browser import BrowserManager
 from actions.files import FileManager
+from actions.system import SystemManager
 from actions.registry import ActionRegistry
 
 
@@ -29,6 +30,7 @@ class Kritam:
         self.application_manager = ApplicationManager()
         self.browser_manager = BrowserManager()
         self.file_manager = FileManager()
+        self.system_manager = SystemManager()
 
         self.action_registry = ActionRegistry()
         self._register_actions()
@@ -38,24 +40,24 @@ class Kritam:
             "open_application",
             self.application_manager.handle_open_application,
         )
-
         self.action_registry.register(
             "open_website",
             self.browser_manager.handle_open_website,
         )
-
         self.action_registry.register(
             "search_web",
             self.browser_manager.handle_search_web,
         )
-
         self.action_registry.register(
             "open_folder",
             self.file_manager.handle_open_folder,
         )
+        self.action_registry.register(
+            "take_screenshot",
+            self.system_manager.handle_screenshot,
+        )
 
     def start(self):
-
         print(f"{self.name} is starting...")
 
         self.text_to_speech.speak(
@@ -112,22 +114,22 @@ class Kritam:
                     self.text_to_speech.speak(
                         f"Opening {intent['application']}."
                     )
-
                 elif action_type == "open_website":
                     self.text_to_speech.speak(
                         f"Opening {intent['website']}."
                     )
-
                 elif action_type == "search_web":
                     self.text_to_speech.speak(
                         "Searching the web."
                     )
-
                 elif action_type == "open_folder":
                     self.text_to_speech.speak(
                         f"Opening {intent['folder']}."
                     )
-
+                elif action_type == "take_screenshot":
+                    self.text_to_speech.speak(
+                        "Screenshot saved."
+                    )
             else:
                 self.text_to_speech.speak(
                     "I couldn't complete that action."
