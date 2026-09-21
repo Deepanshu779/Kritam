@@ -3,21 +3,32 @@ class FastRouter:
     def route(self, text):
         command = text.lower().strip()
 
+        # Remove an accidental repeated command from STT.
+        words = command.split()
+        if len(words) >= 4 and len(words) % 2 == 0:
+            half = len(words) // 2
+            if words[:half] == words[half:]:
+                command = " ".join(words[:half])
+
         # Applications
-        if command in {
-            "open notepad",
-            "open notebook",
-            "open note",
-            "open text editor",
-            "open text pad",
-        }:
-            return {"type": "open_application", "application": "notepad"}
+        application_aliases = {
+            "open notepad": "notepad",
+            "open notebook": "notepad",
+            "open note": "notepad",
+            "open text editor": "notepad",
+            "open text pad": "notepad",
+            "open calculator": "calculator",
+            "open calc": "calculator",
+            "open paint": "paint",
+            "open chrome": "chrome",
+            "start chrome": "chrome",
+        }
 
-        if command in {"open calculator", "open calc"}:
-            return {"type": "open_application", "application": "calculator"}
-
-        if command == "open paint":
-            return {"type": "open_application", "application": "paint"}
+        if command in application_aliases:
+            return {
+                "type": "open_application",
+                "application": application_aliases[command],
+            }
 
         # Websites
         website_aliases = {
@@ -44,7 +55,10 @@ class FastRouter:
             if command.startswith(prefix):
                 query = command[len(prefix):].strip()
                 if query:
-                    return {"type": "search_web", "query": query}
+                    return {
+                        "type": "search_web",
+                        "query": query,
+                    }
 
         # Common folders
         folder_aliases = {
