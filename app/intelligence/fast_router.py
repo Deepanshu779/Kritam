@@ -21,6 +21,15 @@ class FastRouter:
         if command in {"task status", "what is the task status", "how is the task going", "what are you doing"}:
             return {"type": "task_status"}
 
+        match = re.fullmatch(r"(?:change|set) (?:your )?name to (.+)", command)
+        if match:
+            return {"type": "set_setting", "key": "assistant_name", "value": match.group(1).strip()}
+
+        match = re.fullmatch(r"(?:change|set) language to (english|hindi|hinglish)", command)
+        if match:
+            return {"type": "set_setting", "key": "language", "value": match.group(1).strip()}
+
+
         if command in {"what do you remember", "show my memories", "show memories", "what do you know about me"}:
             return {"type": "memory_summary"}
 
