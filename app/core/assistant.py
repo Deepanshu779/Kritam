@@ -21,17 +21,14 @@ class Kritam:
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
         self.text_to_speech = TextToSpeech()
-
         self.fast_router = FastRouter()
         self.intent_engine = IntentEngine()
         self.context = ConversationContext()
         self.validator = ActionValidator()
-
         self.application_manager = ApplicationManager()
         self.browser_manager = BrowserManager()
         self.file_manager = FileManager()
         self.system_manager = SystemManager()
-
         self.action_registry = ActionRegistry()
         self._register_actions()
 
@@ -40,10 +37,8 @@ class Kritam:
         self.action_registry.register("open_website", self.browser_manager.handle_open_website)
         self.action_registry.register("search_web", self.browser_manager.handle_search_web)
         self.action_registry.register("browser_search", self.browser_manager.handle_browser_search)
-        self.action_registry.register(
-            "browser_open_first_result",
-            self.browser_manager.handle_open_first_result,
-        )
+        self.action_registry.register("browser_open_result", self.browser_manager.handle_open_result)
+        self.action_registry.register("browser_back", self.browser_manager.handle_go_back)
         self.action_registry.register("open_folder", self.file_manager.handle_open_folder)
         self.action_registry.register("take_screenshot", self.system_manager.handle_screenshot)
         self.action_registry.register("volume_up", self.system_manager.handle_volume_up)
@@ -56,38 +51,30 @@ class Kritam:
     def start(self):
         print(f"{self.name} is starting...")
         self.text_to_speech.speak("Hello. Kritam is ready.")
-
         while True:
             audio = self.listener.listen()
             if audio is None:
                 continue
-
             text = self.speech_to_text.convert(audio)
             if not text:
                 continue
-
             print(f"You: {text}")
             command = text.lower().strip()
-
             if command in {"exit", "quit", "stop"}:
                 self.text_to_speech.speak("Okay. See you later.")
                 break
 
             intent = self.fast_router.route(text, context=self.context)
-
-            if intent is not None:
-                print(f"Kritam Fast Intent: {intent}")
-            else:
+            if intent is None:
                 print("Kritam: Using AI...")
                 intent = self.intent_engine.understand(text, context=self.context)
-                print(f"Kritam AI Intent: {intent}")
+            print(f"Kritam Intent: {intent}")
 
             if intent.get("type") == "repeat_last_action":
                 intent = self.context.repeat_last()
                 if intent is None:
                     self.text_to_speech.speak("There is no previous successful action to repeat.")
                     continue
-                print(f"Kritam Repeat Intent: {intent}")
 
             if not self.validator.validate(intent):
                 self.text_to_speech.speak("I can't perform that action yet.")
@@ -103,32 +90,34 @@ class Kritam:
             self.context.add_turn(text, intent, success)
 
             if success:
-                action_type = intent["type"]
-                if action_type == "open_application":
+                t = intent["type"]
+                if t == "open_application":
                     self.text_to_speech.speak(f"Opening {intent['application']}.")
-                elif action_type == "open_website":
+                elif t == "open_website":
                     self.text_to_speech.speak(f"Opening {intent['website']}.")
-                elif action_type == "search_web":
+                elif t == "search_web":
                     self.text_to_speech.speak("Searching the web.")
-                elif action_type == "browser_search":
-                    self.text_to_speech.speak("I searched the browser and showed the results.")
-                elif action_type == "browser_open_first_result":
-                    self.text_to_speech.speak("Opening the first search result.")
-                elif action_type == "open_folder":
+                elif t == "browser_search":
+                    self.text_to_speech.speak("Search results are ready.")
+                elif t == "browser_open_result":
+                    self.text_to_speech.speak(f"Opening result {intent['number']}.")
+                elif t == "browser_back":
+                    self.text_to_speech.speak("Going back.")
+                elif t == "open_folder":
                     self.text_to_speech.speak(f"Opening {intent['folder']}.")
-                elif action_type == "take_screenshot":
+                elif t == "take_screenshot":
                     self.text_to_speech.speak("Screenshot saved.")
-                elif action_type == "volume_up":
+                elif t == "volume_up":
                     self.text_to_speech.speak("Volume increased.")
-                elif action_type == "volume_down":
+                elif t == "volume_down":
                     self.text_to_speech.speak("Volume decreased.")
-                elif action_type == "volume_mute":
+                elif t == "volume_mute":
                     self.text_to_speech.speak("Volume muted.")
-                elif action_type == "media_play_pause":
+                elif t == "media_play_pause":
                     self.text_to_speech.speak("Playback toggled.")
-                elif action_type == "minimize_window":
+                elif t == "minimize_window":
                     self.text_to_speech.speak("Window minimized.")
-                elif action_type == "maximize_window":
+                elif t == "maximize_window":
                     self.text_to_speech.speak("Window maximized.")
             else:
                 self.text_to_speech.speak("I couldn't complete that action.")
