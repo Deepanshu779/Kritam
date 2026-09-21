@@ -106,6 +106,17 @@ class Kritam:
             self.text_to_speech.speak("I've forgotten that." if success else "I don't have that saved.")
             return success
 
+        if t == "set_setting":
+            success = self.settings.set(intent["key"], intent["value"])
+            if success and intent["key"] == "assistant_name":
+                self.name = intent["value"]
+            self.context.add_turn(text, intent, success)
+            self.history.add(text, intent, success)
+            self.text_to_speech.speak(
+                "Setting updated." if success else "I couldn't update that setting."
+            )
+            return success
+
         if t == "task_status":
             self.text_to_speech.speak(self.task_manager.status_text())
             self.context.add_turn(text, intent, True)
