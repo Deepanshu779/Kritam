@@ -18,8 +18,16 @@ class FastRouter:
         if command in {"what do you remember", "show my memories", "show memories", "what do you know about me"}:
             return {"type": "memory_summary"}
 
+        match = re.fullmatch(r"(?:what is|what\'s|tell me) my (.+)", command)
+        if match:
+            return {"type": "memory_recall", "key": match.group(1).strip()}
+
         if command in {"clear memory", "forget everything you remember", "delete saved memories"}:
             return {"type": "memory_clear"}
+
+        match = re.fullmatch(r"(?:forget|forget my) (.+)", command)
+        if match:
+            return {"type": "memory_forget", "key": match.group(1).strip()}
 
         match = re.fullmatch(r"remember (?:that )?my (.+?) is (.+)", command)
         if match:
