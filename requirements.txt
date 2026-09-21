@@ -4,3 +4,4 @@ pyttsx3
 ollama
 faster-whisper
 Pillow
+playwright
