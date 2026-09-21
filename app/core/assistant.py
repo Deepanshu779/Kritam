@@ -4,7 +4,6 @@ from voice.text_to_speech import TextToSpeech
 
 from brain.intent_engine import IntentEngine
 from intelligence.fast_router import FastRouter
-
 from core.context import ConversationContext
 from core.validator import ActionValidator
 
@@ -19,7 +18,6 @@ class Kritam:
 
     def __init__(self):
         self.name = "Kritam"
-
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
         self.text_to_speech = TextToSpeech()
@@ -41,6 +39,11 @@ class Kritam:
         self.action_registry.register("open_application", self.application_manager.handle_open_application)
         self.action_registry.register("open_website", self.browser_manager.handle_open_website)
         self.action_registry.register("search_web", self.browser_manager.handle_search_web)
+        self.action_registry.register("browser_search", self.browser_manager.handle_browser_search)
+        self.action_registry.register(
+            "browser_open_first_result",
+            self.browser_manager.handle_open_first_result,
+        )
         self.action_registry.register("open_folder", self.file_manager.handle_open_folder)
         self.action_registry.register("take_screenshot", self.system_manager.handle_screenshot)
         self.action_registry.register("volume_up", self.system_manager.handle_volume_up)
@@ -81,13 +84,9 @@ class Kritam:
 
             if intent.get("type") == "repeat_last_action":
                 intent = self.context.repeat_last()
-
                 if intent is None:
-                    self.text_to_speech.speak(
-                        "There is no previous successful action to repeat."
-                    )
+                    self.text_to_speech.speak("There is no previous successful action to repeat.")
                     continue
-
                 print(f"Kritam Repeat Intent: {intent}")
 
             if not self.validator.validate(intent):
@@ -96,9 +95,7 @@ class Kritam:
                 continue
 
             if intent["type"] == "conversation":
-                self.text_to_speech.speak(
-                    intent.get("response", "How can I help?")
-                )
+                self.text_to_speech.speak(intent.get("response", "How can I help?"))
                 self.context.add_turn(text, intent, True)
                 continue
 
@@ -107,13 +104,16 @@ class Kritam:
 
             if success:
                 action_type = intent["type"]
-
                 if action_type == "open_application":
                     self.text_to_speech.speak(f"Opening {intent['application']}.")
                 elif action_type == "open_website":
                     self.text_to_speech.speak(f"Opening {intent['website']}.")
                 elif action_type == "search_web":
                     self.text_to_speech.speak("Searching the web.")
+                elif action_type == "browser_search":
+                    self.text_to_speech.speak("I searched the browser and showed the results.")
+                elif action_type == "browser_open_first_result":
+                    self.text_to_speech.speak("Opening the first search result.")
                 elif action_type == "open_folder":
                     self.text_to_speech.speak(f"Opening {intent['folder']}.")
                 elif action_type == "take_screenshot":
