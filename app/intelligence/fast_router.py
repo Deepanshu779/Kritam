@@ -15,6 +15,20 @@ class FastRouter:
         if command in {"repeat", "repeat that", "do that again", "again", "repeat last action"}:
             return {"type": "repeat_last_action"}
 
+        if command in {"what do you remember", "show my memories", "show memories", "what do you know about me"}:
+            return {"type": "memory_summary"}
+
+        if command in {"clear memory", "forget everything you remember", "delete saved memories"}:
+            return {"type": "memory_clear"}
+
+        match = re.fullmatch(r"remember (?:that )?my (.+?) is (.+)", command)
+        if match:
+            return {
+                "type": "memory_remember",
+                "key": match.group(1).strip(),
+                "value": match.group(2).strip(),
+            }
+
         if command in {"search that again", "repeat the search", "search again", "repeat last search"}:
             previous = context.last_intent_of_type("search_web") if context else None
             if previous:
