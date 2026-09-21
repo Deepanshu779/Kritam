@@ -15,10 +15,7 @@ class FastRouter:
         if command in {"repeat", "repeat that", "do that again", "again", "repeat last action"}:
             return {"type": "repeat_last_action"}
 
-        if command in {
-            "search that again", "repeat the search",
-            "search again", "repeat last search",
-        }:
+        if command in {"search that again", "repeat the search", "search again", "repeat last search"}:
             previous = context.last_intent_of_type("search_web") if context else None
             if previous:
                 return dict(previous)
@@ -42,11 +39,15 @@ class FastRouter:
         if command in {"maximize window", "maximize this window", "maximize"}:
             return {"type": "maximize_window"}
 
-        if command in {
-            "open first result", "open the first result",
-            "open first search result", "open the first search result",
-        }:
-            return {"type": "browser_open_first_result"}
+        if command in {"open first result", "open the first result", "open first search result", "open the first search result"}:
+            return {"type": "browser_open_result", "number": 1}
+
+        if command in {"go back", "browser back", "go back in browser", "back"}:
+            return {"type": "browser_back"}
+
+        match = re.fullmatch(r"open (?:the )?(?:result )?(?:number )?([1-5])", command)
+        if match:
+            return {"type": "browser_open_result", "number": int(match.group(1))}
 
         application_patterns = [
             (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
@@ -57,7 +58,6 @@ class FastRouter:
             (r"^(open|launch|start) (file explorer|explorer)$", "file explorer"),
             (r"^(open|launch|start) settings$", "settings"),
         ]
-
         for pattern, application in application_patterns:
             if re.fullmatch(pattern, command):
                 return {"type": "open_application", "application": application}
@@ -68,17 +68,15 @@ class FastRouter:
             (r"^(open|visit|go to) github$", "github"),
             (r"^(open|visit|go to) gmail$", "gmail"),
         ]
-
         for pattern, website in website_patterns:
             if re.fullmatch(pattern, command):
                 return {"type": "open_website", "website": website}
 
-        browser_search_patterns = (
+        browser_patterns = (
             r"^(browse|browser|search in browser|search the browser) (.+)$",
             r"^(search and show|search with browser) (.+)$",
         )
-
-        for pattern in browser_search_patterns:
+        for pattern in browser_patterns:
             match = re.fullmatch(pattern, command)
             if match:
                 return {"type": "browser_search", "query": match.group(2)}
@@ -88,7 +86,6 @@ class FastRouter:
             r"^search (.+) on google$",
             r"^google (.+)$",
         )
-
         for pattern in search_patterns:
             match = re.fullmatch(pattern, command)
             if match:
@@ -102,7 +99,6 @@ class FastRouter:
             (r"^(open|show) desktop( folder)?$", "desktop"),
             (r"^(open|show) pictures?( folder)?$", "pictures"),
         ]
-
         for pattern, folder in folder_patterns:
             if re.fullmatch(pattern, command):
                 return {"type": "open_folder", "folder": folder}
