@@ -20,5 +20,9 @@ class ApplicationManager:
             os.startfile(self.applications[application_name])
             return True
 
-        except Exception:
+        except (OSError, ValueError):
             return False
+
+    def handle_open_application(self, intent):
+        application = intent.get("application", "")
+        return self.open_application(application)
