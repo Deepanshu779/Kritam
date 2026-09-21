@@ -45,6 +45,15 @@ class PersistentMemory:
     def recall(self, key):
         return self.data["facts"].get(key.strip().lower())
 
+    def find(self, phrase):
+        phrase = phrase.strip().lower()
+        if not phrase:
+            return None
+        for key, value in self.data["facts"].items():
+            if phrase in key or phrase in value.lower():
+                return {"key": key, "value": value}
+        return None
+
     def all_facts(self):
         return dict(self.data.get("facts", {}))
 
