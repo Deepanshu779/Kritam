@@ -3,6 +3,7 @@ from voice.speech_to_text import SpeechToText
 from voice.text_to_speech import TextToSpeech
 
 from brain.intent_engine import IntentEngine
+from intelligence.fast_router import FastRouter
 from core.validator import ActionValidator
 
 from actions.applications import ApplicationManager
@@ -15,11 +16,16 @@ class Kritam:
 
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
+
         self.text_to_speech = TextToSpeech()
 
-        self.intent_engine = IntentEngine()
-        self.validator = ActionValidator()
+        # Fast local routing for simple commands.
+        self.fast_router = FastRouter()
 
+        # AI is used only when the fast router cannot handle a request.
+        self.intent_engine = IntentEngine()
+
+        self.validator = ActionValidator()
         self.application_manager = ApplicationManager()
 
     def start(self):
@@ -44,12 +50,10 @@ class Kritam:
 
             print(f"You: {text}")
 
-            intent = self.intent_engine.understand(text)
+            command = text.lower().strip()
 
-            print(f"Kritam Intent: {intent}")
-
-            # Exit
-            if text.lower().strip() in ["exit", "quit", "stop"]:
+            # Exit without using AI.
+            if command in {"exit", "quit", "stop"}:
 
                 self.text_to_speech.speak(
                     "Okay. See you later."
@@ -57,7 +61,31 @@ class Kritam:
 
                 break
 
-            # Validate
+            # ==================================================
+            # FAST PATH
+            # ==================================================
+            # Simple known commands never go through Ollama.
+            intent = self.fast_router.route(text)
+
+            if intent is not None:
+
+                print(f"Kritam Fast Intent: {intent}")
+
+            # ==================================================
+            # AI PATH
+            # ==================================================
+            else:
+
+                print("Kritam: Using AI...")
+
+                intent = self.intent_engine.understand(text)
+
+                print(f"Kritam AI Intent: {intent}")
+
+            # ==================================================
+            # VALIDATION
+            # ==================================================
+
             if not self.validator.validate(intent):
 
                 self.text_to_speech.speak(
@@ -66,7 +94,10 @@ class Kritam:
 
                 continue
 
-            # Conversation
+            # ==================================================
+            # CONVERSATION
+            # ==================================================
+
             if intent["type"] == "conversation":
 
                 response = intent.get(
@@ -76,7 +107,10 @@ class Kritam:
 
                 self.text_to_speech.speak(response)
 
-            # Open application
+            # ==================================================
+            # APPLICATION
+            # ==================================================
+
             elif intent["type"] == "open_application":
 
                 application = intent["application"]
