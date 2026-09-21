@@ -10,6 +10,7 @@ from core.memory import PersistentMemory
 from core.settings import Settings
 from core.task_planner import TaskPlanner
 from core.history import CommandHistory
+from core.task_manager import TaskManager
 
 from actions.applications import ApplicationManager
 from actions.browser import BrowserManager
@@ -26,6 +27,7 @@ class Kritam:
         self.memory = PersistentMemory()
         self.history = CommandHistory()
         self.planner = TaskPlanner()
+        self.task_manager = TaskManager()
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
         self.text_to_speech = TextToSpeech()
@@ -103,6 +105,12 @@ class Kritam:
             self.history.add(text, intent, success)
             self.text_to_speech.speak("I've forgotten that." if success else "I don't have that saved.")
             return success
+
+        if t == "task_status":
+            self.text_to_speech.speak(self.task_manager.status_text())
+            self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
+            return True
 
         if t == "history_summary":
             recent = self.history.recent(5)
@@ -193,10 +201,19 @@ class Kritam:
                 break
 
             tasks = self.planner.split(text)
+            self.task_manager.start(text, len(tasks))
+            print(f"Kritam Plan: {self.planner.describe(tasks)}")
 
             for task in tasks:
                 if task.lower() in {"exit", "quit", "stop"}:
                     self.text_to_speech.speak("Okay. See you later.")
                     return
 
-                self._process_command(task)
+                success = self._process_command(task)
+                self.task_manager.complete(success)
+                if not success and len(tasks) > 1:
+                    self.task_manager.fail()
+                    self.text_to_speech.speak("The task stopped because a step failed.")
+                    break
+            else:
+                self.task_manager.finish()
