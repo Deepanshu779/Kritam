@@ -104,6 +104,18 @@ class Kritam:
             self.text_to_speech.speak("I've forgotten that." if success else "I don't have that saved.")
             return success
 
+        if t == "history_summary":
+            recent = self.history.recent(5)
+            if not recent:
+                response = "There is no command history yet."
+            else:
+                response = "Recently: " + ". ".join(
+                    item["command"] for item in recent
+                )
+            self.text_to_speech.speak(response)
+            self.context.add_turn(text, intent, True)
+            return True
+
         if t == "memory_summary":
             self.text_to_speech.speak(self.memory.summary())
             self.context.add_turn(text, intent, True)
