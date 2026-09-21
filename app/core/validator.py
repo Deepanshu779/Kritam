@@ -8,7 +8,7 @@ class ActionValidator:
         "browser_search", "browser_open_result", "browser_open_result_by_text",
         "browser_back", "browser_new_tab", "browser_close_tab",
     }
-    ALLOWED_MEMORY_ACTIONS = {"memory_summary", "memory_clear", "memory_remember", "memory_recall", "memory_forget", "history_summary", "task_status"}
+    ALLOWED_MEMORY_ACTIONS = {"memory_summary", "memory_clear", "memory_remember", "memory_recall", "memory_forget", "history_summary", "task_status", "set_setting"}
 
     def validate(self, intent):
         if not isinstance(intent, dict):
@@ -34,6 +34,8 @@ class ActionValidator:
             return bool(intent.get("text", "").strip())
         if t == "memory_summary" or t == "memory_clear":
             return True
+        if t == "set_setting":
+            return intent.get("key") in {"assistant_name", "language"} and bool(intent.get("value", "").strip())
         if t == "memory_remember":
             return bool(intent.get("key", "").strip()) and bool(intent.get("value", "").strip())
         if t in {"memory_recall", "memory_forget"}:
