@@ -8,7 +8,7 @@ class ActionValidator:
         "browser_search", "browser_open_result", "browser_open_result_by_text",
         "browser_back", "browser_new_tab", "browser_close_tab",
     }
-    ALLOWED_MEMORY_ACTIONS = {"memory_summary", "memory_clear", "memory_remember", "memory_recall", "memory_forget"}
+    ALLOWED_MEMORY_ACTIONS = {"memory_summary", "memory_clear", "memory_remember", "memory_recall", "memory_forget", "history_summary"}
 
     def validate(self, intent):
         if not isinstance(intent, dict):
