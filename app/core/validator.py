@@ -4,6 +4,7 @@ class ActionValidator:
         "notepad",
         "calculator",
         "paint",
+        "chrome",
     }
 
     ALLOWED_WEBSITES = {
