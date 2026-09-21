@@ -8,6 +8,8 @@ from core.context import ConversationContext
 from core.validator import ActionValidator
 from core.memory import PersistentMemory
 from core.settings import Settings
+from core.task_planner import TaskPlanner
+from core.history import CommandHistory
 
 from actions.applications import ApplicationManager
 from actions.browser import BrowserManager
@@ -22,6 +24,8 @@ class Kritam:
         self.settings = Settings()
         self.name = self.settings.get("assistant_name", "Kritam")
         self.memory = PersistentMemory()
+        self.history = CommandHistory()
+        self.planner = TaskPlanner()
         self.listener = VoiceListener()
         self.speech_to_text = SpeechToText()
         self.text_to_speech = TextToSpeech()
@@ -55,104 +59,132 @@ class Kritam:
         self.action_registry.register("minimize_window", self.system_manager.handle_minimize_window)
         self.action_registry.register("maximize_window", self.system_manager.handle_maximize_window)
 
+    def _handle_intent(self, text, intent):
+        if intent.get("type") == "repeat_last_action":
+            intent = self.context.repeat_last()
+            if intent is None:
+                self.text_to_speech.speak("There is no previous successful action to repeat.")
+                return False
+
+        if not self.validator.validate(intent):
+            self.text_to_speech.speak("I can't perform that action yet.")
+            self.context.add_turn(text, intent, False)
+            self.history.add(text, intent, False)
+            return False
+
+        t = intent["type"]
+
+        if t == "memory_remember":
+            success = self.memory.remember(intent["key"], intent["value"])
+            self.context.add_turn(text, intent, success)
+            self.history.add(text, intent, success)
+            self.text_to_speech.speak("I'll remember that." if success else "I couldn't save that memory.")
+            return success
+
+        if t == "memory_recall":
+            result = self.memory.find(intent["key"])
+            self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
+            if result:
+                self.text_to_speech.speak(f"Your {result['key']} is {result['value']}.")
+            else:
+                self.text_to_speech.speak("I don't have that saved.")
+            return True
+
+        if t == "memory_forget":
+            key = intent["key"].strip().lower()
+            facts = self.memory.all_facts()
+            matched = next((k for k in facts if key in k), None)
+            success = False
+            if matched:
+                self.memory.data["facts"].pop(matched, None)
+                success = self.memory._save()
+            self.context.add_turn(text, intent, success)
+            self.history.add(text, intent, success)
+            self.text_to_speech.speak("I've forgotten that." if success else "I don't have that saved.")
+            return success
+
+        if t == "memory_summary":
+            self.text_to_speech.speak(self.memory.summary())
+            self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
+            return True
+
+        if t == "memory_clear":
+            success = self.memory.clear()
+            self.context.add_turn(text, intent, success)
+            self.history.add(text, intent, success)
+            self.text_to_speech.speak("Saved memory cleared." if success else "I couldn't clear saved memory.")
+            return success
+
+        if t == "conversation":
+            self.text_to_speech.speak(intent.get("response", "How can I help?"))
+            self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
+            return True
+
+        success = self.action_registry.execute(intent)
+        self.context.add_turn(text, intent, success)
+        self.history.add(text, intent, success)
+
+        if success:
+            messages = {
+                "open_application": f"Opening {intent['application']}.",
+                "open_website": f"Opening {intent['website']}.",
+                "search_web": "Searching the web.",
+                "browser_search": "Search results are ready.",
+                "browser_open_result": f"Opening result {intent['number']}.",
+                "browser_back": "Going back.",
+                "browser_open_result_by_text": "Opening the matching result.",
+                "browser_new_tab": "New tab opened.",
+                "browser_close_tab": "Tab closed.",
+                "open_folder": f"Opening {intent['folder']}.",
+                "take_screenshot": "Screenshot saved.",
+                "volume_up": "Volume increased.",
+                "volume_down": "Volume decreased.",
+                "volume_mute": "Volume muted.",
+                "media_play_pause": "Playback toggled.",
+                "minimize_window": "Window minimized.",
+                "maximize_window": "Window maximized.",
+            }
+            self.text_to_speech.speak(messages.get(t, "Done."))
+        else:
+            self.text_to_speech.speak("I couldn't complete that action.")
+        return success
+
+    def _process_command(self, text):
+        intent = self.fast_router.route(text, context=self.context)
+        if intent is None:
+            print("Kritam: Using AI...")
+            intent = self.intent_engine.understand(text, context=self.context)
+        print(f"Kritam Intent: {intent}")
+        return self._handle_intent(text, intent)
+
     def start(self):
         print(f"{self.name} is starting...")
-        self.text_to_speech.speak("Hello. Kritam is ready.")
+        self.text_to_speech.speak(f"Hello. {self.name} is ready.")
+
         while True:
             audio = self.listener.listen()
             if audio is None:
                 continue
+
             text = self.speech_to_text.convert(audio)
             if not text:
                 continue
+
             print(f"You: {text}")
             command = text.lower().strip()
+
             if command in {"exit", "quit", "stop"}:
                 self.text_to_speech.speak("Okay. See you later.")
                 break
 
-            intent = self.fast_router.route(text, context=self.context)
-            if intent is None:
-                print("Kritam: Using AI...")
-                intent = self.intent_engine.understand(text, context=self.context)
-            print(f"Kritam Intent: {intent}")
+            tasks = self.planner.split(text)
 
-            if intent.get("type") == "repeat_last_action":
-                intent = self.context.repeat_last()
-                if intent is None:
-                    self.text_to_speech.speak("There is no previous successful action to repeat.")
-                    continue
+            for task in tasks:
+                if task.lower() in {"exit", "quit", "stop"}:
+                    self.text_to_speech.speak("Okay. See you later.")
+                    return
 
-            if not self.validator.validate(intent):
-                self.text_to_speech.speak("I can't perform that action yet.")
-                self.context.add_turn(text, intent, False)
-                continue
-
-            if intent["type"] == "memory_remember":
-                success = self.memory.remember(intent["key"], intent["value"])
-                self.context.add_turn(text, intent, success)
-                self.text_to_speech.speak(
-                    "I'll remember that." if success else "I couldn't save that memory."
-                )
-                continue
-
-            if intent["type"] == "memory_summary":
-                summary = self.memory.summary()
-                self.text_to_speech.speak(summary)
-                self.context.add_turn(text, intent, True)
-                continue
-
-            if intent["type"] == "memory_clear":
-                success = self.memory.clear()
-                self.context.add_turn(text, intent, success)
-                self.text_to_speech.speak(
-                    "Saved memory cleared." if success else "I couldn't clear saved memory."
-                )
-                continue
-
-            if intent["type"] == "conversation":
-                self.text_to_speech.speak(intent.get("response", "How can I help?"))
-                self.context.add_turn(text, intent, True)
-                continue
-
-            success = self.action_registry.execute(intent)
-            self.context.add_turn(text, intent, success)
-
-            if success:
-                t = intent["type"]
-                if t == "open_application":
-                    self.text_to_speech.speak(f"Opening {intent['application']}.")
-                elif t == "open_website":
-                    self.text_to_speech.speak(f"Opening {intent['website']}.")
-                elif t == "search_web":
-                    self.text_to_speech.speak("Searching the web.")
-                elif t == "browser_search":
-                    self.text_to_speech.speak("Search results are ready.")
-                elif t == "browser_open_result":
-                    self.text_to_speech.speak(f"Opening result {intent['number']}.")
-                elif t == "browser_back":
-                    self.text_to_speech.speak("Going back.")
-                elif t == "browser_open_result_by_text":
-                    self.text_to_speech.speak("Opening the matching result.")
-                elif t == "browser_new_tab":
-                    self.text_to_speech.speak("New tab opened.")
-                elif t == "browser_close_tab":
-                    self.text_to_speech.speak("Tab closed.")
-                elif t == "open_folder":
-                    self.text_to_speech.speak(f"Opening {intent['folder']}.")
-                elif t == "take_screenshot":
-                    self.text_to_speech.speak("Screenshot saved.")
-                elif t == "volume_up":
-                    self.text_to_speech.speak("Volume increased.")
-                elif t == "volume_down":
-                    self.text_to_speech.speak("Volume decreased.")
-                elif t == "volume_mute":
-                    self.text_to_speech.speak("Volume muted.")
-                elif t == "media_play_pause":
-                    self.text_to_speech.speak("Playback toggled.")
-                elif t == "minimize_window":
-                    self.text_to_speech.speak("Window minimized.")
-                elif t == "maximize_window":
-                    self.text_to_speech.speak("Window maximized.")
-            else:
-                self.text_to_speech.speak("I couldn't complete that action.")
+                self._process_command(task)
