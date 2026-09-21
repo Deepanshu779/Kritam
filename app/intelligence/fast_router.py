@@ -39,6 +39,12 @@ class FastRouter:
         if command in {"maximize window", "maximize this window", "maximize"}:
             return {"type": "maximize_window"}
 
+        if command in {"new tab", "open new tab", "create new tab"}:
+            return {"type": "browser_new_tab"}
+
+        if command in {"close tab", "close this tab", "close current tab"}:
+            return {"type": "browser_close_tab"}
+
         if command in {"open first result", "open the first result", "open first search result", "open the first search result"}:
             return {"type": "browser_open_result", "number": 1}
 
@@ -48,6 +54,10 @@ class FastRouter:
         match = re.fullmatch(r"open (?:the )?(?:result )?(?:number )?([1-5])", command)
         if match:
             return {"type": "browser_open_result", "number": int(match.group(1))}
+
+        match = re.fullmatch(r"(?:open|show) (?:the )?result (?:about|for) (.+)", command)
+        if match:
+            return {"type": "browser_open_result_by_text", "text": match.group(1).strip()}
 
         application_patterns = [
             (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
