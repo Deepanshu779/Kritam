@@ -1,12 +1,12 @@
 import json
 
-from brain.ollama_client import OllamaClient
+from brain.ai_provider_manager import AIProviderManager
 
 
 class IntentEngine:
 
     def __init__(self):
-        self.llm = OllamaClient()
+        self.ai = AIProviderManager()
 
     def _extract_json(self, response):
         if not response:
@@ -67,6 +67,6 @@ User: {text}
 
 Return ONLY JSON.
 """
-        response = self.llm.ask(prompt)
+        response = self.ai.ask(prompt)
         intent = self._extract_json(response)
         return intent if intent is not None else {"type": "unknown"}
