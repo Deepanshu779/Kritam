@@ -12,6 +12,9 @@ class FastRouter:
             if words[:half] == words[half:]:
                 command = " ".join(words[:half])
 
+        if command in {"repeat", "repeat that", "do that again", "again", "repeat last action"}:
+            return {"type": "repeat_last_action"}
+
         application_patterns = [
             (r"^(open|launch|start) (notepad|notebook|note|text editor|text pad)$", "notepad"),
             (r"^(open|launch|start) (calculator|calc)$", "calculator"),
@@ -24,10 +27,7 @@ class FastRouter:
 
         for pattern, application in application_patterns:
             if re.fullmatch(pattern, command):
-                return {
-                    "type": "open_application",
-                    "application": application,
-                }
+                return {"type": "open_application", "application": application}
 
         website_patterns = [
             (r"^(open|visit|go to) youtube$", "youtube"),
@@ -38,10 +38,7 @@ class FastRouter:
 
         for pattern, website in website_patterns:
             if re.fullmatch(pattern, command):
-                return {
-                    "type": "open_website",
-                    "website": website,
-                }
+                return {"type": "open_website", "website": website}
 
         search_patterns = (
             r"^search(?: google)? for (.+)$",
@@ -67,22 +64,13 @@ class FastRouter:
             if re.fullmatch(pattern, command):
                 return {"type": "open_folder", "folder": folder}
 
-        if re.fullmatch(
-            r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen",
-            command,
-        ):
+        if re.fullmatch(r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen", command):
             return {"type": "take_screenshot"}
 
         if command in {"hello", "hi", "hey", "hey kritam"}:
-            return {
-                "type": "conversation",
-                "response": "Hello! How can I help?",
-            }
+            return {"type": "conversation", "response": "Hello! How can I help?"}
 
         if command in {"how are you", "how are you doing"}:
-            return {
-                "type": "conversation",
-                "response": "I'm doing good. How can I help?",
-            }
+            return {"type": "conversation", "response": "I'm doing good. How can I help?"}
 
         return None
