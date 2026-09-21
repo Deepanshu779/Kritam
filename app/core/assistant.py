@@ -76,7 +76,14 @@ class Kritam:
 
         t = intent["type"]
 
-        if t == "ai_status":\n            status = self.intent_engine.ai.status_text()\n            self.text_to_speech.speak(status)\n            self.context.add_turn(text, intent, True)\n            self.history.add(text, intent, True)\n            return True\n\n        if t == "memory_remember":
+        if t == "ai_status":
+            status = self.intent_engine.ai.status_text()
+            self.text_to_speech.speak(status)
+            self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
+            return True
+
+        if t == "memory_remember":
             success = self.memory.remember(intent["key"], intent["value"])
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
