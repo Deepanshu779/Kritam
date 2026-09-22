@@ -139,10 +139,10 @@ class MainWindow(QMainWindow):
 
         self.nav_buttons = []
         items = [
-            ("01   Home", 0),
-            ("02   Tasks", 1),
-            ("03   Memory", 2),
-            ("04   Settings", 3),
+            ("⌂   Home", 0),
+            ("✓   Tasks", 1),
+            ("♡   Memory", 2),
+            ("⚙   Settings", 3),
         ]
         for label, index in items:
             button = QPushButton(label)
@@ -177,8 +177,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(left)
         layout.addStretch()
 
-        self.status_label = QLabel("● Ready")
-        self.status_label.setObjectName("status")
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("headerStatus")
         layout.addWidget(self.status_label)
         return frame
 
@@ -225,7 +225,7 @@ class MainWindow(QMainWindow):
         self.chat_scroll.setWidget(self.chat_container)
         layout.addWidget(self.chat_scroll, 1)
 
-        quick_title = QLabel("Things you can ask me")
+        quick_title = QLabel("Try something")
         quick_title.setObjectName("muted")
         layout.addWidget(quick_title)
 
@@ -244,21 +244,25 @@ class MainWindow(QMainWindow):
             quick_grid.addWidget(button, index // 2, index % 2)
         layout.addLayout(quick_grid)
 
+        example = QLabel("Try:  Open Chrome and search for Python tutorials")
+        example.setObjectName("hint")
+        layout.addWidget(example)
+
         composer = QFrame()
         composer.setObjectName("composer")
         composer_layout = QHBoxLayout(composer)
         composer_layout.setContentsMargins(9, 8, 9, 8)
 
         self.command_input = QLineEdit()
-        self.command_input.setPlaceholderText("Talk to Kritam or type something...")
+        self.command_input.setPlaceholderText("What can I help you with?")
         self.command_input.returnPressed.connect(self._send_text)
         composer_layout.addWidget(self.command_input, 1)
 
-        self.wake_badge = QLabel("● WAKE WORD ON")
+        self.wake_badge = QLabel("Hey Kritam")
         self.wake_badge.setObjectName("status")
         composer_layout.addWidget(self.wake_badge)
 
-        send_button = QPushButton("Send  →")
+        send_button = QPushButton("Ask  →")
         send_button.setObjectName("primary")
         send_button.clicked.connect(self._send_text)
         composer_layout.addWidget(send_button)
@@ -495,7 +499,7 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _background_error(self, message):
-        self.wake_badge.setText("● WAKE WORD ON")
+        self.wake_badge.setText("Hey Kritam")
         self._set_busy(False, "Ready")
 
     def _stop_background_listener(self):
@@ -526,7 +530,7 @@ class MainWindow(QMainWindow):
 
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
-        self.status_label.setText(f"● {text}")
+        self.status_label.setText("")
         self.orb_status.setText(f"● {text.upper()}")
         self.orb.setProperty("active", busy)
         self.orb.style().unpolish(self.orb)
@@ -535,7 +539,7 @@ class MainWindow(QMainWindow):
     def _set_ready_state(self):
         self.status_label.setText("● Ready")
         self.orb_status.setText("● READY TO HELP")
-        self.wake_badge.setText("● WAKE WORD ON")
+        self.wake_badge.setText("Hey Kritam")
 
     def _refresh_status(self):
         self._set_ready_state()
