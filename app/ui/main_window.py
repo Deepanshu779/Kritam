@@ -51,6 +51,8 @@ class Worker(QObject):
         except Exception as exc:
             self.error.emit(str(exc))
 
+    def stop(self):
+        self.stop_event.set()
 
 
 class BackgroundWorker(QObject):
