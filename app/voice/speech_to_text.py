@@ -49,7 +49,13 @@ class SpeechToText:
                 temp_path,
                 language="en",
                 beam_size=1,
+                best_of=1,
+                temperature=0.0,
                 vad_filter=True,
+                vad_parameters=dict(
+                    min_silence_duration_ms=250,
+                    speech_pad_ms=250,
+                ),
                 condition_on_previous_text=False,
             )
 
