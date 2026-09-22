@@ -71,6 +71,18 @@ QLabel#brand {
     font-weight: 800;
     letter-spacing: 2px;
 }
+QLabel#headerStatus {
+    min-width: 1px;
+    max-width: 1px;
+    color: transparent;
+}
+QPushButton#nav {
+    font-size: 14px;
+}
+QLabel#hint {
+    color: #7f8da6;
+    font-size: 13px;
+}
 QLabel#pageTitle {
     font-size: 20px;
     font-weight: 700;
