@@ -221,7 +221,6 @@ QPushButton {
 QPushButton:hover {
     background: #203250;
 }
-"""
 QFrame#sidebar {
     background: #09111f;
     border: 1px solid #1d2b45;
@@ -359,3 +358,4 @@ QPushButton#chip:hover {
     background: #172945;
     color: #ffffff;
 }
+"""
