@@ -163,7 +163,8 @@ QPushButton#primary {
     background: #4b73e8;
     border: 1px solid #6288f5;
     border-radius: 11px;
-    padding: 11px 18px;
+    padding: 0px;
+    font-size: 22px;
     font-weight: 700;
 }
 QPushButton#primary:hover {
@@ -173,10 +174,16 @@ QPushButton#mic {
     background: #182642;
     border: 1px solid #30486f;
     border-radius: 11px;
-    padding: 11px 16px;
+    padding: 0px;
+    color: #f4f7ff;
+    font-size: 20px;
 }
 QPushButton#mic:hover {
     background: #223554;
+    border: 1px solid #45628f;
+}
+QPushButton#mic:pressed {
+    background: #2b4268;
 }
 QLineEdit {
     background: #09111f;
