@@ -49,10 +49,16 @@ QLabel#heroTitle {
 QLabel#heroSubtitle, QLabel#muted {
     color: #91a0ba;
 }
+QLabel#sidebarFooter {
+    color: #71809b;
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 8px 2px;
+}
 QLabel#status {
-    background: #10271f;
-    color: #79e6a9;
-    border: 1px solid #1d513e;
+    background: #18243a;
+    color: #b9c9e8;
+    border: 1px solid #2b3d5e;
     border-radius: 10px;
     padding: 7px 12px;
     font-weight: 600;
