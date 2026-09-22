@@ -259,12 +259,16 @@ class MainWindow(QMainWindow):
         self.command_input.returnPressed.connect(self._send_text)
         composer_layout.addWidget(self.command_input, 1)
 
-        self.wake_badge = QLabel("Hey Kritam")
-        self.wake_badge.setObjectName("status")
-        composer_layout.addWidget(self.wake_badge)
-
-        send_button = QPushButton("Ask  →")
+        self.mic_button = QPushButton("\uD83C\uDFA4")
+        self.mic_button.setObjectName("mic")
+        self.mic_button.setToolTip("Talk to Kritam")
+        self.mic_button.setFixedSize(54, 46)
+        self.mic_button.clicked.connect(self._start_voice_input)
+        composer_layout.addWidget(self.mic_button)
+        send_button = QPushButton("\u27A4")
         send_button.setObjectName("primary")
+        send_button.setToolTip("Send")
+        send_button.setFixedSize(54, 46)
         send_button.clicked.connect(self._send_text)
         composer_layout.addWidget(send_button)
         layout.addWidget(composer)
@@ -410,6 +414,15 @@ class MainWindow(QMainWindow):
         self._set_busy(True, "Processing...")
         self._start_worker(command=command)
 
+    def _start_voice_input(self):
+        if self.thread is not None:
+            return
+        self._resume_background_after_voice = self.bg_thread is not None
+        if self._resume_background_after_voice:
+            self._stop_background_listener()
+        self._set_busy(True, "Listening...")
+        self._start_worker(listen=True)
+
     def _start_worker(self, command=None, listen=False):
         self.thread = QThread()
         self.worker = Worker(self.assistant, command=command, listen=listen)
@@ -448,6 +461,9 @@ class MainWindow(QMainWindow):
             self.thread.deleteLater()
         self.thread = None
         self.worker = None
+        if getattr(self, "_resume_background_after_voice", False):
+            self._resume_background_after_voice = False
+            self._start_background_listener()
 
     def _setup_tray(self):
         self.tray = QSystemTrayIcon(self)
