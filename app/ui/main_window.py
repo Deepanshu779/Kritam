@@ -610,14 +610,20 @@ class MainWindow(QMainWindow):
         self._set_busy(False, "Ready")
 
     def _stop_background_listener(self):
-        if self.bg_worker:
-            self.bg_worker.stop()
-        if self.bg_thread:
-            self.bg_thread.quit()
-            self.bg_thread.wait(2000)
-            self.bg_thread.deleteLater()
-        self.bg_thread = None
-        self.bg_worker = None
+        worker = self.bg_worker
+        thread = self.bg_thread
+
+        if worker:
+            worker.stop()
+
+        if thread:
+            thread.quit()
+            if thread.wait(7000):
+                thread.deleteLater()
+                self.bg_thread = None
+                self.bg_worker = None
+            else:
+                print("Kritam background listener: waiting for thread to finish.")
 
     def _start_orb_animation(self):
         self.orb_timer = QTimer(self)
