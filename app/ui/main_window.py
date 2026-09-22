@@ -413,6 +413,70 @@ class MainWindow(QMainWindow):
         self.thread = None
         self.worker = None
 
+    def _setup_tray(self):
+        self.tray = QSystemTrayIcon(self)
+        self.tray.setIcon(self.style().standardIcon(self.style().SP_ComputerIcon))
+        self.tray.setToolTip("Kritam — listening for Hey Kritam")
+
+        menu = QMenu()
+        show_action = QAction("Open Kritam", self)
+        show_action.triggered.connect(self._show_window)
+        menu.addAction(show_action)
+        menu.addSeparator()
+
+        quit_action = QAction("Exit Kritam", self)
+        quit_action.triggered.connect(self._exit_app)
+        menu.addAction(quit_action)
+
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(
+            lambda reason: self._show_window()
+            if reason == QSystemTrayIcon.Trigger else None
+        )
+        self.tray.show()
+
+    def _show_window(self):
+        self.show()
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _start_background_listener(self):
+        self.bg_thread = QThread()
+        self.bg_worker = BackgroundWorker(self.assistant)
+        self.bg_worker.moveToThread(self.bg_thread)
+        self.bg_thread.started.connect(self.bg_worker.run)
+        self.bg_worker.command_ready.connect(self._background_command_finished)
+        self.bg_worker.wake_detected.connect(
+            lambda: self._set_busy(True, "Listening for command...")
+        )
+        self.bg_worker.error.connect(self._background_error)
+        self.bg_thread.start()
+
+    @Slot(dict)
+    def _background_command_finished(self, result):
+        self._add_message(result["command"], True)
+        self._add_message(result.get("response", "Done."), False)
+        self._set_busy(False, "Wake word active")
+        self._refresh_task()
+        self._refresh_memory()
+        self._refresh_status()
+
+    @Slot(str)
+    def _background_error(self, message):
+        self.wake_badge.setText("● WAKE WORD ERROR")
+        self._add_message("Background voice error: " + message, False)
+
+    def _stop_background_listener(self):
+        if self.bg_worker:
+            self.bg_worker.stop()
+        if self.bg_thread:
+            self.bg_thread.quit()
+            self.bg_thread.wait(2000)
+            self.bg_thread.deleteLater()
+        self.bg_thread = None
+        self.bg_worker = None
+
     def _set_busy(self, busy, text):
         self.mic_button.setEnabled(not busy)
         self.command_input.setEnabled(not busy)
