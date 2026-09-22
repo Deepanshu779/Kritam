@@ -342,7 +342,7 @@ class MainWindow(QMainWindow):
                 ("Language", self.assistant.settings.get("language", "en").upper()),
             ]),
             ("Voice", [
-                ("Voice speed", f"{self.assistant.settings.get("voice_rate", 170)} words/min"),
+                ("Voice speed", f"{self.assistant.settings.get('voice_rate', 170)} words/min"),
                 ("Wake word", "Hey Kritam"),
             ]),
             ("Privacy", [
