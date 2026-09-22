@@ -260,10 +260,9 @@ class MainWindow(QMainWindow):
         self.command_input.returnPressed.connect(self._send_text)
         composer_layout.addWidget(self.command_input, 1)
 
-        self.mic_button = QPushButton("MIC  Listen")
-        self.mic_button.setObjectName("mic")
-        self.mic_button.clicked.connect(self._listen)
-        composer_layout.addWidget(self.mic_button)
+        self.wake_badge = QLabel("● WAKE WORD ON")
+        self.wake_badge.setObjectName("status")
+        composer_layout.addWidget(self.wake_badge)
 
         send_button = QPushButton("Send  →")
         send_button.setObjectName("primary")
@@ -375,12 +374,6 @@ class MainWindow(QMainWindow):
         self._set_busy(True, "Processing...")
         self._start_worker(command=command)
 
-    def _listen(self):
-        if self.thread is not None:
-            return
-        self._set_busy(True, "Listening...")
-        self._start_worker(listen=True)
-
     def _start_worker(self, command=None, listen=False):
         self.thread = QThread()
         self.worker = Worker(self.assistant, command=command, listen=listen)
@@ -419,7 +412,6 @@ class MainWindow(QMainWindow):
             self.thread.deleteLater()
         self.thread = None
         self.worker = None
-        self.mic_button.setEnabled(True)
 
     def _set_busy(self, busy, text):
         self.mic_button.setEnabled(not busy)
