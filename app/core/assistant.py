@@ -198,6 +198,30 @@ class Kritam:
         print(f"Kritam Intent: {intent}")
         return self._handle_intent(text, intent)
 
+    def listen_once(self):
+        audio = self.listener.listen()
+        if audio is None:
+            return ""
+        return self.speech_to_text.convert(audio) or ""
+
+    def process_text(self, text, speak=True):
+        text = text.strip()
+        if not text:
+            return {"success": False, "response": "Please enter a command."}
+        tasks = self.planner.split(text)
+        self.task_manager.start(text, len(tasks))
+        success_all = True
+        for task in tasks:
+            success = self._process_command(task)
+            self.task_manager.complete(success)
+            success_all = success_all and success
+            if not success and len(tasks) > 1:
+                self.task_manager.fail()
+                break
+        if success_all:
+            self.task_manager.finish()
+        return {"success": success_all, "response": "Task completed." if success_all else "I couldn't complete the task."}
+
     def start(self):
         print(f"{self.name} is starting...")
         self.text_to_speech.speak(f"Hello. {self.name} is ready.")
