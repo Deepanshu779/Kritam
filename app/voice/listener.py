@@ -45,10 +45,8 @@ class VoiceListener:
             chunks = []
             while not stop_event.is_set():
                 try:
-                    chunk = source.stream.read(
-                        source.CHUNK,
-                        exception_on_overflow=False,
-                    )
+                    # SpeechRecognition MicrophoneStream.read() does not accept exception_on_overflow.
+                    chunk = source.stream.read(source.CHUNK)
                 except Exception as exc:
                     print(f"Kritam: microphone read stopped: {exc}")
                     break
