@@ -450,7 +450,7 @@ class MainWindow(QMainWindow):
 
     def _setup_tray(self):
         self.tray = QSystemTrayIcon(self)
-        self.tray.setIcon(self.style().standardIcon(self.style().SP_ComputerIcon))
+        self.tray.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
         self.tray.setToolTip("Kritam — listening for Hey Kritam")
 
         menu = QMenu()
