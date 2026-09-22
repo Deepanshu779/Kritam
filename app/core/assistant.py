@@ -209,6 +209,12 @@ class Kritam:
             return ""
         return self.speech_to_text.convert(audio) or ""
 
+    def listen_until_stopped(self, stop_event):
+        audio = self.listener.listen_until_stopped(stop_event)
+        if audio is None:
+            return ""
+        return self.speech_to_text.convert(audio) or ""
+
     def process_text(self, text, speak=True):
         text = text.strip()
         if not text:
