@@ -108,8 +108,7 @@ class MainWindow(QMainWindow):
         outer.addWidget(self._build_sidebar())
 
         content = QVBoxLayout()
-        content.setSpacing(12)
-        content.addWidget(self._build_header())
+        content.setSpacing(0)
 
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_chat())
@@ -124,25 +123,34 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(215)
+        frame.setFixedWidth(230)
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(16, 20, 16, 16)
-        layout.setSpacing(7)
+        layout.setContentsMargins(18, 24, 18, 18)
+        layout.setSpacing(6)
 
-        brand = QLabel("KRITAM")
+        brand_row = QHBoxLayout()
+        logo = QLabel("K")
+        logo.setObjectName("sidebarLogo")
+        logo.setFixedSize(42, 42)
+        brand_row.addWidget(logo)
+        brand_text = QVBoxLayout()
+        brand = QLabel("Kritam")
         brand.setObjectName("brand")
-        layout.addWidget(brand)
-
-        tagline = QLabel("PERSONAL AI ASSISTANT")
+        brand_text.addWidget(brand)
+        tagline = QLabel("Always with you")
         tagline.setObjectName("muted")
-        layout.addWidget(tagline)
-        layout.addSpacing(22)
+        brand_text.addWidget(tagline)
+        brand_row.addLayout(brand_text)
+        layout.addLayout(brand_row)
+        layout.addSpacing(26)
 
         self.nav_buttons = []
         items = [
             ("⌂   Home", 0),
-            ("✓   Tasks", 1),
-            ("♡   Memory", 2),
+            ("◌   Chat", 0),
+            ("♩   Voice", 0),
+            ("▦   Apps & Tools", 1),
+            ("□   Memory", 2),
             ("⚙   Settings", 3),
         ]
         for label, index in items:
@@ -156,9 +164,16 @@ class MainWindow(QMainWindow):
         self.nav_buttons[0].setChecked(True)
         layout.addStretch()
 
-        footer = QLabel("Made to feel simple.\nJust talk to Kritam.")
-        footer.setObjectName("sidebarFooter")
-        footer.setWordWrap(True)
+        footer = QFrame()
+        footer.setObjectName("sidebarProfile")
+        footer_layout = QVBoxLayout(footer)
+        footer_layout.setContentsMargins(14, 12, 14, 12)
+        footer_title = QLabel("●  Kritam is ready")
+        footer_title.setObjectName("readyText")
+        footer_layout.addWidget(footer_title)
+        footer_hint = QLabel("Ready to listen, help and act.")
+        footer_hint.setObjectName("sidebarFooter")
+        footer_layout.addWidget(footer_hint)
         layout.addWidget(footer)
         return frame
 
@@ -185,93 +200,172 @@ class MainWindow(QMainWindow):
 
     def _build_chat(self):
         page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(12)
+        page.setObjectName("homePage")
+        outer = QHBoxLayout(page)
+        outer.setContentsMargins(18, 18, 18, 18)
+        outer.setSpacing(16)
 
-        self.welcome_card = QFrame()
-        self.welcome_card.setObjectName("hero")
-        hero = QHBoxLayout(self.welcome_card)
-        hero.setContentsMargins(28, 24, 28, 24)
+        center = QVBoxLayout()
+        center.setSpacing(12)
+
+        greeting = QLabel(f"Good evening, {self.assistant.name}  👋")
+        greeting.setObjectName("homeGreeting")
+        center.addWidget(greeting)
+
+        intro = QLabel("I'm Kritam — your personal AI assistant.")
+        intro.setObjectName("homeIntro")
+        center.addWidget(intro)
+
+        sub = QLabel("Here to help, listen and get things done with you.")
+        sub.setObjectName("homeSub")
+        center.addWidget(sub)
+
+        quick = QGridLayout()
+        quick.setSpacing(10)
+        cards = [
+            ("◈", "Open Apps", "Launch your favorite apps", "Open Chrome"),
+            ("⌕", "Search Anything", "Find answers and information", "Search Google for "),
+            ("□", "Find Files", "Open your folders and files", "Open Downloads"),
+            ("✦", "Quick Task", "Tell me what you need", ""),
+        ]
+        for i, (icon, title, desc, command) in enumerate(cards):
+            card = QPushButton()
+            card.setObjectName("featureCard")
+            card.setMinimumHeight(82)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(14, 10, 14, 10)
+            icon_label = QLabel(icon)
+            icon_label.setObjectName("featureIcon")
+            icon_label.setFixedWidth(34)
+            card_layout.addWidget(icon_label)
+            text_box = QVBoxLayout()
+            t = QLabel(title)
+            t.setObjectName("featureTitle")
+            d = QLabel(desc)
+            d.setObjectName("featureDesc")
+            d.setWordWrap(True)
+            text_box.addWidget(t)
+            text_box.addWidget(d)
+            card_layout.addLayout(text_box, 1)
+            if command:
+                card.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
+            else:
+                card.clicked.connect(lambda checked=False: self.command_input.setFocus())
+            quick.addWidget(card, i // 2, i % 2)
+        center.addLayout(quick)
+
+        center.addStretch(1)
 
         self.orb = QLabel("K")
         self.orb.setObjectName("orb")
-        self.orb.setFixedSize(82, 82)
+        self.orb.setFixedSize(190, 190)
         self.orb.setAlignment(Qt.AlignCenter)
-        hero.addWidget(self.orb, 0, Qt.AlignVCenter)
-
-        hero_text = QVBoxLayout()
-        hero_text.setSpacing(5)
-        title = QLabel(f"Good evening, {self.assistant.name} is here. 👋")
-        title.setObjectName("heroTitle")
-        hero_text.addWidget(title)
-
-        subtitle = QLabel("What would you like to do? Just ask.")
-        subtitle.setObjectName("heroSubtitle")
-        hero_text.addWidget(subtitle)
+        center.addWidget(self.orb, 0, Qt.AlignHCenter)
 
         self.orb_status = QLabel("● READY TO HELP")
         self.orb_status.setObjectName("orbGlow")
-        hero_text.addWidget(self.orb_status)
-        hero.addLayout(hero_text, 1)
-        layout.addWidget(self.welcome_card)
+        center.addWidget(self.orb_status, 0, Qt.AlignHCenter)
 
-        self.chat_scroll = QScrollArea()
-        self.chat_scroll.setWidgetResizable(True)
-        self.chat_container = QWidget()
-        self.chat_layout = QVBoxLayout(self.chat_container)
-        self.chat_layout.setContentsMargins(8, 8, 8, 8)
-        self.chat_layout.setSpacing(10)
-        self.chat_layout.setAlignment(Qt.AlignTop)
-        self.chat_scroll.setWidget(self.chat_container)
-        layout.addWidget(self.chat_scroll, 1)
-
-        quick_title = QLabel("Try something")
-        quick_title.setObjectName("muted")
-        layout.addWidget(quick_title)
-
-        quick_grid = QGridLayout()
-        quick_grid.setSpacing(8)
-        actions = [
-            ("🌐  Open Chrome", "Open Chrome"),
-            ("🔎  Search the web", "Search Google for "),
-            ("📁  Open Downloads", "Open Downloads"),
-            ("📸  Take a screenshot", "Take a screenshot"),
-        ]
-        for index, (label, command) in enumerate(actions):
-            button = QPushButton(label)
-            button.setObjectName("quick")
-            button.clicked.connect(lambda checked, c=command: self._quick_command(c))
-            quick_grid.addWidget(button, index // 2, index % 2)
-        layout.addLayout(quick_grid)
-
-        example = QLabel("Try:  Open Chrome and search for Python tutorials")
-        example.setObjectName("hint")
-        layout.addWidget(example)
+        center.addStretch(1)
 
         composer = QFrame()
         composer.setObjectName("composer")
-        composer_layout = QHBoxLayout(composer)
-        composer_layout.setContentsMargins(9, 8, 9, 8)
+        composer_layout = QVBoxLayout(composer)
+        composer_layout.setContentsMargins(14, 12, 14, 12)
+        composer_layout.setSpacing(8)
 
         self.command_input = QLineEdit()
-        self.command_input.setPlaceholderText("What can I help you with?")
+        self.command_input.setPlaceholderText("Ask me anything... or speak naturally")
         self.command_input.returnPressed.connect(self._send_text)
-        composer_layout.addWidget(self.command_input, 1)
+        composer_layout.addWidget(self.command_input)
 
-        self.mic_button = QPushButton("\uD83C\uDFA4")
+        controls = QHBoxLayout()
+        self.mic_button = QPushButton("🎙")
         self.mic_button.setObjectName("mic")
         self.mic_button.setToolTip("Talk to Kritam")
-        self.mic_button.setFixedSize(54, 46)
+        self.mic_button.setFixedSize(50, 44)
         self.mic_button.clicked.connect(self._start_voice_input)
-        composer_layout.addWidget(self.mic_button)
-        send_button = QPushButton("\u27A4")
+        controls.addWidget(self.mic_button)
+
+        hint = QLabel("Speak naturally • Kritam will wait until you finish")
+        hint.setObjectName("composerHint")
+        controls.addWidget(hint)
+        controls.addStretch()
+
+        send_button = QPushButton("➤")
         send_button.setObjectName("primary")
         send_button.setToolTip("Send")
-        send_button.setFixedSize(54, 46)
+        send_button.setFixedSize(50, 44)
         send_button.clicked.connect(self._send_text)
-        composer_layout.addWidget(send_button)
-        layout.addWidget(composer)
+        controls.addWidget(send_button)
+        composer_layout.addLayout(controls)
+        center.addWidget(composer)
+
+        chips = QHBoxLayout()
+        for label, command in [
+            ("Explain this", "Explain this"),
+            ("Open Chrome", "Open Chrome"),
+            ("Search the web", "Search Google for "),
+            ("Take a screenshot", "Take a screenshot"),
+        ]:
+            chip = QPushButton(label)
+            chip.setObjectName("chip")
+            chip.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
+            chips.addWidget(chip)
+        center.addLayout(chips)
+
+        outer.addLayout(center, 1)
+
+        right = QVBoxLayout()
+        right.setSpacing(12)
+
+        assistant_card = QFrame()
+        assistant_card.setObjectName("sideCard")
+        al = QVBoxLayout(assistant_card)
+        al.setContentsMargins(16, 16, 16, 16)
+        at = QLabel("Kritam")
+        at.setObjectName("sideTitle")
+        al.addWidget(at)
+        ad = QLabel("Always here when you need me.")
+        ad.setObjectName("sideDesc")
+        ad.setWordWrap(True)
+        al.addWidget(ad)
+        right.addWidget(assistant_card)
+
+        actions_card = QFrame()
+        actions_card.setObjectName("sideCard")
+        rl = QVBoxLayout(actions_card)
+        rl.setContentsMargins(16, 16, 16, 16)
+        rt = QLabel("Quick Actions")
+        rt.setObjectName("sideTitle")
+        rl.addWidget(rt)
+        for label, command in [
+            ("🌐  Open Chrome", "Open Chrome"),
+            ("🔎  Search Google", "Search Google for "),
+            ("📁  Open Downloads", "Open Downloads"),
+            ("📸  Take Screenshot", "Take a screenshot"),
+        ]:
+            b = QPushButton(label)
+            b.setObjectName("sideAction")
+            b.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
+            rl.addWidget(b)
+        right.addWidget(actions_card)
+
+        voice_card = QFrame()
+        voice_card.setObjectName("sideCard")
+        vl = QVBoxLayout(voice_card)
+        vl.setContentsMargins(16, 16, 16, 16)
+        vt = QLabel("Voice")
+        vt.setObjectName("sideTitle")
+        vl.addWidget(vt)
+        vd = QLabel("🎙  Natural conversation\n\nTalk normally. You don't have to rush.")
+        vd.setObjectName("sideDesc")
+        vd.setWordWrap(True)
+        vl.addWidget(vd)
+        right.addWidget(voice_card)
+        right.addStretch()
+
+        outer.addLayout(right, 0)
         return page
 
     def _build_tasks(self):
