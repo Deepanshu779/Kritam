@@ -11,10 +11,9 @@ class SpeechToText:
     def __init__(self):
         self.recognizer = sr.Recognizer()
 
-        # Small local model for a good balance between latency and accuracy.
-        # The model is downloaded once and then runs locally.
+        model_name = os.getenv("KRITAM_WHISPER_MODEL", "tiny.en")
         self.model = WhisperModel(
-            "small.en",
+            model_name,
             device="cpu",
             compute_type="int8",
         )
