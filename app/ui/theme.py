@@ -23,6 +23,39 @@ QFrame#hero {
     border: 1px solid #263858;
     border-radius: 22px;
 }
+QFrame#softCard {
+    background: #101a2c;
+    border: 1px solid #20304b;
+    border-radius: 14px;
+}
+QLabel#cardTitle {
+    color: #f2f5ff;
+    font-size: 16px;
+    font-weight: 700;
+    padding-bottom: 4px;
+}
+QLabel#cardText {
+    color: #b9c5da;
+    font-size: 14px;
+    line-height: 1.5;
+}
+QLabel#hint {
+    color: #7f8da6;
+    font-size: 13px;
+    padding: 4px 2px;
+}
+QLabel#settingLabel {
+    color: #9aa9c2;
+    font-size: 13px;
+    padding: 7px 0;
+}
+QLabel#settingValue {
+    color: #edf2ff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 0;
+}
+
 QFrame#card, QFrame#quickCard {
     background: #0d1424;
     border: 1px solid #1d2a43;
@@ -43,7 +76,7 @@ QLabel#pageTitle {
     font-weight: 700;
 }
 QLabel#heroTitle {
-    font-size: 32px;
+    font-size: 30px;
     font-weight: 750;
 }
 QLabel#heroSubtitle, QLabel#muted {
@@ -96,6 +129,7 @@ QPushButton#nav:checked {
 }
 QPushButton#quick {
     text-align: left;
+    min-height: 48px;
     padding: 13px 15px;
     background: #111b2e;
     border: 1px solid #243653;
