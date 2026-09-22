@@ -195,8 +195,8 @@ class MainWindow(QMainWindow):
 
         self.orb = QLabel("K")
         self.orb.setObjectName("orb")
-        orb.setFixedSize(82, 82)
-        orb.setAlignment(Qt.AlignCenter)
+        self.orb.setFixedSize(82, 82)
+        self.orb.setAlignment(Qt.AlignCenter)
         hero.addWidget(self.orb, 0, Qt.AlignVCenter)
 
         hero_text = QVBoxLayout()
