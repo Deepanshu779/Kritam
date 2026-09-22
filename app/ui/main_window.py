@@ -1,4 +1,5 @@
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -10,11 +11,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QStackedWidget,
+    QSystemTrayIcon,
+    QMenu,
     QVBoxLayout,
     QWidget,
 )
 
 from core.assistant import Kritam
+from voice.background_listener import BackgroundVoiceListener
 from ui.theme import WINDOW_STYLE
 
 
@@ -45,6 +49,37 @@ class Worker(QObject):
             self.error.emit(str(exc))
 
 
+
+class BackgroundWorker(QObject):
+    command_ready = Signal(dict)
+    wake_detected = Signal()
+    error = Signal(str)
+
+    def __init__(self, assistant):
+        super().__init__()
+        self.assistant = assistant
+        self.listener = BackgroundVoiceListener(assistant.speech_to_text)
+        self.running = True
+
+    @Slot()
+    def run(self):
+        try:
+            while self.running and not self.listener.stop_event.is_set():
+                command = self.listener.listen_for_command()
+                if not command:
+                    continue
+                self.wake_detected.emit()
+                result = self.assistant.process_text(command, speak=True)
+                self.command_ready.emit({"command": command, **result})
+        except Exception as exc:
+            if self.running:
+                self.error.emit(str(exc))
+
+    def stop(self):
+        self.running = False
+        self.listener.stop()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -55,8 +90,12 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(WINDOW_STYLE)
         self.thread = None
         self.worker = None
+        self.bg_thread = None
+        self.bg_worker = None
         self._build_ui()
+        self._setup_tray()
         self._refresh_status()
+        self._start_background_listener()
 
     def _build_ui(self):
         root = QWidget()
