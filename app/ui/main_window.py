@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QStackedWidget,
     QSystemTrayIcon,
+    QStyle,
     QMenu,
     QVBoxLayout,
     QWidget,
