@@ -137,7 +137,7 @@ class MainWindow(QMainWindow):
 
         self.nav_buttons = []
         items = [
-            ("01   Chat", 0),
+            ("01   Home", 0),
             ("02   Tasks", 1),
             ("03   Memory", 2),
             ("04   Settings", 3),
