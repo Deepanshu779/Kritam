@@ -478,7 +478,6 @@ class MainWindow(QMainWindow):
         self.bg_worker = None
 
     def _set_busy(self, busy, text):
-        self.mic_button.setEnabled(not busy)
         self.command_input.setEnabled(not busy)
         self.status_label.setText(f"● {text}")
         self.orb_status.setText(f"● {text.upper()}")
