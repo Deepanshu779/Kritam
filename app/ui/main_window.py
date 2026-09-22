@@ -1,4 +1,4 @@
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFrame,
@@ -92,10 +92,12 @@ class MainWindow(QMainWindow):
         self.worker = None
         self.bg_thread = None
         self.bg_worker = None
+        self._orb_pulse = False
         self._build_ui()
         self._setup_tray()
         self._set_ready_state()
         self._start_background_listener()
+        self._start_orb_animation()
 
     def _build_ui(self):
         root = QWidget()
@@ -191,11 +193,11 @@ class MainWindow(QMainWindow):
         hero = QHBoxLayout(self.welcome_card)
         hero.setContentsMargins(28, 24, 28, 24)
 
-        orb = QLabel("K")
-        orb.setObjectName("orb")
+        self.orb = QLabel("K")
+        self.orb.setObjectName("orb")
         orb.setFixedSize(82, 82)
         orb.setAlignment(Qt.AlignCenter)
-        hero.addWidget(orb, 0, Qt.AlignVCenter)
+        hero.addWidget(self.orb, 0, Qt.AlignVCenter)
 
         hero_text = QVBoxLayout()
         hero_text.setSpacing(5)
@@ -506,10 +508,29 @@ class MainWindow(QMainWindow):
         self.bg_thread = None
         self.bg_worker = None
 
+    def _start_orb_animation(self):
+        self.orb_timer = QTimer(self)
+        self.orb_timer.timeout.connect(self._pulse_orb)
+        self.orb_timer.start(1400)
+
+    def _pulse_orb(self):
+        self.orb.setProperty('active', True)
+        self.orb.style().unpolish(self.orb)
+        self.orb.style().polish(self.orb)
+        QTimer.singleShot(420, self._finish_orb_pulse)
+
+    def _finish_orb_pulse(self):
+        self.orb.setProperty('active', False)
+        self.orb.style().unpolish(self.orb)
+        self.orb.style().polish(self.orb)
+
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
         self.status_label.setText(f"● {text}")
         self.orb_status.setText(f"● {text.upper()}")
+        self.orb.setProperty("active", busy)
+        self.orb.style().unpolish(self.orb)
+        self.orb.style().polish(self.orb)
 
     def _set_ready_state(self):
         self.status_label.setText("● Ready")
