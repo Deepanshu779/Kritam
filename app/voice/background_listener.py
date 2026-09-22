@@ -32,7 +32,7 @@ class BackgroundVoiceListener:
     def stop(self):
         self.stop_event.set()
 
-    def _listen_phrase(self):
+    def _listen_phrase(self, phrase_time_limit=5):
         with self.microphone as source:
             try:
                 return self.recognizer.listen(
@@ -47,7 +47,8 @@ class BackgroundVoiceListener:
         self._prepare()
 
         while not self.stop_event.is_set():
-            audio = self._listen_phrase()
+            limit = 30 if self.armed else 5
+            audio = self._listen_phrase(phrase_time_limit=limit)
             if audio is None:
                 continue
 
