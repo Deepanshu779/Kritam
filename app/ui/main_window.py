@@ -1,4 +1,5 @@
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
+import threading
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFrame,
@@ -32,12 +33,13 @@ class Worker(QObject):
         self.assistant = assistant
         self.command = command
         self.listen = listen
+        self.stop_event = threading.Event()
 
     @Slot()
     def run(self):
         try:
             if self.listen:
-                text = self.assistant.listen_once()
+                text = self.assistant.listen_until_stopped(self.stop_event)
                 if not text:
                     self.finished.emit({"kind": "voice", "text": "", "success": False})
                     return
@@ -94,6 +96,8 @@ class MainWindow(QMainWindow):
         self.bg_thread = None
         self.bg_worker = None
         self._orb_pulse = False
+        self._recording = False
+        self._resume_background_after_voice = False
         self._build_ui()
         self._setup_tray()
         self._set_ready_state()
@@ -284,7 +288,7 @@ class MainWindow(QMainWindow):
         self.mic_button.clicked.connect(self._start_voice_input)
         controls.addWidget(self.mic_button)
 
-        hint = QLabel("Speak naturally • Kritam will wait until you finish")
+        hint = QLabel("Click mic to start • click again to stop and send")
         hint.setObjectName("composerHint")
         controls.addWidget(hint)
         controls.addStretch()
@@ -506,11 +510,25 @@ class MainWindow(QMainWindow):
         self._start_worker(command=command)
 
     def _start_voice_input(self):
+        # Foreground voice is a deliberate push-to-talk flow. The background
+        # wake listener is paused while the foreground mic owns the device.
         if self.thread is not None:
+            if self._recording and self.worker is not None:
+                self._recording = False
+                self._set_busy(True, "Processing...")
+                self.mic_button.setEnabled(False)
+                self.mic_button.setText("🎙")
+                self.mic_button.setToolTip("Processing your voice")
+                self.worker.stop()
             return
+
         self._resume_background_after_voice = self.bg_thread is not None
         if self._resume_background_after_voice:
             self._stop_background_listener()
+
+        self._recording = True
+        self.mic_button.setText("■")
+        self.mic_button.setToolTip("Stop recording and send")
         self._set_busy(True, "Listening...")
         self._start_worker(listen=True)
 
@@ -537,6 +555,10 @@ class MainWindow(QMainWindow):
                 self._add_message("I couldn't hear a command.", False)
         else:
             self._add_message(result.get("response", "Done."), False)
+        self._recording = False
+        self.mic_button.setEnabled(True)
+        self.mic_button.setText("🎙")
+        self.mic_button.setToolTip("Talk to Kritam")
         self._set_busy(False, "Ready")
         self._refresh_task()
         self._refresh_memory()
@@ -544,6 +566,10 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _worker_error(self, message):
+        self._recording = False
+        self.mic_button.setEnabled(True)
+        self.mic_button.setText("🎙")
+        self.mic_button.setToolTip("Talk to Kritam")
         self._set_busy(False, "Ready")
         self._add_message("Hmm, I couldn't complete that right now. Please try again.", False)
 
