@@ -516,7 +516,6 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _background_error(self, message):
-        self.wake_badge.setText("Hey Kritam")
         self._set_busy(False, "Ready")
 
     def _stop_background_listener(self):
@@ -568,13 +567,7 @@ class MainWindow(QMainWindow):
         self.memory_label.setText(self.assistant.memory.summary())
 
     def _refresh_settings(self):
-        self.settings_label.setText(
-            f"Assistant name: {self.assistant.name}\n\n"
-            f"Language: {self.assistant.settings.get('language', 'en').upper()}\n\n"
-            f"Voice speed: {self.assistant.settings.get('voice_rate', 170)} words/min\n\n"
-            "Wake word: Hey Kritam\n\n"
-            "Memory and conversation data stay on this computer."
-        )
+        return
 
     def closeEvent(self, event):
         if getattr(self, "_really_exiting", False):
