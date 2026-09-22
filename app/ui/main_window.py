@@ -223,6 +223,12 @@ class MainWindow(QMainWindow):
         sub.setObjectName("homeSub")
         center.addWidget(sub)
 
+        self.activity_label = QLabel("")
+        self.activity_label.setObjectName("homeSub")
+        self.activity_label.setWordWrap(True)
+        self.activity_label.setMinimumHeight(24)
+        center.addWidget(self.activity_label)
+
         quick = QGridLayout()
         quick.setSpacing(10)
         cards = [
@@ -493,14 +499,8 @@ class MainWindow(QMainWindow):
         self.command_input.setFocus()
 
     def _add_message(self, text, is_user):
-        label = QLabel(text)
-        label.setObjectName("userBubble" if is_user else "assistantBubble")
-        label.setWordWrap(True)
-        label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.chat_layout.addWidget(label)
-        self.chat_scroll.verticalScrollBar().setValue(
-            self.chat_scroll.verticalScrollBar().maximum()
-        )
+        prefix = "You: " if is_user else "Kritam: "
+        self.activity_label.setText(prefix + text)
 
     def _send_text(self):
         command = self.command_input.text().strip()
