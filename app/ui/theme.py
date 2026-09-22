@@ -105,6 +105,14 @@ QLabel#orb {
     font-size: 24px;
     font-weight: 800;
 }
+QLabel#orb[active="true"] {
+    border: 2px solid #8caaff;
+    padding: 2px;
+}
+QLabel#orb[active="false"] {
+    border: 1px solid #7295ff;
+}
+
 QLabel#orbGlow {
     color: #6e8fff;
     font-size: 12px;
