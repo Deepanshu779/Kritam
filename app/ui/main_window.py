@@ -649,7 +649,6 @@ class MainWindow(QMainWindow):
     def _set_ready_state(self):
         self.status_label.setText("● Ready")
         self.orb_status.setText("● READY TO HELP")
-        self.wake_badge.setText("Hey Kritam")
 
     def _refresh_status(self):
         self._set_ready_state()
