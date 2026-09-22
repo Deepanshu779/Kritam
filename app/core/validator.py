@@ -1,5 +1,7 @@
 class ActionValidator:
 
+    BLOCKED_INTENTS = {"execute_shell", "run_command", "delete_file", "install_software", "shutdown", "restart"}
+
     ALLOWED_APPLICATIONS = {"notepad", "calculator", "paint", "chrome", "task manager", "file explorer", "settings"}
     ALLOWED_WEBSITES = {"youtube", "google", "github", "gmail"}
     ALLOWED_FOLDERS = {"downloads", "documents", "desktop", "pictures"}
@@ -14,6 +16,8 @@ class ActionValidator:
         if not isinstance(intent, dict):
             return False
         t = intent.get("type")
+        if t in self.BLOCKED_INTENTS:
+            return False
         if t == "conversation":
             return True
         if t == "open_application":
