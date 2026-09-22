@@ -1,6 +1,7 @@
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt
 from PySide6.QtWidgets import (
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -49,8 +50,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.assistant = Kritam()
         self.setWindowTitle("Kritam")
-        self.resize(1180, 760)
-        self.setMinimumSize(900, 620)
+        self.resize(1280, 820)
+        self.setMinimumSize(1000, 680)
         self.setStyleSheet(WINDOW_STYLE)
         self.thread = None
         self.worker = None
@@ -60,40 +61,49 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         root = QWidget()
         outer = QHBoxLayout(root)
-        outer.setContentsMargins(16, 16, 16, 16)
-        outer.setSpacing(14)
+        outer.setContentsMargins(14, 14, 14, 14)
+        outer.setSpacing(12)
         outer.addWidget(self._build_sidebar())
 
         content = QVBoxLayout()
         content.setSpacing(12)
         content.addWidget(self._build_header())
+
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_chat())
         self.stack.addWidget(self._build_tasks())
         self.stack.addWidget(self._build_memory())
         self.stack.addWidget(self._build_settings())
         content.addWidget(self.stack, 1)
+
         outer.addLayout(content, 1)
         self.setCentralWidget(root)
 
     def _build_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(190)
+        frame.setFixedWidth(215)
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(14, 18, 14, 18)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 20, 16, 16)
+        layout.setSpacing(7)
 
         brand = QLabel("KRITAM")
         brand.setObjectName("brand")
         layout.addWidget(brand)
-        tagline = QLabel("Desktop AI Assistant")
+
+        tagline = QLabel("PERSONAL AI ASSISTANT")
         tagline.setObjectName("muted")
         layout.addWidget(tagline)
-        layout.addSpacing(18)
+        layout.addSpacing(22)
 
         self.nav_buttons = []
-        for index, label in enumerate(["Chat", "Tasks", "Memory", "Settings"]):
+        items = [
+            ("01   Chat", 0),
+            ("02   Tasks", 1),
+            ("03   Memory", 2),
+            ("04   Settings", 3),
+        ]
+        for label, index in items:
             button = QPushButton(label)
             button.setObjectName("nav")
             button.setCheckable(True)
@@ -103,20 +113,37 @@ class MainWindow(QMainWindow):
 
         self.nav_buttons[0].setChecked(True)
         layout.addStretch()
-        version = QLabel("Development build")
+
+        status_card = QFrame()
+        status_card.setObjectName("quickCard")
+        status_layout = QVBoxLayout(status_card)
+        status_title = QLabel("SYSTEM")
+        status_title.setObjectName("muted")
+        status_layout.addWidget(status_title)
+        self.sidebar_status = QLabel("Checking...")
+        status_layout.addWidget(self.sidebar_status)
+        version = QLabel("Prototype • Sep 2026")
         version.setObjectName("muted")
-        layout.addWidget(version)
+        status_layout.addWidget(version)
+        layout.addWidget(status_card)
         return frame
 
     def _build_header(self):
         frame = QFrame()
         frame.setObjectName("header")
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(18, 12, 18, 12)
-        title = QLabel("Kritam")
-        title.setObjectName("brand")
-        layout.addWidget(title)
+        layout.setContentsMargins(18, 11, 18, 11)
+
+        left = QVBoxLayout()
+        title = QLabel("Workspace")
+        title.setObjectName("pageTitle")
+        left.addWidget(title)
+        subtitle = QLabel("Your private desktop command center")
+        subtitle.setObjectName("muted")
+        left.addWidget(subtitle)
+        layout.addLayout(left)
         layout.addStretch()
+
         self.status_label = QLabel("● Checking AI...")
         self.status_label.setObjectName("status")
         layout.addWidget(self.status_label)
@@ -128,38 +155,78 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(12)
 
-        hero = QFrame()
-        hero.setObjectName("card")
-        hero_layout = QVBoxLayout(hero)
-        title = QLabel(f"Good to see you. I'm {self.assistant.name}.")
+        self.welcome_card = QFrame()
+        self.welcome_card.setObjectName("hero")
+        hero = QHBoxLayout(self.welcome_card)
+        hero.setContentsMargins(28, 24, 28, 24)
+
+        orb = QLabel("K")
+        orb.setObjectName("orb")
+        orb.setFixedSize(82, 82)
+        orb.setAlignment(Qt.AlignCenter)
+        hero.addWidget(orb, 0, Qt.AlignVCenter)
+
+        hero_text = QVBoxLayout()
+        hero_text.setSpacing(5)
+        title = QLabel(f"Good to see you, I'm {self.assistant.name}.")
         title.setObjectName("heroTitle")
-        subtitle = QLabel("Ask me to control your computer, search the web, or help with a task.")
-        subtitle.setObjectName("muted")
-        hero_layout.addWidget(title)
-        hero_layout.addWidget(subtitle)
-        layout.addWidget(hero)
+        hero_text.addWidget(title)
+
+        subtitle = QLabel("Your desktop, your browser, your tasks — one command away.")
+        subtitle.setObjectName("heroSubtitle")
+        hero_text.addWidget(subtitle)
+
+        self.orb_status = QLabel("● READY TO HELP")
+        self.orb_status.setObjectName("orbGlow")
+        hero_text.addWidget(self.orb_status)
+        hero.addLayout(hero_text, 1)
+        layout.addWidget(self.welcome_card)
 
         self.chat_scroll = QScrollArea()
         self.chat_scroll.setWidgetResizable(True)
         self.chat_container = QWidget()
         self.chat_layout = QVBoxLayout(self.chat_container)
+        self.chat_layout.setContentsMargins(8, 8, 8, 8)
+        self.chat_layout.setSpacing(10)
         self.chat_layout.setAlignment(Qt.AlignTop)
         self.chat_scroll.setWidget(self.chat_container)
         layout.addWidget(self.chat_scroll, 1)
 
+        quick_title = QLabel("QUICK ACTIONS")
+        quick_title.setObjectName("muted")
+        layout.addWidget(quick_title)
+
+        quick_grid = QGridLayout()
+        quick_grid.setSpacing(8)
+        actions = [
+            ("Open Chrome", "Open Chrome"),
+            ("Search the web", "Search Google for "),
+            ("Open Downloads", "Open Downloads"),
+            ("Take screenshot", "Take a screenshot"),
+        ]
+        for index, (label, command) in enumerate(actions):
+            button = QPushButton(label)
+            button.setObjectName("quick")
+            button.clicked.connect(lambda checked, c=command: self._quick_command(c))
+            quick_grid.addWidget(button, index // 2, index % 2)
+        layout.addLayout(quick_grid)
+
         composer = QFrame()
         composer.setObjectName("composer")
         composer_layout = QHBoxLayout(composer)
+        composer_layout.setContentsMargins(9, 8, 9, 8)
+
         self.command_input = QLineEdit()
-        self.command_input.setPlaceholderText("Type a command for Kritam...")
+        self.command_input.setPlaceholderText("Ask Kritam anything or give it a command...")
         self.command_input.returnPressed.connect(self._send_text)
         composer_layout.addWidget(self.command_input, 1)
 
-        self.mic_button = QPushButton("🎙 Listen")
+        self.mic_button = QPushButton("MIC  Listen")
+        self.mic_button.setObjectName("mic")
         self.mic_button.clicked.connect(self._listen)
         composer_layout.addWidget(self.mic_button)
 
-        send_button = QPushButton("Send")
+        send_button = QPushButton("Send  →")
         send_button.setObjectName("primary")
         send_button.clicked.connect(self._send_text)
         composer_layout.addWidget(send_button)
@@ -169,16 +236,20 @@ class MainWindow(QMainWindow):
     def _build_tasks(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        title = QLabel("Tasks")
+        title.setObjectName("heroTitle")
+        layout.addWidget(title)
+        subtitle = QLabel("Track multi-step commands and execution progress.")
+        subtitle.setObjectName("muted")
+        layout.addWidget(subtitle)
+
         card = QFrame()
         card.setObjectName("card")
         inner = QVBoxLayout(card)
-        title = QLabel("Current Task")
-        title.setObjectName("heroTitle")
-        inner.addWidget(title)
         self.task_label = QLabel("No task is currently running.")
-        self.task_label.setObjectName("muted")
+        self.task_label.setWordWrap(True)
         inner.addWidget(self.task_label)
-        refresh = QPushButton("Refresh")
+        refresh = QPushButton("Refresh task status")
         refresh.clicked.connect(self._refresh_task)
         inner.addWidget(refresh)
         layout.addWidget(card)
@@ -188,16 +259,20 @@ class MainWindow(QMainWindow):
     def _build_memory(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        title = QLabel("Memory")
+        title.setObjectName("heroTitle")
+        layout.addWidget(title)
+        subtitle = QLabel("Information Kritam has been asked to remember.")
+        subtitle.setObjectName("muted")
+        layout.addWidget(subtitle)
+
         card = QFrame()
         card.setObjectName("card")
         inner = QVBoxLayout(card)
-        title = QLabel("Memory")
-        title.setObjectName("heroTitle")
-        inner.addWidget(title)
         self.memory_label = QLabel(self.assistant.memory.summary())
         self.memory_label.setWordWrap(True)
         inner.addWidget(self.memory_label)
-        refresh = QPushButton("Refresh Memory")
+        refresh = QPushButton("Refresh memory")
         refresh.clicked.connect(self._refresh_memory)
         inner.addWidget(refresh)
         layout.addWidget(card)
@@ -207,22 +282,22 @@ class MainWindow(QMainWindow):
     def _build_settings(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        title = QLabel("Settings")
+        title.setObjectName("heroTitle")
+        layout.addWidget(title)
+        subtitle = QLabel("Configure the assistant and inspect the local AI system.")
+        subtitle.setObjectName("muted")
+        layout.addWidget(subtitle)
+
         card = QFrame()
         card.setObjectName("card")
         inner = QVBoxLayout(card)
-        title = QLabel("Settings")
-        title.setObjectName("heroTitle")
-        inner.addWidget(title)
-        name = QLabel(f"Assistant name: {self.assistant.name}")
-        name.setObjectName("muted")
-        inner.addWidget(name)
-        language = QLabel(f"Language: {self.assistant.settings.get('language', 'en')}")
-        language.setObjectName("muted")
-        inner.addWidget(language)
-        ai = QLabel(f"AI provider: {self.assistant.intent_engine.ai.status_text()}")
-        ai.setWordWrap(True)
-        ai.setObjectName("muted")
-        inner.addWidget(ai)
+        self.settings_label = QLabel()
+        self.settings_label.setWordWrap(True)
+        inner.addWidget(self.settings_label)
+        refresh = QPushButton("Refresh system status")
+        refresh.clicked.connect(self._refresh_settings)
+        inner.addWidget(refresh)
         layout.addWidget(card)
         layout.addStretch()
         return page
@@ -236,7 +311,11 @@ class MainWindow(QMainWindow):
         elif index == 2:
             self._refresh_memory()
         elif index == 3:
-            self._refresh_status()
+            self._refresh_settings()
+
+    def _quick_command(self, command):
+        self.command_input.setText(command)
+        self.command_input.setFocus()
 
     def _add_message(self, text, is_user):
         label = QLabel(text)
@@ -307,16 +386,19 @@ class MainWindow(QMainWindow):
         self.mic_button.setEnabled(not busy)
         self.command_input.setEnabled(not busy)
         self.status_label.setText(f"● {text}")
+        self.orb_status.setText(f"● {text.upper()}")
 
     def _refresh_status(self):
         status = self.assistant.intent_engine.ai.status()
         if status.get("available"):
             if status.get("model_available", True):
-                self.status_label.setText("● AI Ready")
+                text = "● AI READY"
             else:
-                self.status_label.setText("● AI Model Missing")
+                text = "● MODEL MISSING"
         else:
-            self.status_label.setText("● AI Offline")
+            text = "● AI OFFLINE"
+        self.status_label.setText(text)
+        self.sidebar_status.setText(text.replace("● ", ""))
 
     def _refresh_task(self):
         self.task_label.setText(self.assistant.task_manager.status_text())
@@ -324,9 +406,19 @@ class MainWindow(QMainWindow):
     def _refresh_memory(self):
         self.memory_label.setText(self.assistant.memory.summary())
 
+    def _refresh_settings(self):
+        self.settings_label.setText(
+            f"Assistant: {self.assistant.name}\n\n"
+            f"Language: {self.assistant.settings.get('language', 'en')}\n\n"
+            f"AI provider: {self.assistant.intent_engine.ai.status_text()}\n\n"
+            "Data location: local ~/.kritam/"
+        )
+
     def closeEvent(self, event):
         if self.thread is not None:
-            QMessageBox.information(self, "Kritam", "Please wait for the current operation to finish.")
+            QMessageBox.information(
+                self, "Kritam", "Please wait for the current operation to finish."
+            )
             event.ignore()
             return
         event.accept()
