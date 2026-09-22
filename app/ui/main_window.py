@@ -199,11 +199,11 @@ class MainWindow(QMainWindow):
 
         hero_text = QVBoxLayout()
         hero_text.setSpacing(5)
-        title = QLabel(f"Good to see you, I'm {self.assistant.name}.")
+        title = QLabel(f"Good evening, {self.assistant.name} is here. 👋")
         title.setObjectName("heroTitle")
         hero_text.addWidget(title)
 
-        subtitle = QLabel("Your desktop, your browser, your tasks — one command away.")
+        subtitle = QLabel("What would you like to do? Just ask.")
         subtitle.setObjectName("heroSubtitle")
         hero_text.addWidget(subtitle)
 
@@ -266,72 +266,109 @@ class MainWindow(QMainWindow):
     def _build_tasks(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setSpacing(14)
         title = QLabel("Tasks")
         title.setObjectName("heroTitle")
         layout.addWidget(title)
         subtitle = QLabel("See what Kritam is working on.")
         subtitle.setObjectName("muted")
         layout.addWidget(subtitle)
-
         card = QFrame()
         card.setObjectName("card")
         inner = QVBoxLayout(card)
-        self.task_label = QLabel("No task is currently running.")
+        inner.setContentsMargins(22, 20, 22, 20)
+        heading = QLabel("Current task")
+        heading.setObjectName("cardTitle")
+        inner.addWidget(heading)
+        self.task_label = QLabel("Nothing is running right now.\\n\\nAsk Kritam to do something and you will see the progress here.")
+        self.task_label.setObjectName("cardText")
         self.task_label.setWordWrap(True)
         inner.addWidget(self.task_label)
-        refresh = QPushButton("Refresh task status")
-        refresh.clicked.connect(self._refresh_task)
-        inner.addWidget(refresh)
         layout.addWidget(card)
+        hint = QLabel("Kritam can handle simple requests or work through multi-step commands for you.")
+        hint.setObjectName("hint")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
         layout.addStretch()
         return page
 
     def _build_memory(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setSpacing(14)
         title = QLabel("Memory")
         title.setObjectName("heroTitle")
         layout.addWidget(title)
-        subtitle = QLabel("Things you've asked Kritam to remember.")
+        subtitle = QLabel("Things you have asked Kritam to remember.")
         subtitle.setObjectName("muted")
         layout.addWidget(subtitle)
-
         card = QFrame()
         card.setObjectName("card")
         inner = QVBoxLayout(card)
+        inner.setContentsMargins(22, 20, 22, 20)
+        heading = QLabel("What Kritam remembers")
+        heading.setObjectName("cardTitle")
+        inner.addWidget(heading)
         self.memory_label = QLabel(self.assistant.memory.summary())
+        self.memory_label.setObjectName("cardText")
         self.memory_label.setWordWrap(True)
         inner.addWidget(self.memory_label)
-        refresh = QPushButton("Refresh memory")
-        refresh.clicked.connect(self._refresh_memory)
-        inner.addWidget(refresh)
         layout.addWidget(card)
+        hint = QLabel("You can say: Kritam, remember that ...")
+        hint.setObjectName("hint")
+        layout.addWidget(hint)
         layout.addStretch()
         return page
 
     def _build_settings(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setSpacing(14)
         title = QLabel("Settings")
         title.setObjectName("heroTitle")
         layout.addWidget(title)
         subtitle = QLabel("Make Kritam work the way you like.")
         subtitle.setObjectName("muted")
         layout.addWidget(subtitle)
-
-        card = QFrame()
-        card.setObjectName("card")
-        inner = QVBoxLayout(card)
-        self.settings_label = QLabel()
-        self.settings_label.setWordWrap(True)
-        inner.addWidget(self.settings_label)
-        refresh = QPushButton("Refresh settings")
-        refresh.clicked.connect(self._refresh_settings)
-        inner.addWidget(refresh)
-        layout.addWidget(card)
+        sections = [
+            ("General", [
+                ("Assistant name", self.assistant.name),
+                ("Language", self.assistant.settings.get("language", "en").upper()),
+            ]),
+            ("Voice", [
+                ("Voice speed", f"{self.assistant.settings.get("voice_rate", 170)} words/min"),
+                ("Wake word", "Hey Kritam"),
+            ]),
+            ("Privacy", [
+                ("Memory", "Stored on this computer"),
+                ("Conversations", "Stored on this computer"),
+            ]),
+        ]
+        for section_title, items in sections:
+            card = QFrame()
+            card.setObjectName("card")
+            inner = QVBoxLayout(card)
+            inner.setContentsMargins(20, 16, 20, 16)
+            section = QLabel(section_title)
+            section.setObjectName("cardTitle")
+            inner.addWidget(section)
+            for label_text, value_text in items:
+                row = QHBoxLayout()
+                label = QLabel(label_text)
+                label.setObjectName("settingLabel")
+                value = QLabel(value_text)
+                value.setObjectName("settingValue")
+                row.addWidget(label)
+                row.addStretch()
+                row.addWidget(value)
+                inner.addLayout(row)
+            layout.addWidget(card)
+        about = QLabel("Kritam is designed to keep everyday computer tasks simple.")
+        about.setObjectName("hint")
+        about.setWordWrap(True)
+        layout.addWidget(about)
         layout.addStretch()
         return page
-
     def _select_page(self, index):
         for i, button in enumerate(self.nav_buttons):
             button.setChecked(i == index)
