@@ -5,38 +5,29 @@ class VoiceListener:
 
     def __init__(self):
         self.recognizer = sr.Recognizer()
-
-        # Don't stop listening too quickly
-        self.recognizer.pause_threshold = 2.0
-
-        # Minimum speech before considering it a phrase
-        self.recognizer.phrase_threshold = 0.2
-
-        # Keep a little silence around speech
-        self.recognizer.non_speaking_duration = 0.8
-
+        self.recognizer.pause_threshold = 0.65
+        self.recognizer.phrase_threshold = 0.15
+        self.recognizer.non_speaking_duration = 0.35
+        self.recognizer.dynamic_energy_threshold = True
         self.microphone = sr.Microphone()
+        self._calibrated = False
 
-    def listen(self):
-
+    def _prepare(self):
+        if self._calibrated:
+            return
         with self.microphone as source:
+            print("Calibrating microphone...")
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
+        self._calibrated = True
 
-            print("Listening...")
-
-            # Calibrate microphone
-            self.recognizer.adjust_for_ambient_noise(
-                source,
-                duration=0.3
-            )
-
+    def listen(self, timeout=1, phrase_time_limit=6):
+        self._prepare()
+        with self.microphone as source:
             try:
-                audio = self.recognizer.listen(
+                return self.recognizer.listen(
                     source,
-                    timeout=5,
-                    phrase_time_limit=10
+                    timeout=timeout,
+                    phrase_time_limit=phrase_time_limit,
                 )
-
-                return audio
-
             except sr.WaitTimeoutError:
                 return None
