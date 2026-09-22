@@ -193,9 +193,6 @@ class MainWindow(QMainWindow):
         layout.addLayout(left)
         layout.addStretch()
 
-        self.status_label = QLabel("")
-        self.status_label.setObjectName("headerStatus")
-        layout.addWidget(self.status_label)
         return frame
 
     def _build_chat(self):
@@ -640,14 +637,12 @@ class MainWindow(QMainWindow):
 
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
-        self.status_label.setText("")
         self.orb_status.setText(f"● {text.upper()}")
         self.orb.setProperty("active", busy)
         self.orb.style().unpolish(self.orb)
         self.orb.style().polish(self.orb)
 
     def _set_ready_state(self):
-        self.status_label.setText("● Ready")
         self.orb_status.setText("● READY TO HELP")
 
     def _refresh_status(self):
