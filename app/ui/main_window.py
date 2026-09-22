@@ -510,10 +510,21 @@ class MainWindow(QMainWindow):
         )
 
     def closeEvent(self, event):
-        if self.thread is not None:
-            QMessageBox.information(
-                self, "Kritam", "Please wait for the current operation to finish."
-            )
-            event.ignore()
+        if getattr(self, "_really_exiting", False):
+            event.accept()
             return
-        event.accept()
+
+        self.hide()
+        self.tray.showMessage(
+            "Kritam is running",
+            "Kritam is still listening for “Hey Kritam”. Use the tray icon to exit.",
+            QSystemTrayIcon.Information,
+            2500,
+        )
+        event.ignore()
+
+    def _exit_app(self):
+        self._stop_background_listener()
+        self.tray.hide()
+        self._really_exiting = True
+        self.close()
