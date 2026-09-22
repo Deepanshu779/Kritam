@@ -10,10 +10,12 @@ class BackgroundVoiceListener:
     def __init__(self, speech_to_text):
         self.speech_to_text = speech_to_text
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 0.55
-        self.recognizer.phrase_threshold = 0.12
-        self.recognizer.non_speaking_duration = 0.3
+        self.recognizer.pause_threshold = 0.8
+        self.recognizer.phrase_threshold = 0.08
+        self.recognizer.non_speaking_duration = 0.4
         self.recognizer.dynamic_energy_threshold = True
+        self.recognizer.dynamic_energy_adjustment_damping = 0.15
+        self.recognizer.dynamic_energy_ratio = 1.5
         self.microphone = sr.Microphone()
         self.stop_event = threading.Event()
         self.armed = False
@@ -36,7 +38,7 @@ class BackgroundVoiceListener:
                 return self.recognizer.listen(
                     source,
                     timeout=1,
-                    phrase_time_limit=5,
+                    phrase_time_limit=7,
                 )
             except sr.WaitTimeoutError:
                 return None
@@ -49,9 +51,13 @@ class BackgroundVoiceListener:
             if audio is None:
                 continue
 
+            print('Background listener: speech captured, transcribing...')
             text = self.speech_to_text.convert(audio)
             if not text:
+                print('Background listener: no speech recognized.')
                 continue
+
+            print(f'Background listener heard: {text}')
 
             match = self.WAKE_PATTERN.search(text)
             if match:
