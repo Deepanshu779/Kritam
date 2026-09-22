@@ -45,7 +45,7 @@ class Kritam:
 
     def _speak(self, message):
         if not self.silent_mode:
-            self._speak(message)
+            self.text_to_speech.speak(message)
 
     def _register_actions(self):
         self.action_registry.register("open_application", self.application_manager.handle_open_application)
