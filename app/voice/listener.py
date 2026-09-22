@@ -31,3 +31,35 @@ class VoiceListener:
                 )
             except sr.WaitTimeoutError:
                 return None
+
+    def listen_until_stopped(self, stop_event):
+        """Record continuously until the UI asks us to stop.
+
+        This is used by the foreground mic button. Unlike listen(), it does
+        not stop on a short pause, so the user can speak naturally and then
+        click the mic button again to finish and send the recording.
+        """
+        self._prepare()
+        with self.microphone as source:
+            print("Kritam: foreground recording started.")
+            chunks = []
+            while not stop_event.is_set():
+                try:
+                    chunk = source.stream.read(
+                        source.CHUNK,
+                        exception_on_overflow=False,
+                    )
+                except Exception as exc:
+                    print(f"Kritam: microphone read stopped: {exc}")
+                    break
+                chunks.append(chunk)
+
+            print("Kritam: foreground recording stopped.")
+            if not chunks:
+                return None
+
+            return sr.AudioData(
+                b"".join(chunks),
+                source.SAMPLE_RATE,
+                source.SAMPLE_WIDTH,
+            )
