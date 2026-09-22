@@ -40,7 +40,12 @@ class Kritam:
         self.file_manager = FileManager()
         self.system_manager = SystemManager()
         self.action_registry = ActionRegistry()
+        self.silent_mode = False
         self._register_actions()
+
+    def _speak(self, message):
+        if not self.silent_mode:
+            self._speak(message)
 
     def _register_actions(self):
         self.action_registry.register("open_application", self.application_manager.handle_open_application)
@@ -65,11 +70,11 @@ class Kritam:
         if intent.get("type") == "repeat_last_action":
             intent = self.context.repeat_last()
             if intent is None:
-                self.text_to_speech.speak("There is no previous successful action to repeat.")
+                self._speak("There is no previous successful action to repeat.")
                 return False
 
         if not self.validator.validate(intent):
-            self.text_to_speech.speak("I can't perform that action yet.")
+            self._speak("I can't perform that action yet.")
             self.context.add_turn(text, intent, False)
             self.history.add(text, intent, False)
             return False
@@ -78,7 +83,7 @@ class Kritam:
 
         if t == "ai_status":
             status = self.intent_engine.ai.status_text()
-            self.text_to_speech.speak(status)
+            self._speak(status)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             return True
@@ -87,7 +92,7 @@ class Kritam:
             success = self.memory.remember(intent["key"], intent["value"])
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self.text_to_speech.speak("I'll remember that." if success else "I couldn't save that memory.")
+            self._speak("I'll remember that." if success else "I couldn't save that memory.")
             return success
 
         if t == "memory_recall":
@@ -95,9 +100,9 @@ class Kritam:
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             if result:
-                self.text_to_speech.speak(f"Your {result['key']} is {result['value']}.")
+                self._speak(f"Your {result['key']} is {result['value']}.")
             else:
-                self.text_to_speech.speak("I don't have that saved.")
+                self._speak("I don't have that saved.")
             return True
 
         if t == "memory_forget":
@@ -110,7 +115,7 @@ class Kritam:
                 success = self.memory._save()
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self.text_to_speech.speak("I've forgotten that." if success else "I don't have that saved.")
+            self._speak("I've forgotten that." if success else "I don't have that saved.")
             return success
 
         if t == "set_setting":
@@ -119,13 +124,13 @@ class Kritam:
                 self.name = intent["value"]
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self.text_to_speech.speak(
+            self._speak(
                 "Setting updated." if success else "I couldn't update that setting."
             )
             return success
 
         if t == "task_status":
-            self.text_to_speech.speak(self.task_manager.status_text())
+            self._speak(self.task_manager.status_text())
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             return True
@@ -138,12 +143,12 @@ class Kritam:
                 response = "Recently: " + ". ".join(
                     item["command"] for item in recent
                 )
-            self.text_to_speech.speak(response)
+            self._speak(response)
             self.context.add_turn(text, intent, True)
             return True
 
         if t == "memory_summary":
-            self.text_to_speech.speak(self.memory.summary())
+            self._speak(self.memory.summary())
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             return True
@@ -152,11 +157,11 @@ class Kritam:
             success = self.memory.clear()
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self.text_to_speech.speak("Saved memory cleared." if success else "I couldn't clear saved memory.")
+            self._speak("Saved memory cleared." if success else "I couldn't clear saved memory.")
             return success
 
         if t == "conversation":
-            self.text_to_speech.speak(intent.get("response", "How can I help?"))
+            self._speak(intent.get("response", "How can I help?"))
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             return True
@@ -185,9 +190,9 @@ class Kritam:
                 "minimize_window": "Window minimized.",
                 "maximize_window": "Window maximized.",
             }
-            self.text_to_speech.speak(messages.get(t, "Done."))
+            self._speak(messages.get(t, "Done."))
         else:
-            self.text_to_speech.speak("I couldn't complete that action.")
+            self._speak("I couldn't complete that action.")
         return success
 
     def _process_command(self, text):
@@ -208,23 +213,36 @@ class Kritam:
         text = text.strip()
         if not text:
             return {"success": False, "response": "Please enter a command."}
-        tasks = self.planner.split(text)
-        self.task_manager.start(text, len(tasks))
-        success_all = True
-        for task in tasks:
-            success = self._process_command(task)
-            self.task_manager.complete(success)
-            success_all = success_all and success
-            if not success and len(tasks) > 1:
-                self.task_manager.fail()
-                break
-        if success_all:
-            self.task_manager.finish()
-        return {"success": success_all, "response": "Task completed." if success_all else "I couldn't complete the task."}
+
+        previous_silent_mode = self.silent_mode
+        self.silent_mode = not speak
+        try:
+            tasks = self.planner.split(text)
+            self.task_manager.start(text, len(tasks))
+            success_all = True
+
+            for task in tasks:
+                success = self._process_command(task)
+                self.task_manager.complete(success)
+                success_all = success_all and success
+
+                if not success and len(tasks) > 1:
+                    self.task_manager.fail()
+                    break
+
+            if success_all:
+                self.task_manager.finish()
+
+            return {
+                "success": success_all,
+                "response": "Task completed." if success_all else "I couldn't complete the task.",
+            }
+        finally:
+            self.silent_mode = previous_silent_mode
 
     def start(self):
         print(f"{self.name} is starting...")
-        self.text_to_speech.speak(f"Hello. {self.name} is ready.")
+        self._speak(f"Hello. {self.name} is ready.")
 
         while True:
             audio = self.listener.listen()
@@ -239,7 +257,7 @@ class Kritam:
             command = text.lower().strip()
 
             if command in {"exit", "quit", "stop"}:
-                self.text_to_speech.speak("Okay. See you later.")
+                self._speak("Okay. See you later.")
                 break
 
             tasks = self.planner.split(text)
@@ -248,14 +266,14 @@ class Kritam:
 
             for task in tasks:
                 if task.lower() in {"exit", "quit", "stop"}:
-                    self.text_to_speech.speak("Okay. See you later.")
+                    self._speak("Okay. See you later.")
                     return
 
                 success = self._process_command(task)
                 self.task_manager.complete(success)
                 if not success and len(tasks) > 1:
                     self.task_manager.fail()
-                    self.text_to_speech.speak("The task stopped because a step failed.")
+                    self._speak("The task stopped because a step failed.")
                     break
             else:
                 self.task_manager.finish()
