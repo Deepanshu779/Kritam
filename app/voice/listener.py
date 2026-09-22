@@ -5,9 +5,9 @@ class VoiceListener:
 
     def __init__(self):
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 0.65
+        self.recognizer.pause_threshold = 1.35
         self.recognizer.phrase_threshold = 0.15
-        self.recognizer.non_speaking_duration = 0.35
+        self.recognizer.non_speaking_duration = 0.55
         self.recognizer.dynamic_energy_threshold = True
         self.microphone = sr.Microphone()
         self._calibrated = False
@@ -20,7 +20,7 @@ class VoiceListener:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
         self._calibrated = True
 
-    def listen(self, timeout=1, phrase_time_limit=6):
+    def listen(self, timeout=1, phrase_time_limit=30):
         self._prepare()
         with self.microphone as source:
             try:
