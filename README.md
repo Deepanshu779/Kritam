@@ -83,6 +83,24 @@ Fast Router
 
 This keeps common commands fast and prevents the AI model from directly executing arbitrary computer commands.
 
+## Background Voice Mode
+
+Kritam can run in the Windows background through the system tray and listen locally for the wake phrase:
+
+```
+Hey Kritam, open Chrome
+Hey Kritam, search Google for Python
+Hey Kritam, take a screenshot
+```
+
+The current prototype uses local microphone phrase detection plus Faster-Whisper transcription. The speech model defaults to `tiny.en` for lower latency and can be changed with:
+
+```
+KRITAM_WHISPER_MODEL=small.en
+```
+
+When the application window is closed, Kritam remains in the system tray and continues listening. Use **Exit Kritam** from the tray menu to stop the background listener.
+
 ## Current Capabilities
 
 ### Voice
