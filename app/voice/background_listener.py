@@ -38,7 +38,7 @@ class BackgroundVoiceListener:
                 return self.recognizer.listen(
                     source,
                     timeout=1,
-                    phrase_time_limit=30,
+                    phrase_time_limit=phrase_time_limit,
                 )
             except sr.WaitTimeoutError:
                 return None
