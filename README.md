@@ -300,6 +300,18 @@ Task status
 AI status
 ```
 
+## September 2026 Deadline Plan
+
+The current focus is a stable working prototype before the end-of-September deadline. New features are frozen unless they directly improve reliability, safety, testing, or release readiness.
+
+### Final priorities
+
+1. Desktop GUI integration
+2. Safety and controlled actions
+3. End-to-end testing on Windows
+4. Reliability and error handling
+5. Packaging and final demonstration
+
 ## Development Status
 
 The project is intentionally being developed in major stages.
