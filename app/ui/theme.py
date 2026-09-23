@@ -359,3 +359,31 @@ QPushButton#chip:hover {
     color: #ffffff;
 }
 """
+
+QWidget#voiceRecordingBar {
+    background: #202020;
+    border: 1px solid #343434;
+    border-radius: 29px;
+}
+QPushButton#voiceCancel {
+    background: transparent;
+    border: none;
+    color: #777777;
+    font-size: 30px;
+    padding: 0px;
+}
+QPushButton#voiceCancel:hover {
+    color: #d0d0d0;
+}
+QPushButton#voiceFinish {
+    background: #2b2b2b;
+    border: 1px solid #444444;
+    border-radius: 21px;
+    color: #f2f2f2;
+    font-size: 22px;
+    padding: 0px;
+}
+QPushButton#voiceFinish:hover {
+    background: #383838;
+    border: 1px solid #5a5a5a;
+}
