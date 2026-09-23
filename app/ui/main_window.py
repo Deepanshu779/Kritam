@@ -1,6 +1,6 @@
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QRect
 import threading
-from PySide6.QtGui import QAction
+from PySide6.QtGui import QAction, QRegion
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -269,6 +269,7 @@ class MainWindow(QMainWindow):
         self.orb.setObjectName("orb")
         self.orb.setFixedSize(190, 190)
         self.orb.setAlignment(Qt.AlignCenter)
+        self.orb.setMask(QRegion(QRect(0, 0, 190, 190), QRegion.Ellipse))
         center.addWidget(self.orb, 0, Qt.AlignHCenter)
 
         self.orb_status = QLabel("● READY TO HELP")
