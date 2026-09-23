@@ -145,6 +145,7 @@ class Kritam:
                 )
             self._speak(response)
             self.context.add_turn(text, intent, True)
+            self.history.add(text, intent, True)
             return True
 
         if t == "memory_summary":
