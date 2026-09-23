@@ -57,44 +57,24 @@ class BrowserManager:
         if not query:
             return False
 
-        if platform == "youtube":
-            if not self._ensure_browser():
-                return False
-            try:
-                url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(query)
-                self._page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                self._page.wait_for_timeout(1500)
-                video = self._page.locator("a#video-title").first
-                if video.count() == 0:
-                    video = self._page.locator("a[href*='/watch?v=']").first
-                if video.count() == 0:
-                    return False
-                video.click()
-                self._page.wait_for_timeout(1200)
+        # Do not use the shared Playwright browser for this action.
+        # Kritam processes commands in different worker threads, while
+        # Playwright objects are thread-bound. Opening the music deep-link
+        # directly avoids the "cannot switch to a different thread" failure.
+        try:
+            if platform == "youtube":
+                voice_query = urllib.parse.quote_plus(f"play {query} on YouTube")
+                url = f"https://www.youtube.com/tv?launch=voice&vq={voice_query}"
+                os.startfile(url)
                 return True
-            except Exception as error:
-                print(f"YouTube playback error: {error}")
-                return False
 
-        if platform == "spotify":
-            if not self._ensure_browser():
-                return False
-            try:
+            if platform == "spotify":
                 url = "https://open.spotify.com/search/" + urllib.parse.quote(query, safe="")
-                self._page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                self._page.wait_for_timeout(2000)
-                # Spotify requires an authenticated session for actual playback.
-                buttons = self._page.locator("button")
-                for i in range(min(buttons.count(), 80)):
-                    button = buttons.nth(i)
-                    label = (button.get_attribute("aria-label") or "").lower()
-                    if "play" in label:
-                        button.click()
-                        return True
+                os.startfile(url)
                 return True
-            except Exception as error:
-                print(f"Spotify playback error: {error}")
-                return False
+
+        except (OSError, ValueError):
+            return False
 
         return False
 
