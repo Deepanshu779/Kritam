@@ -358,8 +358,6 @@ QPushButton#chip:hover {
     background: #172945;
     color: #ffffff;
 }
-"""
-
 QWidget#voiceRecordingBar {
     background: #202020;
     border: 1px solid #343434;
@@ -387,3 +385,5 @@ QPushButton#voiceFinish:hover {
     background: #383838;
     border: 1px solid #5a5a5a;
 }
+
+"""
