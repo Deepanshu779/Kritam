@@ -1,8 +1,7 @@
 import os
 import re
-import tempfile
-
 import speech_recognition as sr
+import numpy as np
 from faster_whisper import WhisperModel
 
 
@@ -16,6 +15,8 @@ class SpeechToText:
             model_name,
             device="cpu",
             compute_type="int8",
+            cpu_threads=4,
+            num_workers=1,
         )
 
     def _clean(self, text):
@@ -35,28 +36,23 @@ class SpeechToText:
         if audio is None:
             return ""
 
-        temp_path = None
-
         try:
-            with tempfile.NamedTemporaryFile(
-                suffix=".wav",
-                delete=False,
-            ) as temp_file:
-                temp_file.write(audio.get_wav_data())
-                temp_path = temp_file.name
+            raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
+            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
             segments, _ = self.model.transcribe(
-                temp_path,
+                samples,
                 language="en",
                 beam_size=1,
                 best_of=1,
                 temperature=0.0,
                 vad_filter=True,
                 vad_parameters=dict(
-                    min_silence_duration_ms=250,
-                    speech_pad_ms=250,
+                    min_silence_duration_ms=150,
+                    speech_pad_ms=150,
                 ),
                 condition_on_previous_text=False,
+                initial_prompt="Kritam, open Chrome, YouTube, Spotify, Google, Calculator, Notepad, play music.",
             )
 
             text = " ".join(segment.text for segment in segments)
