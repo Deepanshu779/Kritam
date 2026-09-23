@@ -156,10 +156,55 @@ class FastRouter:
         if re.fullmatch(r"(take )?(a )?(screenshot|screen capture)|(capture|save) (the )?screen", command):
             return {"type": "take_screenshot"}
 
-        if command in {"hello", "hi", "hey", "hey kritam"}:
-            return {"type": "conversation", "response": "Hello! How can I help?"}
+        if command in {"hello", "hi", "hey", "hey kritam", "good morning", "good afternoon", "good evening"}:
+            return {"type": "conversation", "response": "Hello! I'm Kritam. How can I help?"}
 
         if command in {"how are you", "how are you doing"}:
             return {"type": "conversation", "response": "I'm doing good. How can I help?"}
+
+        if command in {
+            "who are you",
+            "what are you",
+            "tell me about yourself",
+            "what is kritam",
+        }:
+            return {
+                "type": "conversation",
+                "response": "I'm Kritam, your personal desktop assistant. I can open apps, search the web, manage folders, control media and help with everyday tasks.",
+            }
+
+        if command in {
+            "what can you do",
+            "what can you do for me",
+            "show me what you can do",
+            "help",
+        }:
+            return {
+                "type": "conversation",
+                "response": "I can open apps and websites, search Google, open folders, take screenshots, control volume and media, remember information, and handle simple multi-step tasks.",
+            }
+
+        if command in {
+            "explain python",
+            "what is python",
+            "what is python programming",
+        }:
+            return {
+                "type": "conversation",
+                "response": "Python is a high-level programming language known for clear syntax and a large ecosystem. It is widely used for automation, web development, data science and artificial intelligence.",
+            }
+
+        if command in {
+            "explain artificial intelligence",
+            "what is artificial intelligence",
+            "what is ai",
+        }:
+            return {
+                "type": "conversation",
+                "response": "Artificial intelligence is technology that enables computers to perform tasks that normally require human-like abilities, such as understanding language, recognizing patterns and making decisions.",
+            }
+
+        if command in {"thanks", "thank you", "thank you kritam"}:
+            return {"type": "conversation", "response": "You're welcome!"}
 
         return None
