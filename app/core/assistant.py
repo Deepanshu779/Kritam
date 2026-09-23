@@ -57,6 +57,7 @@ class Kritam:
         self.action_registry.register("browser_open_result_by_text", self.browser_manager.handle_open_result_by_text)
         self.action_registry.register("browser_new_tab", self.browser_manager.handle_new_tab)
         self.action_registry.register("browser_close_tab", self.browser_manager.handle_close_tab)
+        self.action_registry.register("play_music", self.browser_manager.handle_play_music)
         self.action_registry.register("open_folder", self.file_manager.handle_open_folder)
         self.action_registry.register("take_screenshot", self.system_manager.handle_screenshot)
         self.action_registry.register("volume_up", self.system_manager.handle_volume_up)
