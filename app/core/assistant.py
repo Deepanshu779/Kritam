@@ -189,6 +189,7 @@ class Kritam:
                 "volume_down": "Volume decreased.",
                 "volume_mute": "Volume muted.",
                 "media_play_pause": "Playback toggled.",
+                "play_music": f"Playing {intent['query']} on {intent['platform'].title()}.",
                 "minimize_window": "Window minimized.",
                 "maximize_window": "Window maximized.",
             }
