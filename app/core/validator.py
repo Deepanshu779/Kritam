@@ -32,6 +32,8 @@ class ActionValidator:
             return True
         if t in {"browser_back", "browser_new_tab", "browser_close_tab"}:
             return True
+        if t == "play_music":
+            return intent.get("platform", "").lower().strip() in {"youtube", "spotify"} and bool(intent.get("query", "").strip())
         if t == "browser_open_result":
             return isinstance(intent.get("number"), int) and 1 <= intent["number"] <= 5
         if t == "browser_open_result_by_text":
