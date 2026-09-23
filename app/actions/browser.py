@@ -57,23 +57,46 @@ class BrowserManager:
         if not query:
             return False
 
-        # Do not use the shared Playwright browser for this action.
-        # Kritam processes commands in different worker threads, while
-        # Playwright objects are thread-bound. Opening the music deep-link
-        # directly avoids the "cannot switch to a different thread" failure.
+        # Music commands can run from worker threads. Do not reuse the
+        # shared Playwright objects here because Playwright is thread-bound.
         try:
             if platform == "youtube":
-                voice_query = urllib.parse.quote_plus(f"play {query} on YouTube")
-                url = f"https://www.youtube.com/tv?launch=voice&vq={voice_query}"
-                os.startfile(url)
+                # Resolve the first YouTube result to a real watch URL without
+                # creating a Playwright object in the worker thread.
+                import re
+                import urllib.request
+
+                search_url = (
+                    "https://www.youtube.com/results?search_query="
+                    + urllib.parse.quote_plus(query)
+                )
+                request = urllib.request.Request(
+                    search_url,
+                    headers={"User-Agent": "Mozilla/5.0"},
+                )
+                with urllib.request.urlopen(request, timeout=8) as response:
+                    html = response.read().decode("utf-8", errors="ignore")
+
+                match = re.search(r'"videoId":"([A-Za-z0-9_-]{11})"', html)
+                if match:
+                    os.startfile(
+                        "https://www.youtube.com/watch?v=" + match.group(1)
+                    )
+                    return True
+
+                # If YouTube changes its page structure, still open the
+                # search results rather than failing completely.
+                os.startfile(search_url)
                 return True
 
             if platform == "spotify":
-                url = "https://open.spotify.com/search/" + urllib.parse.quote(query, safe="")
+                url = "https://open.spotify.com/search/" + urllib.parse.quote(
+                    query, safe=""
+                )
                 os.startfile(url)
                 return True
 
-        except (OSError, ValueError):
+        except (OSError, ValueError, TimeoutError, urllib.error.URLError):
             return False
 
         return False
