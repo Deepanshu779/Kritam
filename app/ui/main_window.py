@@ -669,6 +669,11 @@ class MainWindow(QMainWindow):
     @Slot(str)
     def _worker_error(self, message):
         self._recording = False
+        self.voice_bar.stop_animation()
+        self.voice_bar.setEnabled(True)
+        self.voice_bar.hide()
+        self.command_input.show()
+        self.mic_button.show()
         self.mic_button.setEnabled(True)
         self.mic_button.setText("🎙")
         self.mic_button.setToolTip("Talk to Kritam")
