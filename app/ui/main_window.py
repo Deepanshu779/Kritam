@@ -575,6 +575,15 @@ class MainWindow(QMainWindow):
         self.command_input.setText(command)
         self.command_input.setFocus()
 
+        # One-click actions execute immediately; prompts that need a query
+        # stay in the composer so the user can finish the request.
+        if command.strip().lower() in {
+            "open chrome",
+            "open downloads",
+            "take a screenshot",
+        }:
+            self._send_text()
+
     def _add_message(self, text, is_user):
         prefix = "You: " if is_user else "Kritam: "
         self.activity_label.setText(prefix + text)
