@@ -72,6 +72,13 @@ class FastRouter:
 
         if command in {"play pause", "play or pause", "pause music", "resume music", "toggle play pause"}:
             return {"type": "media_play_pause"}
+        match = re.fullmatch(r"(?:play|play the song) (.+?) (?:on|in) (youtube|spotify)", command)
+        if match:
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": match.group(2).strip()}
+
+        match = re.fullmatch(r"(?:open|start) (youtube|spotify) and play (.+)", command)
+        if match:
+            return {"type": "play_music", "query": match.group(2).strip(), "platform": match.group(1).strip()}
 
         if command in {"minimize window", "minimize this window", "minimize"}:
             return {"type": "minimize_window"}
