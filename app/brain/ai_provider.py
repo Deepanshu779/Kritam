@@ -90,8 +90,8 @@ actually reports that the action succeeded.
                 ],
             )
             return response["message"]["content"]
-        except Exception as error:
-            print(f"Ollama error: {error}")
+        except Exception:
+            # AI fallback is optional; keep backend failures internal.
             return None
 
     def status(self):
