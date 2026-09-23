@@ -8,7 +8,7 @@ class ActionValidator:
     ALLOWED_SYSTEM_ACTIONS = {"take_screenshot", "volume_up", "volume_down", "volume_mute", "media_play_pause", "minimize_window", "maximize_window"}
     ALLOWED_BROWSER_ACTIONS = {
         "browser_search", "browser_open_result", "browser_open_result_by_text",
-        "browser_back", "browser_new_tab", "browser_close_tab",
+        "browser_back", "browser_new_tab", "browser_close_tab", "play_music",
     }
     ALLOWED_MEMORY_ACTIONS = {"memory_summary", "memory_clear", "memory_remember", "memory_recall", "memory_forget", "history_summary", "task_status", "set_setting", "ai_status"}
 
