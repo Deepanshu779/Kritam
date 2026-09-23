@@ -10,7 +10,7 @@ class SpeechToText:
     def __init__(self):
         self.recognizer = sr.Recognizer()
 
-        model_name = os.getenv("KRITAM_WHISPER_MODEL", "tiny.en")
+        model_name = os.getenv("KRITAM_WHISPER_MODEL", "base.en")
         self.model = WhisperModel(
             model_name,
             device="cpu",
@@ -40,6 +40,14 @@ class SpeechToText:
             raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
             samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
+            # Normalize microphone level before Whisper. This helps when the
+            # laptop mic records speech quietly or from a little distance.
+            peak = float(np.max(np.abs(samples))) if samples.size else 0.0
+            if peak > 0.01:
+                target_peak = 0.85
+                samples = samples * min(target_peak / peak, 4.0)
+                samples = np.clip(samples, -1.0, 1.0)
+
             segments, _ = self.model.transcribe(
                 samples,
                 language="en",
@@ -48,8 +56,8 @@ class SpeechToText:
                 temperature=0.0,
                 vad_filter=True,
                 vad_parameters=dict(
-                    min_silence_duration_ms=150,
-                    speech_pad_ms=150,
+                    min_silence_duration_ms=250,
+                    speech_pad_ms=250,
                 ),
                 condition_on_previous_text=False,
                 initial_prompt="Kritam, open Chrome, YouTube, Spotify, Google, Calculator, Notepad, play music.",
