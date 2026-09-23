@@ -62,9 +62,3 @@ class SpeechToText:
             print(f"Local STT error: {error}")
             return ""
 
-        finally:
-            if temp_path and os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except OSError:
-                    pass
