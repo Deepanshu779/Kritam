@@ -51,6 +51,56 @@ class BrowserManager:
     def handle_search_web(self, intent):
         return self.search_web(intent.get("query", ""))
 
+    def play_music(self, platform, query):
+        query = query.strip()
+        platform = platform.lower().strip()
+        if not query:
+            return False
+
+        if platform == "youtube":
+            if not self._ensure_browser():
+                return False
+            try:
+                url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote_plus(query)
+                self._page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                self._page.wait_for_timeout(1500)
+                video = self._page.locator("a#video-title").first
+                if video.count() == 0:
+                    video = self._page.locator("a[href*='/watch?v=']").first
+                if video.count() == 0:
+                    return False
+                video.click()
+                self._page.wait_for_timeout(1200)
+                return True
+            except Exception as error:
+                print(f"YouTube playback error: {error}")
+                return False
+
+        if platform == "spotify":
+            if not self._ensure_browser():
+                return False
+            try:
+                url = "https://open.spotify.com/search/" + urllib.parse.quote(query, safe="")
+                self._page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                self._page.wait_for_timeout(2000)
+                # Spotify requires an authenticated session for actual playback.
+                buttons = self._page.locator("button")
+                for i in range(min(buttons.count(), 80)):
+                    button = buttons.nth(i)
+                    label = (button.get_attribute("aria-label") or "").lower()
+                    if "play" in label:
+                        button.click()
+                        return True
+                return True
+            except Exception as error:
+                print(f"Spotify playback error: {error}")
+                return False
+
+        return False
+
+    def handle_play_music(self, intent):
+        return self.play_music(intent.get("platform", ""), intent.get("query", ""))
+
     def _ensure_browser(self):
         if self._page is not None:
             return True
