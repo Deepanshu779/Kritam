@@ -214,4 +214,8 @@ class FastRouter:
         if command in {"thanks", "thank you", "thank you kritam"}:
             return {"type": "conversation", "response": "You're welcome!"}
 
+        if command in {"what time is it", "what is the time"}:
+            from datetime import datetime
+            return {"type": "conversation", "response": datetime.now().strftime("It is %I:%M %p.")}
+
         return None
