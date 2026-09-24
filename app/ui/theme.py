@@ -163,6 +163,85 @@ QPushButton#attachButton:hover {
     border: 1px solid #235284;
 }
 
+QLineEdit#settingsInput,
+QComboBox#settingsCombo {
+    background: #06111f;
+    border: 1px solid #193a60;
+    border-radius: 9px;
+    color: #edf3ff;
+    padding: 8px 10px;
+    min-height: 18px;
+}
+
+QComboBox#settingsCombo QAbstractItemView {
+    background: #071322;
+    color: #edf3ff;
+    border: 1px solid #193a60;
+    selection-background-color: #145e9e;
+}
+
+QSlider#settingsSlider::groove:horizontal {
+    height: 5px;
+    background: #18304d;
+    border-radius: 2px;
+}
+
+QSlider#settingsSlider::handle:horizontal {
+    width: 15px;
+    margin: -5px 0;
+    border-radius: 8px;
+    background: #16b9ff;
+    border: 1px solid #6ad9ff;
+}
+
+QCheckBox#settingsCheck {
+    color: #b9c9dd;
+    spacing: 8px;
+    font-size: 13px;
+}
+
+QCheckBox#settingsCheck::indicator {
+    width: 17px;
+    height: 17px;
+    border-radius: 5px;
+    border: 1px solid #24496e;
+    background: #06111f;
+}
+
+QCheckBox#settingsCheck::indicator:checked {
+    background: #1385df;
+    border: 1px solid #50c5ff;
+}
+
+QPushButton#primaryActionButton,
+QPushButton#secondaryActionButton {
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+QPushButton#primaryActionButton {
+    background: #0d6fc4;
+    border: 1px solid #3eb5ff;
+    color: #ffffff;
+}
+
+QPushButton#primaryActionButton:hover {
+    background: #1689eb;
+}
+
+QPushButton#secondaryActionButton {
+    background: #091a2c;
+    border: 1px solid #1a3859;
+    color: #a9bed7;
+}
+
+QPushButton#secondaryActionButton:hover {
+    background: #102844;
+    color: #ffffff;
+}
+
 QLineEdit#composerInput {
     background: transparent;
     border: none;
