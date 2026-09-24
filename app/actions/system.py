@@ -46,10 +46,10 @@ class SystemManager:
                     all_screens=True,
                     include_layered_windows=True,
                 )
-            except TypeError:
+            except Exception:
                 try:
                     image = ImageGrab.grab(all_screens=True)
-                except TypeError:
+                except Exception:
                     image = ImageGrab.grab()
 
             if image is None or image.width <= 0 or image.height <= 0:
