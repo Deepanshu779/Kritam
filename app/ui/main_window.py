@@ -317,7 +317,8 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._setup_tray()
-        self._start_background_listener()
+        if self.assistant.settings.get("wake_word_enabled", True):
+            self._start_background_listener()
 
     def _build_ui(self):
         # Top-level window container with rounded dark border
