@@ -128,16 +128,14 @@ class AuthWindow(QMainWindow):
         robot = KritamRobotWidget(compact=False)
         hero.addWidget(robot, 0, Qt.AlignCenter)
 
-        hero_title = QLabel("Your personal AI,
-ready when you are.")
+        hero_title = QLabel("Your personal AI,\nready when you are.")
         hero_title.setStyleSheet(
             "color:#ffffff;font-size:25px;font-weight:800;"
         )
         hero.addWidget(hero_title, 0, Qt.AlignCenter)
 
         hero_sub = QLabel(
-            "Voice, desktop automation, web access and
-"
+            "Voice, desktop automation, web access and\n"
             "natural conversation in one place."
         )
         hero_sub.setAlignment(Qt.AlignCenter)
