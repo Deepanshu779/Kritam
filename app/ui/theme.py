@@ -1,389 +1,63 @@
 WINDOW_STYLE = """
-QMainWindow {
-    background: #080d19;
-}
-QWidget {
-    color: #eef3ff;
-    font-family: "Segoe UI";
-    font-size: 14px;
-}
-QFrame#sidebar {
-    background: #0d1424;
-    border: 1px solid #1d2a43;
-    border-radius: 18px;
-}
-QFrame#header {
-    background: #0d1424;
-    border: 1px solid #1d2a43;
-    border-radius: 16px;
-}
-QFrame#hero {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
-        stop:0 #101b31, stop:0.55 #10172a, stop:1 #0d1424);
-    border: 1px solid #263858;
-    border-radius: 22px;
-}
-QFrame#softCard {
-    background: #101a2c;
-    border: 1px solid #20304b;
-    border-radius: 14px;
-}
-QLabel#cardTitle {
-    color: #f2f5ff;
-    font-size: 16px;
-    font-weight: 700;
-    padding-bottom: 4px;
-}
-QLabel#cardText {
-    color: #b9c5da;
-    font-size: 14px;
-    line-height: 1.5;
-}
-QLabel#hint {
-    color: #7f8da6;
-    font-size: 13px;
-    padding: 4px 2px;
-}
-QLabel#settingLabel {
-    color: #9aa9c2;
-    font-size: 13px;
-    padding: 7px 0;
-}
-QLabel#settingValue {
-    color: #edf2ff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 7px 0;
-}
+QMainWindow { background: #050a14; }
+QWidget { color: #eef4ff; font-family: "Segoe UI"; font-size: 14px; }
+QWidget#homePage { background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #050b16,stop:0.58 #081222,stop:1 #0d1a2d); border: 1px solid #142b49; border-radius: 18px; }
+QFrame#sidebar { background: #07101d; border: 1px solid #142b49; border-radius: 18px; }
+QLabel#sidebarLogo { background: qlineargradient(x1:0,y1:1,x2:1,y2:0,stop:0 #1168e8,stop:0.55 #25a9ff,stop:1 #8c6cff); border-radius: 10px; color: white; font-size: 25px; font-weight: 800; }
+QLabel#brand { color: #f5f8ff; font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+QLabel#muted { color: #8191ab; }
+QPushButton#nav { text-align: left; padding: 12px 13px; border: 1px solid transparent; border-radius: 11px; background: transparent; color: #aab8ce; }
+QPushButton#nav:hover { background: #10213a; color: white; }
+QPushButton#nav:checked { background: #12396b; border: 1px solid #159cff; color: white; }
+QFrame#sidebarProfile { background: #0b1729; border: 1px solid #203858; border-radius: 13px; }
+QLabel#readyText { color: #dce8ff; font-weight: 650; }
+QLabel#sidebarFooter { color: #71819b; font-size: 12px; }
 
-QFrame#card, QFrame#quickCard {
-    background: #0d1424;
-    border: 1px solid #1d2a43;
-    border-radius: 16px;
-}
-QFrame#composer {
-    background: #0d1424;
-    border: 1px solid #253653;
-    border-radius: 16px;
-}
-QLabel#brand {
-    font-size: 22px;
-    font-weight: 800;
-    letter-spacing: 2px;
-}
-QLabel#headerStatus {
-    min-width: 1px;
-    max-width: 1px;
-    color: transparent;
-}
-QPushButton#nav {
-    font-size: 14px;
-}
-QLabel#hint {
-    color: #7f8da6;
-    font-size: 13px;
-}
-QLabel#pageTitle {
-    font-size: 20px;
-    font-weight: 700;
-}
-QLabel#heroTitle {
-    font-size: 30px;
-    font-weight: 750;
-}
-QLabel#heroSubtitle, QLabel#muted {
-    color: #91a0ba;
-}
-QLabel#sidebarFooter {
-    color: #71809b;
-    font-size: 12px;
-    line-height: 1.4;
-    padding: 8px 2px;
-}
-QLabel#status {
-    background: #18243a;
-    color: #b9c9e8;
-    border: 1px solid #2b3d5e;
-    border-radius: 10px;
-    padding: 7px 12px;
-    font-weight: 600;
-}
-QLabel#orb {
-    background: qradialgradient(cx:0.5,cy:0.45,radius:0.6,
-        stop:0 #789cff, stop:0.45 #456fe4, stop:0.75 #263e91, stop:1 #172451);
-    border: 1px solid #7295ff;
-    border-radius: 52px;
-    color: white;
-    font-size: 24px;
-    font-weight: 800;
-}
-QLabel#orb[active="true"] {
-    border: 2px solid #8caaff;
-    padding: 2px;
-}
-QLabel#orb[active="false"] {
-    border: 1px solid #7295ff;
-}
+QLabel#dashboardTitle { color: #f3f7ff; font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+QLabel#dashboardSubtitle { color: #8292ad; font-size: 13px; }
+QPushButton#windowIcon { background: transparent; border: none; color: #9aa9bf; font-size: 19px; }
+QFrame#heroPanel { background: #081728; border: 1px solid #1c3b62; border-radius: 18px; }
+QLabel#heroGreeting { color: #f7faff; font-size: 31px; font-weight: 800; }
+QLabel#heroSub { color: #e0e9f8; font-size: 18px; }
+QLabel#heroDesc { color: #93a3bd; font-size: 14px; }
+QLabel#sectionTitle { color: #eef4ff; font-size: 16px; font-weight: 700; }
+QPushButton#dashboardCard { text-align: left; background: #0c192b; border: 1px solid #1c3554; border-radius: 14px; color: #edf3ff; }
+QPushButton#dashboardCard:hover { background: #112540; border: 1px solid #287ed1; }
+QLabel#dashboardIcon { color: #56b6ff; font-size: 23px; font-weight: 700; }
+QLabel#dashboardCardTitle { color: #edf3ff; font-size: 14px; font-weight: 700; }
+QLabel#dashboardCardDesc { color: #8193ae; font-size: 11px; }
 
-QLabel#orbGlow {
-    color: #6e8fff;
-    font-size: 12px;
-    letter-spacing: 3px;
-}
-QPushButton#nav {
-    text-align: left;
-    padding: 12px 14px;
-    border: 1px solid transparent;
-    border-radius: 11px;
-    background: transparent;
-    color: #aebbd2;
-}
-QPushButton#nav:hover {
-    background: #131f34;
-    color: #ffffff;
-}
-QPushButton#nav:checked {
-    background: #182846;
-    border: 1px solid #2c4570;
-    color: #ffffff;
-}
-QPushButton#quick {
-    text-align: left;
-    min-height: 48px;
-    padding: 13px 15px;
-    background: #111b2e;
-    border: 1px solid #243653;
-    border-radius: 12px;
-}
-QPushButton#quick:hover {
-    background: #172640;
-    border: 1px solid #3b5b91;
-}
-QPushButton#primary {
-    background: #4b73e8;
-    border: 1px solid #6288f5;
-    border-radius: 11px;
-    padding: 0px;
-    font-size: 22px;
-    font-weight: 700;
-}
-QPushButton#primary:hover {
-    background: #5a82f2;
-}
-QPushButton#mic {
-    background: #182642;
-    border: 1px solid #30486f;
-    border-radius: 11px;
-    padding: 0px;
-    color: #f4f7ff;
-    font-size: 20px;
-}
-QPushButton#mic:hover {
-    background: #223554;
-    border: 1px solid #45628f;
-}
-QPushButton#mic:pressed {
-    background: #2b4268;
-}
-QLineEdit {
-    background: #09111f;
-    border: 1px solid #253653;
-    border-radius: 11px;
-    padding: 12px 15px;
-    color: #f4f7ff;
-    selection-background-color: #456fdf;
-}
-QLineEdit:focus {
-    border: 1px solid #5279e7;
-}
-QLabel#userBubble {
-    background: #1b315a;
-    border: 1px solid #2d4d83;
-    border-radius: 14px;
-    padding: 11px 15px;
-}
-QLabel#assistantBubble {
-    background: #101a2c;
-    border: 1px solid #20304b;
-    border-radius: 14px;
-    padding: 11px 15px;
-}
-QScrollArea {
-    border: none;
-    background: transparent;
-}
-QPushButton {
-    background: #17243a;
-    border: 1px solid #263957;
-    border-radius: 10px;
-    padding: 9px 14px;
-}
-QPushButton:hover {
-    background: #203250;
-}
-QFrame#sidebar {
-    background: #09111f;
-    border: 1px solid #1d2b45;
-    border-radius: 0px;
-}
-QLabel#sidebarLogo {
-    background: qlineargradient(x1:0,y1:1,x2:1,y2:0,
-        stop:0 #315fdb, stop:0.55 #5f65e8, stop:1 #8c6cff);
-    border-radius: 10px;
-    color: white;
-    font-size: 27px;
-    font-weight: 800;
-}
-QLabel#brand {
-    font-size: 20px;
-    font-weight: 750;
-    letter-spacing: 0px;
-}
-QFrame#sidebarProfile {
-    background: #101b2d;
-    border: 1px solid #263957;
-    border-radius: 13px;
-}
-QLabel#readyText {
-    color: #dce8ff;
-    font-weight: 650;
-}
-QWidget#homePage {
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
-        stop:0 #08101d, stop:0.55 #0b1425, stop:1 #101a2d);
-    border-radius: 18px;
-}
-QLabel#homeGreeting {
-    color: #f5f7ff;
-    font-size: 30px;
-    font-weight: 750;
-}
-QLabel#homeIntro {
-    color: #dfe7f8;
-    font-size: 21px;
-    font-weight: 600;
-}
-QLabel#homeSub {
-    color: #8f9fba;
-    font-size: 15px;
-}
-QPushButton#featureCard {
-    text-align: left;
-    background: rgba(19, 31, 52, 0.92);
-    border: 1px solid #263957;
-    border-radius: 15px;
-    color: #eef3ff;
-}
-QPushButton#featureCard:hover {
-    background: #172844;
-    border: 1px solid #3d5e92;
-}
-QLabel#featureIcon {
-    color: #6fa1ff;
-    font-size: 23px;
-    font-weight: 700;
-}
-QLabel#featureTitle {
-    color: #eef3ff;
-    font-size: 15px;
-    font-weight: 700;
-}
-QLabel#featureDesc {
-    color: #8293b0;
-    font-size: 12px;
-}
-QLabel#orb {
-    background: qradialgradient(cx:0.42,cy:0.35,radius:0.72,
-        stop:0 #8faeff, stop:0.28 #5b82ef, stop:0.58 #2e4f9e, stop:0.82 #152449, stop:1 #0c1428);
-    border: 2px solid #5c82e8;
-    border-radius: 96px;
-    color: #ffffff;
-    font-size: 62px;
-    font-weight: 800;
-}
-QLabel#orb[active="true"] {
-    border: 3px solid #91b1ff;
-    padding: 3px;
-}
-QLabel#orbGlow {
-    color: #769dff;
-    font-size: 11px;
-    letter-spacing: 3px;
-}
-QFrame#sideCard {
-    background: #0d1728;
-    border: 1px solid #223451;
-    border-radius: 15px;
-}
-QLabel#sideTitle {
-    color: #f0f4ff;
-    font-size: 16px;
-    font-weight: 700;
-}
-QLabel#sideDesc {
-    color: #8798b4;
-    font-size: 13px;
-    line-height: 1.4;
-}
-QPushButton#sideAction {
-    text-align: left;
-    background: #111d30;
-    border: 1px solid transparent;
-    border-radius: 10px;
-    color: #cdd8ed;
-    padding: 10px 11px;
-}
-QPushButton#sideAction:hover {
-    background: #192943;
-    border: 1px solid #304b74;
-    color: #ffffff;
-}
-QFrame#composer {
-    background: #0c1627;
-    border: 1px solid #30496e;
-    border-radius: 17px;
-}
-QLabel#composerHint {
-    color: #7184a3;
-    font-size: 12px;
-}
-QPushButton#chip {
-    background: #101d31;
-    border: 1px solid #263b5b;
-    border-radius: 18px;
-    padding: 8px 14px;
-    color: #b8c8e2;
-}
-QPushButton#chip:hover {
-    background: #172945;
-    color: #ffffff;
-}
-QWidget#voiceRecordingBar {
-    background: #202020;
-    border: 1px solid #343434;
-    border-radius: 29px;
-}
-QPushButton#voiceCancel {
-    background: transparent;
-    border: none;
-    color: #777777;
-    font-size: 30px;
-    padding: 0px;
-}
-QPushButton#voiceCancel:hover {
-    color: #d0d0d0;
-}
-QPushButton#voiceFinish {
-    background: #2b2b2b;
-    border: 1px solid #444444;
-    border-radius: 21px;
-    color: #f2f2f2;
-    font-size: 22px;
-    padding: 0px;
-}
-QPushButton#voiceFinish:hover {
-    background: #383838;
-    border: 1px solid #5a5a5a;
-}
+QFrame#composer { background: #071321; border: 1px solid #27476c; border-radius: 15px; }
+QLineEdit { background: #08111e; border: 1px solid #1b304d; border-radius: 10px; padding: 11px 14px; color: #f4f8ff; }
+QLineEdit:focus { border: 1px solid #159cff; }
+QPushButton#composerIcon { background: #0d1c30; border: 1px solid #27405f; border-radius: 10px; color: #a8b9d0; font-size: 20px; }
+QPushButton#primary { background: #157cff; border: 1px solid #49a9ff; border-radius: 10px; color: white; font-size: 20px; font-weight: 700; }
+QPushButton#primary:hover { background: #2890ff; }
+QPushButton#mic { background: #0d2340; border: 1px solid #258dff; border-radius: 10px; color: #8ed2ff; font-size: 15px; }
+QPushButton#chip { background: #0b182a; border: 1px solid #203b5c; border-radius: 17px; padding: 7px 13px; color: #9fb0c9; }
+QPushButton#chip:hover { background: #122641; color: white; }
 
+QFrame#profileCard, QFrame#sideCard { background: #0a1627; border: 1px solid #1b3553; border-radius: 15px; }
+QLabel#sideTitle { color: #f0f5ff; font-size: 15px; font-weight: 750; }
+QLabel#readyAccent { color: #16e6b4; font-size: 12px; font-weight: 650; }
+QLabel#speechBubble { background: #0d1d32; border: 1px solid #204268; border-radius: 13px; color: #c9d5e8; padding: 11px; }
+QPushButton#sideAction { text-align: left; background: #0d1b2e; border: 1px solid #1b304c; border-radius: 9px; color: #cbd7e9; padding: 9px 10px; }
+QPushButton#sideAction:hover { background: #132844; border: 1px solid #2a6094; color: white; }
+QLabel#voiceValue { background: #0d1b2e; border: 1px solid #1b3553; border-radius: 9px; padding: 9px; color: #cbd8eb; }
+QPushButton#listenButton { background: #082b49; border: 1px solid #159cff; border-radius: 18px; padding: 10px; color: #dff5ff; font-weight: 700; }
+QPushButton#listenButton:hover { background: #0d3b61; }
+
+QFrame#card { background: #0b1728; border: 1px solid #1d3452; border-radius: 15px; }
+QLabel#heroTitle { font-size: 30px; font-weight: 750; }
+QLabel#cardTitle { color: #f2f5ff; font-size: 16px; font-weight: 700; }
+QLabel#cardText { color: #b9c5da; font-size: 14px; }
+QLabel#hint { color: #7f8da6; font-size: 13px; }
+QLabel#settingLabel { color: #9aa9c2; font-size: 13px; padding: 7px 0; }
+QLabel#settingValue { color: #edf2ff; font-size: 13px; font-weight: 600; padding: 7px 0; }
+QPushButton { background: #101d30; border: 1px solid #223852; border-radius: 9px; padding: 8px 12px; }
+QPushButton:hover { background: #172944; }
+QScrollArea { border: none; background: transparent; }
+QWidget#voiceRecordingBar { background: #111d2d; border: 1px solid #2b496b; border-radius: 28px; }
+QPushButton#voiceCancel { background: transparent; border: none; color: #7f90a9; font-size: 28px; }
+QPushButton#voiceFinish { background: #15304b; border: 1px solid #376083; border-radius: 20px; color: #eff7ff; font-size: 21px; }
 """
