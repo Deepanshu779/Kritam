@@ -252,6 +252,12 @@ ready when you are.")
         layout.addWidget(info)
         return page
 
+    def show_login_mode(self):
+        self.pages.setCurrentIndex(0)
+        self.mode_title.setText("Welcome back")
+        self.mode_sub.setText("Sign in to continue to Kritam.")
+        self.mode_switch.setText("New to Kritam?  Create an account")
+
     def _toggle_mode(self):
         signup = self.pages.currentIndex() == 0
         self.pages.setCurrentIndex(1 if signup else 0)
