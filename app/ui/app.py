@@ -19,6 +19,8 @@ def run():
         if main_window is not None:
             try:
                 main_window._stop_background_listener()
+                main_window.tray.hide()
+                main_window._really_exiting = True
                 main_window.close()
                 main_window.deleteLater()
             except Exception:
@@ -35,9 +37,7 @@ def run():
         auth_window.login_email.clear()
         auth_window.login_password.clear()
         auth_window.login_error.clear()
-        auth_window.pages.setCurrentIndex(0)
-        auth_window._toggle_mode()
-        auth_window._toggle_mode()
+        auth_window.show_login_mode()
         auth_window.show()
         auth_window.raise_()
         auth_window.activateWindow()
