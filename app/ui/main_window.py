@@ -1,6 +1,6 @@
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QRect
 import threading
-from PySide6.QtGui import QAction, QRegion, QPainter, QColor
+from PySide6.QtGui import QAction, QRegion, QPainter, QColor, QPen, QBrush, QRadialGradient
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -23,6 +23,58 @@ from core.assistant import Kritam
 from voice.background_listener import BackgroundVoiceListener
 from ui.theme import WINDOW_STYLE
 
+
+class KritamOrbWidget(QWidget):
+    def __init__(self, parent=None, compact=False):
+        super().__init__(parent)
+        self.compact = compact
+        self.active = False
+        self.setFixedSize(88 if compact else 250, 88 if compact else 250)
+
+    def set_active(self, active):
+        self.active = active
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        cx, cy = w / 2, h / 2
+        base = min(w, h)
+        for ratio, alpha in ((0.47, 22), (0.40, 36), (0.34, 50)):
+            r = base * ratio
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(20, 135, 255, alpha))
+            p.drawEllipse(int(cx-r), int(cy-r), int(r*2), int(r*2))
+        ring = base * 0.39
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor("#159cff"), 3 if not self.compact else 2))
+        p.drawEllipse(int(cx-ring), int(cy-ring), int(ring*2), int(ring*2))
+        head_r = base * 0.27
+        grad = QRadialGradient(cx-head_r*.25, cy-head_r*.3, head_r*1.5)
+        grad.setColorAt(0, QColor("#263b5c"))
+        grad.setColorAt(.65, QColor("#071321"))
+        grad.setColorAt(1, QColor("#02060d"))
+        p.setPen(QPen(QColor("#1d72c5"), 2))
+        p.setBrush(QBrush(grad))
+        p.drawEllipse(int(cx-head_r), int(cy-head_r), int(head_r*2), int(head_r*2))
+        ear = head_r*.43
+        p.setPen(QPen(QColor("#159cff"), max(2, int(head_r*.10))))
+        p.setBrush(Qt.NoBrush)
+        p.drawArc(int(cx-head_r-ear*.1), int(cy-head_r*.25), int((head_r+ear)*2), int((head_r+ear)*1.35), 35*16, 110*16)
+        p.setBrush(QColor("#071321"))
+        p.drawEllipse(int(cx-head_r-ear*.08), int(cy-ear*.65), int(ear*.55), int(ear*1.3))
+        p.drawEllipse(int(cx+head_r-ear*.47), int(cy-ear*.65), int(ear*.55), int(ear*1.3))
+        p.setPen(QPen(QColor("#5bb7ff"), max(2, int(head_r*.08))))
+        eye_w = head_r*.23
+        ey = cy-head_r*.1
+        p.drawLine(int(cx-head_r*.43), int(ey), int(cx-head_r*.43+eye_w), int(ey))
+        p.drawLine(int(cx+head_r*.20), int(ey), int(cx+head_r*.20+eye_w), int(ey))
+        p.setPen(QPen(QColor("#4ce7e3"), max(2, int(head_r*.055))))
+        p.drawArc(int(cx-head_r*.22), int(cy-head_r*.02), int(head_r*.44), int(head_r*.30), 205*16, 130*16)
+        if self.active:
+            p.setPen(QPen(QColor("#54d8ff"), 3))
+            p.drawEllipse(int(cx-ring-4), int(cy-ring-4), int((ring+4)*2), int((ring+4)*2))
 
 class VoiceRecordingBar(QWidget):
     cancel_requested = Signal()
@@ -302,10 +354,12 @@ class MainWindow(QMainWindow):
         quick = QGridLayout()
         quick.setSpacing(10)
         cards = [
-            ("◈", "Open Apps", "Launch your favorite apps", "Open Chrome"),
-            ("⌕", "Search Anything", "Find answers and information", "Search Google for "),
-            ("□", "Find Files", "Open your folders and files", "Open Downloads"),
-            ("✦", "Quick Task", "Tell me what you need", ""),
+            ("◉", "Open Chrome", "Launch Google Chrome", "Open Chrome"),
+            ("▣", "Open Downloads", "Open your Downloads folder", "Open Downloads"),
+            ("▣", "Take Screenshot", "Capture your screen", "Take a screenshot"),
+            ("▶", "Play a Video", "Open YouTube", "Open YouTube"),
+            ("⌕", "Search the Web", "Find information online", "Search Google for "),
+            ("✎", "Create a Note", "Ask Kritam to remember something", "Remember that "),
         ]
         for i, (icon, title, desc, command) in enumerate(cards):
             card = QPushButton()
@@ -330,24 +384,13 @@ class MainWindow(QMainWindow):
                 card.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
             else:
                 card.clicked.connect(lambda checked=False: self.command_input.setFocus())
-            quick.addWidget(card, i // 2, i % 2)
+            quick.addWidget(card, i // 3, i % 3)
         center.addLayout(quick)
 
         center.addStretch(1)
 
-        self.orb = QLabel("K")
-        self.orb.setObjectName("orb")
-        self.orb.setFixedSize(190, 190)
-        self.orb.setAlignment(Qt.AlignCenter)
-        self.orb.setMask(QRegion(QRect(0, 0, 190, 190), QRegion.Ellipse))
-        center.addWidget(self.orb, 0, Qt.AlignHCenter)
-
-        self.orb_status = QLabel("● READY TO HELP")
-        self.orb_status.setObjectName("orbGlow")
-        center.addWidget(self.orb_status, 0, Qt.AlignHCenter)
-
-        center.addStretch(1)
-
+        self.hero_orb = KritamOrbWidget()
+        center.addWidget(self.hero_orb, 0, Qt.AlignHCenter)
         composer = QFrame()
         composer.setObjectName("composer")
         composer_layout = QVBoxLayout(composer)
@@ -448,6 +491,10 @@ class MainWindow(QMainWindow):
         vd.setObjectName("sideDesc")
         vd.setWordWrap(True)
         vl.addWidget(vd)
+        listen_button = QPushButton("🎙  Start Listening")
+        listen_button.setObjectName("listenButton")
+        listen_button.clicked.connect(self._start_voice_input)
+        vl.addWidget(listen_button)
         right.addWidget(voice_card)
         right.addStretch()
 
@@ -770,28 +817,25 @@ class MainWindow(QMainWindow):
     def _start_orb_animation(self):
         self.orb_timer = QTimer(self)
         self.orb_timer.timeout.connect(self._pulse_orb)
-        self.orb_timer.start(1400)
+        self.orb_timer.start(1600)
 
     def _pulse_orb(self):
-        self.orb.setProperty('active', True)
-        self.orb.style().unpolish(self.orb)
-        self.orb.style().polish(self.orb)
-        QTimer.singleShot(420, self._finish_orb_pulse)
+        if hasattr(self, "hero_orb"):
+            self.hero_orb.set_active(True)
+            QTimer.singleShot(300, self._finish_orb_pulse)
 
     def _finish_orb_pulse(self):
-        self.orb.setProperty('active', False)
-        self.orb.style().unpolish(self.orb)
-        self.orb.style().polish(self.orb)
+        if hasattr(self, "hero_orb"):
+            self.hero_orb.set_active(False)
 
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
-        self.orb_status.setText(f"● {text.upper()}")
-        self.orb.setProperty("active", busy)
-        self.orb.style().unpolish(self.orb)
-        self.orb.style().polish(self.orb)
+        if hasattr(self, "hero_orb"):
+            self.hero_orb.set_active(busy)
 
     def _set_ready_state(self):
-        self.orb_status.setText("● READY TO HELP")
+        if hasattr(self, "hero_orb"):
+            self.hero_orb.set_active(False)
 
     def _refresh_status(self):
         self._set_ready_state()
