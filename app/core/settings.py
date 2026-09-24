@@ -9,6 +9,8 @@ class Settings:
         "language": "en",
         "voice_rate": 170,
         "auto_start_browser": False,
+        "wake_word_enabled": True,
+        "start_with_windows": False,
     }
 
     def __init__(self, path=None):
