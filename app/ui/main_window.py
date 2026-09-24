@@ -1,6 +1,16 @@
-from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QRect
+"""Main window interface for Kritam AI Assistant matching the reference UI."""
+
+import math
 import threading
-from PySide6.QtGui import QAction, QRegion, QPainter, QColor, QPen, QBrush, QRadialGradient
+from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QPoint, QRectF
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QFont,
+    QIcon,
+    QPainter,
+    QPen,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -8,7 +18,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QStackedWidget,
@@ -22,96 +31,117 @@ from PySide6.QtWidgets import (
 from core.assistant import Kritam
 from voice.background_listener import BackgroundVoiceListener
 from ui.theme import WINDOW_STYLE
+from ui.icons import (
+    render_chrome_icon,
+    render_folder_icon,
+    render_camera_icon,
+    render_youtube_icon,
+    render_search_icon,
+    render_note_icon,
+    render_nav_icon,
+    render_paperclip_icon,
+    render_mic_icon,
+    render_send_icon,
+    render_chevron_right,
+    render_chevron_down,
+    render_lightning_icon,
+    render_soundwave_icon,
+)
+from ui.mascot import KritamRobotWidget
+from ui.sidebar_art import SidebarLogoWidget, SidebarFooterArtWidget
 
 
-class KritamOrbWidget(QWidget):
-    def __init__(self, parent=None, compact=False):
-        super().__init__(parent)
-        self.compact = compact
-        self.active = False
-        self.setFixedSize(88 if compact else 250, 88 if compact else 250)
+class CustomTitleBar(QFrame):
+    """Frameless custom title bar with window controls and draggable header."""
 
-    def set_active(self, active):
-        self.active = active
-        self.update()
+    def __init__(self, parent_window):
+        super().__init__(parent_window)
+        self.parent_window = parent_window
+        self.setObjectName("customTitleBar")
+        self.setFixedHeight(38)
+        self._drag_pos = None
 
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height()
-        cx, cy = w / 2, h / 2
-        base = min(w, h)
-        for ratio, alpha in ((0.47, 22), (0.40, 36), (0.34, 50)):
-            r = base * ratio
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(20, 135, 255, alpha))
-            p.drawEllipse(int(cx-r), int(cy-r), int(r*2), int(r*2))
-        ring = base * 0.39
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(QColor("#159cff"), 3 if not self.compact else 2))
-        p.drawEllipse(int(cx-ring), int(cy-ring), int(ring*2), int(ring*2))
-        head_r = base * 0.27
-        grad = QRadialGradient(cx-head_r*.25, cy-head_r*.3, head_r*1.5)
-        grad.setColorAt(0, QColor("#263b5c"))
-        grad.setColorAt(.65, QColor("#071321"))
-        grad.setColorAt(1, QColor("#02060d"))
-        p.setPen(QPen(QColor("#1d72c5"), 2))
-        p.setBrush(QBrush(grad))
-        p.drawEllipse(int(cx-head_r), int(cy-head_r), int(head_r*2), int(head_r*2))
-        ear = head_r*.43
-        p.setPen(QPen(QColor("#159cff"), max(2, int(head_r*.10))))
-        p.setBrush(Qt.NoBrush)
-        p.drawArc(int(cx-head_r-ear*.1), int(cy-head_r*.25), int((head_r+ear)*2), int((head_r+ear)*1.35), 35*16, 110*16)
-        p.setBrush(QColor("#071321"))
-        p.drawEllipse(int(cx-head_r-ear*.08), int(cy-ear*.65), int(ear*.55), int(ear*1.3))
-        p.drawEllipse(int(cx+head_r-ear*.47), int(cy-ear*.65), int(ear*.55), int(ear*1.3))
-        p.setPen(QPen(QColor("#5bb7ff"), max(2, int(head_r*.08))))
-        eye_w = head_r*.23
-        ey = cy-head_r*.1
-        p.drawLine(int(cx-head_r*.43), int(ey), int(cx-head_r*.43+eye_w), int(ey))
-        p.drawLine(int(cx+head_r*.20), int(ey), int(cx+head_r*.20+eye_w), int(ey))
-        p.setPen(QPen(QColor("#4ce7e3"), max(2, int(head_r*.055))))
-        p.drawArc(int(cx-head_r*.22), int(cy-head_r*.02), int(head_r*.44), int(head_r*.30), 205*16, 130*16)
-        if self.active:
-            p.setPen(QPen(QColor("#54d8ff"), 3))
-            p.drawEllipse(int(cx-ring-4), int(cy-ring-4), int((ring+4)*2), int((ring+4)*2))
-
-class VoiceRecordingBar(QWidget):
-    cancel_requested = Signal()
-    finish_requested = Signal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(58)
-        self.setObjectName("voiceRecordingBar")
-        self._phase = 0
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 6, 10, 6)
-        layout.setSpacing(8)
+        layout.setContentsMargins(14, 0, 10, 0)
+        layout.setSpacing(10)
 
-        self.cancel_button = QPushButton("×")
-        self.cancel_button.setObjectName("voiceCancel")
-        self.cancel_button.setFixedSize(38, 38)
-        self.cancel_button.clicked.connect(self.cancel_requested.emit)
-        layout.addWidget(self.cancel_button)
+        # Left brand icon and title
+        left_layout = QHBoxLayout()
+        left_layout.setSpacing(8)
 
-        self.wave = VoiceWaveWidget()
-        layout.addWidget(self.wave, 1)
+        # Small chevron / logo icon
+        logo_label = QLabel()
+        logo_label.setFixedSize(16, 16)
+        logo_label.setPixmap(render_nav_icon("home", active=True, size=16))
+        left_layout.addWidget(logo_label)
 
-        self.finish_button = QPushButton("✓")
-        self.finish_button.setObjectName("voiceFinish")
-        self.finish_button.setFixedSize(42, 42)
-        self.finish_button.clicked.connect(self.finish_requested.emit)
-        layout.addWidget(self.finish_button)
+        title_label = QLabel("KRITAM")
+        title_label.setObjectName("titleBarTitle")
+        left_layout.addWidget(title_label)
+        layout.addLayout(left_layout)
 
-    def start_animation(self):
-        self.wave.start()
+        layout.addStretch()
 
-    def stop_animation(self):
-        self.wave.stop()
+        # Right buttons: theme toggle, minimize, maximize, close
+        theme_btn = QPushButton("☼")
+        theme_btn.setObjectName("titleBarBtn")
+        theme_btn.setToolTip("Toggle Theme")
+        theme_btn.setFixedSize(28, 26)
+        layout.addWidget(theme_btn)
+
+        min_btn = QPushButton("—")
+        min_btn.setObjectName("titleBarBtn")
+        min_btn.setToolTip("Minimize")
+        min_btn.setFixedSize(28, 26)
+        min_btn.clicked.connect(self.parent_window.showMinimized)
+        layout.addWidget(min_btn)
+
+        self.max_btn = QPushButton("□")
+        self.max_btn.setObjectName("titleBarBtn")
+        self.max_btn.setToolTip("Maximize")
+        self.max_btn.setFixedSize(28, 26)
+        self.max_btn.clicked.connect(self._toggle_maximize)
+        layout.addWidget(self.max_btn)
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("titleBarBtn")
+        close_btn.setProperty("isClose", True)
+        close_btn.setStyleSheet("QPushButton:hover { background: #e81123; color: white; }")
+        close_btn.setToolTip("Close")
+        close_btn.setFixedSize(28, 26)
+        close_btn.clicked.connect(self.parent_window.close)
+        layout.addWidget(close_btn)
+
+    def _toggle_maximize(self):
+        if self.parent_window.isMaximized():
+            self.parent_window.showNormal()
+            self.max_btn.setText("□")
+        else:
+            self.parent_window.showMaximized()
+            self.max_btn.setText("❐")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.parent_window.frameGeometry().topLeft()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self._drag_pos is not None:
+            if self.parent_window.isMaximized():
+                self.parent_window.showNormal()
+                self.max_btn.setText("□")
+            self.parent_window.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._toggle_maximize()
+            event.accept()
 
 
 class VoiceWaveWidget(QWidget):
+    """Animated audio wave bars for speech recording state."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._timer = QTimer(self)
@@ -120,7 +150,7 @@ class VoiceWaveWidget(QWidget):
         self.setMinimumWidth(120)
 
     def start(self):
-        self._timer.start(80)
+        self._timer.start(70)
 
     def stop(self):
         self._timer.stop()
@@ -131,22 +161,68 @@ class VoiceWaveWidget(QWidget):
         self.update()
 
     def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
-        center = h / 2
-        count = max(24, min(42, w // 14))
-        step = w / count
+        center = h / 2.0
+        count = max(24, min(42, int(w // 14)))
+        step = w / float(count)
+
         for i in range(count):
             x = (i + 0.5) * step
-            wave = abs(__import__("math").sin((i * 0.75) + self._phase * 0.16))
-            envelope = abs(__import__("math").sin((i / max(1, count - 1)) * __import__("math").pi))
-            height = 4 + (12 + 22 * wave) * (0.25 + 0.75 * envelope)
-            painter.setPen(QColor("#777777"))
-            painter.drawLine(int(x), int(center - height / 2), int(x), int(center + height / 2))
+            wave = abs(math.sin((i * 0.75) + self._phase * 0.18))
+            envelope = abs(math.sin((i / max(1, count - 1)) * math.pi))
+            bar_height = 4 + (12 + 24 * wave) * (0.3 + 0.7 * envelope)
+
+            # Gradient wave color: cyan to blue
+            grad_color = QColor(0, int(180 + 70 * wave), 255)
+            p.setPen(QPen(grad_color, 2.5, Qt.SolidLine, Qt.RoundCap))
+            p.drawLine(QPoint(int(x), int(center - bar_height / 2)), QPoint(int(x), int(center + bar_height / 2)))
+
+        p.end()
+
+
+class VoiceRecordingBar(QWidget):
+    """Floating bar displayed in the composer while voice listening is active."""
+
+    cancel_requested = Signal()
+    finish_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(46)
+        self.setObjectName("voiceRecordingBar")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 4, 10, 4)
+        layout.setSpacing(10)
+
+        self.cancel_button = QPushButton("✕")
+        self.cancel_button.setObjectName("voiceCancel")
+        self.cancel_button.setToolTip("Cancel voice input")
+        self.cancel_button.setFixedSize(32, 32)
+        self.cancel_button.clicked.connect(self.cancel_requested.emit)
+        layout.addWidget(self.cancel_button)
+
+        self.wave = VoiceWaveWidget()
+        layout.addWidget(self.wave, 1)
+
+        self.finish_button = QPushButton("✓")
+        self.finish_button.setObjectName("voiceFinish")
+        self.finish_button.setToolTip("Submit voice input")
+        self.finish_button.setFixedSize(34, 34)
+        self.finish_button.clicked.connect(self.finish_requested.emit)
+        layout.addWidget(self.finish_button)
+
+    def start_animation(self):
+        self.wave.start()
+
+    def stop_animation(self):
+        self.wave.stop()
 
 
 class Worker(QObject):
+    """Background worker thread for executing text or speech actions."""
+
     finished = Signal(dict)
     error = Signal(str)
 
@@ -178,6 +254,8 @@ class Worker(QObject):
 
 
 class BackgroundWorker(QObject):
+    """Background wake word listener."""
+
     command_ready = Signal(dict)
     wake_detected = Signal()
     error = Signal(str)
@@ -208,431 +286,659 @@ class BackgroundWorker(QObject):
 
 
 class MainWindow(QMainWindow):
+    """Primary application window for Kritam."""
+
     def __init__(self):
         super().__init__()
         self.assistant = Kritam()
-        self.setWindowTitle("Kritam")
-        self.resize(1280, 820)
-        self.setMinimumSize(1000, 680)
+        self.setWindowTitle("KRITAM - Your Personal AI Assistant")
+        self.resize(1260, 800)
+        self.setMinimumSize(1040, 680)
+
+        # Frameless window styling
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setStyleSheet(WINDOW_STYLE)
+
         self.thread = None
         self.worker = None
         self.bg_thread = None
         self.bg_worker = None
-        self._orb_pulse = False
         self._recording = False
         self._resume_background_after_voice = False
+
         self._build_ui()
         self._setup_tray()
-        self._set_ready_state()
         self._start_background_listener()
-        self._start_orb_animation()
 
     def _build_ui(self):
-        root = QWidget()
-        outer = QHBoxLayout(root)
-        outer.setContentsMargins(14, 14, 14, 14)
-        outer.setSpacing(12)
-        outer.addWidget(self._build_sidebar())
+        # Top-level window container with rounded dark border
+        self.root_frame = QFrame()
+        self.root_frame.setObjectName("rootWindowFrame")
 
-        content = QVBoxLayout()
-        content.setSpacing(0)
+        root_layout = QVBoxLayout(self.root_frame)
+        root_layout.setContentsMargins(1, 1, 1, 1)
+        root_layout.setSpacing(0)
 
+        # 1. Custom Frameless Title Bar
+        self.title_bar = CustomTitleBar(self)
+        root_layout.addWidget(self.title_bar)
+
+        # 2. Main content row: Left Sidebar + Center Area + Right Sidebar
+        body_widget = QWidget()
+        body_layout = QHBoxLayout(body_widget)
+        body_layout.setContentsMargins(14, 10, 14, 14)
+        body_layout.setSpacing(14)
+
+        # Left Sidebar
+        body_layout.addWidget(self._build_sidebar())
+
+        # Center Main Stack (Home, Chat, Tasks, Memory, Settings)
         self.stack = QStackedWidget()
-        self.stack.addWidget(self._build_chat())
-        self.stack.addWidget(self._build_tasks())
-        self.stack.addWidget(self._build_memory())
-        self.stack.addWidget(self._build_settings())
-        content.addWidget(self.stack, 1)
+        self.stack.addWidget(self._build_home_page())
+        self.stack.addWidget(self._build_chat_page())
+        self.stack.addWidget(self._build_tasks_page())
+        self.stack.addWidget(self._build_memory_page())
+        self.stack.addWidget(self._build_settings_page())
+        body_layout.addWidget(self.stack, 1)
 
-        outer.addLayout(content, 1)
-        self.setCentralWidget(root)
+        # Right Sidebar
+        body_layout.addWidget(self._build_right_sidebar())
 
+        root_layout.addWidget(body_widget, 1)
+        self.setCentralWidget(self.root_frame)
+
+    # =========================================================================
+    # LEFT SIDEBAR
+    # =========================================================================
     def _build_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(230)
+        frame.setFixedWidth(210)
+
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(18, 24, 18, 18)
+        layout.setContentsMargins(12, 14, 12, 10)
         layout.setSpacing(6)
 
-        brand_row = QHBoxLayout()
-        logo = QLabel("A")
-        logo.setObjectName("sidebarLogo")
-        logo.setFixedSize(42, 42)
-        brand_row.addWidget(logo)
-        brand_text = QVBoxLayout()
-        brand = QLabel("Kritam")
-        brand.setObjectName("brand")
-        brand_text.addWidget(brand)
-        tagline = QLabel("Always with you")
-        tagline.setObjectName("muted")
-        brand_text.addWidget(tagline)
-        brand_row.addLayout(brand_text)
-        layout.addLayout(brand_row)
-        layout.addSpacing(26)
+        # Top Logo + "KRITAM" + Subtitle
+        self.sidebar_logo = SidebarLogoWidget()
+        layout.addWidget(self.sidebar_logo)
+        layout.addSpacing(14)
 
+        # Navigation menu buttons
         self.nav_buttons = []
-        items = [
-            ("⌂   Home", 0),
-            ("◌   Chat", 0),
-            ("✓   Tasks", 1),
-            ("♧   Memory", 2),
-            ("⚙   Settings", 3),
+        nav_items = [
+            ("Home", "home", 0),
+            ("Chat", "chat", 1),
+            ("Tasks", "tasks", 2),
+            ("Memory", "memory", 3),
+            ("Settings", "settings", 4),
         ]
-        for label, index in items:
-            button = QPushButton(label)
-            button.setObjectName("nav")
-            button.setCheckable(True)
-            button.clicked.connect(lambda checked, i=index: self._select_page(i))
-            self.nav_buttons.append(button)
-            layout.addWidget(button)
 
-        self.nav_buttons[0].setChecked(True)
+        for label, icon_name, index in nav_items:
+            btn = QPushButton(f"    {label}")
+            btn.setObjectName("nav")
+            btn.setCheckable(True)
+            btn.setIcon(QIcon(render_nav_icon(icon_name, active=(index == 0), size=20)))
+            btn.clicked.connect(lambda checked, idx=index: self._select_page(idx))
+            self.nav_buttons.append((btn, icon_name))
+            layout.addWidget(btn)
+
+        self.nav_buttons[0][0].setChecked(True)
         layout.addStretch()
 
-        footer = QFrame()
-        footer.setObjectName("sidebarProfile")
-        footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(14, 12, 14, 12)
-        footer_title = QLabel("●  Ready to assist")
-        footer_title.setObjectName("readyText")
-        footer_layout.addWidget(footer_title)
-        footer_hint = QLabel("Ready to listen, help and act.")
-        footer_hint.setObjectName("sidebarFooter")
-        footer_layout.addWidget(footer_hint)
-        layout.addWidget(footer)
-        return frame
-
-    def _build_header(self):
-        frame = QFrame()
-        frame.setObjectName("header")
-        layout = QHBoxLayout(frame)
-        layout.setContentsMargins(18, 11, 18, 11)
-
-        left = QVBoxLayout()
-        title = QLabel("Home")
-        title.setObjectName("pageTitle")
-        left.addWidget(title)
-        subtitle = QLabel("Your personal assistant for everyday tasks")
-        subtitle.setObjectName("muted")
-        left.addWidget(subtitle)
-        layout.addLayout(left)
-        layout.addStretch()
+        # Bottom Art: Flowing cyan waves + cursive script "More Than a Voice, A Companion"
+        self.sidebar_art = SidebarFooterArtWidget()
+        layout.addWidget(self.sidebar_art)
 
         return frame
 
-    def _build_chat(self):
+    # =========================================================================
+    # CENTER MAIN AREA (HOME)
+    # =========================================================================
+    def _build_home_page(self):
         page = QWidget()
         page.setObjectName("homePage")
-        outer = QHBoxLayout(page)
-        outer.setContentsMargins(18, 18, 18, 18)
-        outer.setSpacing(16)
 
-        center = QVBoxLayout()
-        center.setSpacing(12)
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(12)
 
-        greeting = QLabel(f"Good evening, {self.assistant.name}  👋")
-        greeting.setObjectName("homeGreeting")
-        center.addWidget(greeting)
+        # Top Center Header
+        header_layout = QVBoxLayout()
+        header_layout.setSpacing(2)
+        top_title = QLabel("KRITAM")
+        top_title.setObjectName("centerHeaderTitle")
+        header_layout.addWidget(top_title)
 
-        intro = QLabel("I'm Kritam — your personal AI assistant.")
-        intro.setObjectName("homeIntro")
-        center.addWidget(intro)
+        top_sub = QLabel("Your Personal AI Assistant")
+        top_sub.setObjectName("centerHeaderSub")
+        header_layout.addWidget(top_sub)
+        layout.addLayout(header_layout)
+        layout.addSpacing(6)
 
-        sub = QLabel("Here to help, listen and get things done with you.")
-        sub.setObjectName("homeSub")
-        center.addWidget(sub)
+        # Hero Section: Left Headline + Right 3D Mascot Robot
+        hero_layout = QHBoxLayout()
+        hero_layout.setSpacing(16)
 
-        self.activity_label = QLabel("")
-        self.activity_label.setObjectName("homeSub")
-        self.activity_label.setWordWrap(True)
-        self.activity_label.setMinimumHeight(24)
-        center.addWidget(self.activity_label)
+        # Left Hero Text
+        hero_text_box = QVBoxLayout()
+        hero_text_box.setSpacing(8)
+        hero_text_box.addStretch()
 
-        quick = QGridLayout()
-        quick.setSpacing(10)
-        cards = [
-            ("◉", "Open Chrome", "Launch Google Chrome", "Open Chrome"),
-            ("▣", "Open Downloads", "Open your Downloads folder", "Open Downloads"),
-            ("▣", "Take Screenshot", "Capture your screen", "Take a screenshot"),
-            ("▶", "Play a Video", "Open YouTube", "Open YouTube"),
-            ("⌕", "Search the Web", "Find information online", "Search Google for "),
-            ("✎", "Create a Note", "Ask Kritam to remember something", "Remember that "),
+        headline = QLabel('Hello, I\'m <span style="color: #00d2ff;">Kritam</span>')
+        headline.setObjectName("heroHeadline")
+        hero_text_box.addWidget(headline)
+
+        subline = QLabel("Your Intelligent Personal AI Assistant")
+        subline.setObjectName("heroSubline")
+        hero_text_box.addWidget(subline)
+
+        hero_body = QLabel(
+            "I can help you with daily tasks, answer your questions,\n"
+            "open applications, search the web and much more."
+        )
+        hero_body.setObjectName("heroBody")
+        hero_text_box.addWidget(hero_body)
+        hero_text_box.addStretch()
+
+        hero_layout.addLayout(hero_text_box, 1)
+
+        # Right Hero Robot Mascot
+        self.hero_robot = KritamRobotWidget(compact=False)
+        hero_layout.addWidget(self.hero_robot, 0, Qt.AlignCenter)
+
+        layout.addLayout(hero_layout)
+        layout.addSpacing(4)
+
+        # Section Header: "Try asking me something..."
+        section_title = QLabel("Try asking me something...")
+        section_title.setObjectName("sectionTitle")
+        layout.addWidget(section_title)
+
+        # 2x3 Grid of Prompt Cards
+        grid = QGridLayout()
+        grid.setSpacing(12)
+
+        cards_data = [
+            # Row 0
+            (render_chrome_icon(32), "Open Chrome", '"Open Google Chrome"', "Open Chrome"),
+            (render_folder_icon(32), "Open Downloads", '"Open my Downloads folder"', "Open Downloads"),
+            (render_camera_icon(32), "Take Screenshot", '"Take a screenshot"', "Take a screenshot"),
+            # Row 1
+            (render_youtube_icon(32), "Play a Video", '"Open YouTube"', "Open YouTube"),
+            (render_search_icon(32), "Search the Web", '"Search for AI news"', "Search Google for AI news"),
+            (render_note_icon(32), "Create a Note", '"Write a note for me"', "Remember that meeting at 4pm"),
         ]
-        for i, (icon, title, desc, command) in enumerate(cards):
-            card = QPushButton()
-            card.setObjectName("featureCard")
-            card.setMinimumHeight(82)
-            card_layout = QHBoxLayout(card)
-            card_layout.setContentsMargins(14, 10, 14, 10)
-            icon_label = QLabel(icon)
-            icon_label.setObjectName("featureIcon")
-            icon_label.setFixedWidth(34)
-            card_layout.addWidget(icon_label)
-            text_box = QVBoxLayout()
-            t = QLabel(title)
-            t.setObjectName("featureTitle")
-            d = QLabel(desc)
-            d.setObjectName("featureDesc")
-            d.setWordWrap(True)
-            text_box.addWidget(t)
-            text_box.addWidget(d)
-            card_layout.addLayout(text_box, 1)
-            if command:
-                card.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
-            else:
-                card.clicked.connect(lambda checked=False: self.command_input.setFocus())
-            quick.addWidget(card, i // 3, i % 3)
-        center.addLayout(quick)
 
-        center.addStretch(1)
+        for i, (icon_pixmap, title, subtitle, cmd) in enumerate(cards_data):
+            row = i // 3
+            col = i % 3
 
-        self.hero_orb = KritamOrbWidget()
-        center.addWidget(self.hero_orb, 0, Qt.AlignHCenter)
-        composer = QFrame()
-        composer.setObjectName("composer")
-        composer_layout = QVBoxLayout(composer)
-        composer_layout.setContentsMargins(14, 12, 14, 12)
-        composer_layout.setSpacing(8)
+            card_btn = QPushButton()
+            card_btn.setObjectName("promptCard")
+            card_btn.setFixedHeight(72)
 
+            btn_layout = QHBoxLayout(card_btn)
+            btn_layout.setContentsMargins(12, 10, 12, 10)
+            btn_layout.setSpacing(12)
+
+            # Icon label
+            icon_lbl = QLabel()
+            icon_lbl.setFixedSize(34, 34)
+            icon_lbl.setPixmap(icon_pixmap)
+            btn_layout.addWidget(icon_lbl)
+
+            # Text box
+            t_box = QVBoxLayout()
+            t_box.setSpacing(3)
+            t_title = QLabel(title)
+            t_title.setObjectName("promptCardTitle")
+            t_sub = QLabel(subtitle)
+            t_sub.setObjectName("promptCardSub")
+            t_box.addWidget(t_title)
+            t_box.addWidget(t_sub)
+
+            btn_layout.addLayout(t_box, 1)
+
+            card_btn.clicked.connect(lambda checked=False, command=cmd: self._quick_command(command))
+            grid.addWidget(card_btn, row, col)
+
+        layout.addLayout(grid)
+        layout.addSpacing(6)
+
+        # Composer / Input Capsule
+        composer_container = QVBoxLayout()
+        composer_container.setSpacing(8)
+
+        self.composer_frame = QFrame()
+        self.composer_frame.setObjectName("composerFrame")
+        self.composer_frame.setFixedHeight(54)
+
+        c_layout = QHBoxLayout(self.composer_frame)
+        c_layout.setContentsMargins(8, 6, 8, 6)
+        c_layout.setSpacing(8)
+
+        # Attachment paperclip button
+        self.attach_btn = QPushButton()
+        self.attach_btn.setObjectName("attachButton")
+        self.attach_btn.setFocusPolicy(Qt.NoFocus)
+        self.attach_btn.setFixedSize(38, 38)
+        self.attach_btn.setIcon(QIcon(render_paperclip_icon(20)))
+        self.attach_btn.setToolTip("Attach file or context")
+        c_layout.addWidget(self.attach_btn)
+
+        # Text input field
         self.command_input = QLineEdit()
-        self.command_input.setPlaceholderText("Ask me anything... or speak naturally")
+        self.command_input.setObjectName("composerInput")
+        self.command_input.setPlaceholderText("Type a message or give a command...")
         self.command_input.returnPressed.connect(self._send_text)
-        composer_layout.addWidget(self.command_input)
+        c_layout.addWidget(self.command_input, 1)
 
+        # Voice recording wave bar (hidden unless listening)
         self.voice_bar = VoiceRecordingBar()
         self.voice_bar.cancel_requested.connect(self._cancel_voice_input)
         self.voice_bar.finish_requested.connect(self._finish_voice_input)
         self.voice_bar.hide()
-        composer_layout.addWidget(self.voice_bar)
+        c_layout.addWidget(self.voice_bar, 1)
 
-        controls = QHBoxLayout()
-        self.mic_button = QPushButton("🎙")
-        self.mic_button.setObjectName("mic")
-        self.mic_button.setToolTip("Talk to Kritam")
-        self.mic_button.setFixedSize(50, 44)
-        self.mic_button.clicked.connect(self._start_voice_input)
-        controls.addWidget(self.mic_button)
+        # Circular Mic Button
+        self.mic_btn = QPushButton()
+        self.mic_btn.setObjectName("micCircleButton")
+        self.mic_btn.setFocusPolicy(Qt.NoFocus)
+        self.mic_btn.setFixedSize(40, 40)
+        self.mic_btn.setIcon(QIcon(render_mic_icon(20)))
+        self.mic_btn.setToolTip("Start Voice Input")
+        self.mic_btn.clicked.connect(self._start_voice_input)
+        c_layout.addWidget(self.mic_btn)
 
-        hint = QLabel("Click mic to start speaking")
-        hint.setObjectName("composerHint")
-        controls.addWidget(hint)
-        controls.addStretch()
+        # Circular Send Button
+        self.send_btn = QPushButton()
+        self.send_btn.setObjectName("sendCircleButton")
+        self.send_btn.setFocusPolicy(Qt.NoFocus)
+        self.send_btn.setFixedSize(40, 40)
+        self.send_btn.setIcon(QIcon(render_send_icon(18)))
+        self.send_btn.setToolTip("Send Message")
+        self.send_btn.clicked.connect(self._send_text)
+        c_layout.addWidget(self.send_btn)
 
-        send_button = QPushButton("➤")
-        send_button.setObjectName("primary")
-        send_button.setToolTip("Send")
-        send_button.setFixedSize(50, 44)
-        send_button.clicked.connect(self._send_text)
-        controls.addWidget(send_button)
-        composer_layout.addLayout(controls)
-        center.addWidget(composer)
+        composer_container.addWidget(self.composer_frame)
 
-        chips = QHBoxLayout()
-        for label, command in [
-            ("Explain this", "Explain this"),
-            ("Open Chrome", "Open Chrome"),
-            ("Search the web", "Search Google for "),
-            ("Take a screenshot", "Take a screenshot"),
-        ]:
-            chip = QPushButton(label)
-            chip.setObjectName("chip")
-            chip.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
-            chips.addWidget(chip)
-        center.addLayout(chips)
+        # 3 Tags / Chips below composer:
+        # [ ılı Talk naturally ] [ 文A In English or Hindi ] [ 💻 Control your PC ]
+        chips_layout = QHBoxLayout()
+        chips_layout.setSpacing(14)
+        chips_layout.addStretch()
 
-        outer.addLayout(center, 1)
+        chip_items = [
+            (render_soundwave_icon(14, "#00e5ff"), "Talk naturally"),
+            (None, "In English or Hindi", "文A"),
+            (None, "Control your PC", "💻"),
+        ]
 
-        right = QVBoxLayout()
-        right.setSpacing(12)
+        for item in chip_items:
+            chip_frame = QFrame()
+            chip_frame.setObjectName("featureChip")
+            ch_layout = QHBoxLayout(chip_frame)
+            ch_layout.setContentsMargins(10, 4, 10, 4)
+            ch_layout.setSpacing(6)
 
-        assistant_card = QFrame()
-        assistant_card.setObjectName("sideCard")
-        al = QVBoxLayout(assistant_card)
-        al.setContentsMargins(16, 16, 16, 16)
-        at = QLabel("Kritam")
-        at.setObjectName("sideTitle")
-        al.addWidget(at)
-        ad = QLabel("Always here when you need me.")
-        ad.setObjectName("sideDesc")
-        ad.setWordWrap(True)
-        al.addWidget(ad)
-        right.addWidget(assistant_card)
+            if item[0]:
+                icon_lbl = QLabel()
+                icon_lbl.setPixmap(item[0])
+                ch_layout.addWidget(icon_lbl)
+            elif len(item) > 2:
+                prefix_lbl = QLabel(item[2])
+                prefix_lbl.setStyleSheet("color: #00d2ff; font-weight: bold; font-size: 12px;")
+                ch_layout.addWidget(prefix_lbl)
 
+            lbl = QLabel(item[1])
+            lbl.setObjectName("chipLabel")
+            ch_layout.addWidget(lbl)
+            chips_layout.addWidget(chip_frame)
+
+        chips_layout.addStretch()
+        composer_container.addLayout(chips_layout)
+
+        layout.addLayout(composer_container)
+        return page
+
+    # =========================================================================
+    # RIGHT SIDEBAR
+    # =========================================================================
+    def _build_right_sidebar(self):
+        frame = QFrame()
+        frame.setObjectName("sidebar")
+        frame.setFixedWidth(270)
+
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(12)
+
+        # Card 1: Avatar Profile Card + Speech Bubble
+        profile_card = QFrame()
+        profile_card.setObjectName("sideCard")
+        p_layout = QVBoxLayout(profile_card)
+        p_layout.setContentsMargins(14, 14, 14, 14)
+        p_layout.setSpacing(12)
+
+        top_row = QHBoxLayout()
+        top_row.setSpacing(12)
+
+        # Compact robot avatar
+        self.avatar_robot = KritamRobotWidget(compact=True)
+        top_row.addWidget(self.avatar_robot)
+
+        name_status = QVBoxLayout()
+        name_status.setSpacing(3)
+        name_lbl = QLabel("Kritam")
+        name_lbl.setObjectName("profileName")
+        self.status_lbl = QLabel("● Ready to assist")
+        self.status_lbl.setObjectName("readyStatus")
+        name_status.addWidget(name_lbl)
+        name_status.addWidget(self.status_lbl)
+        top_row.addLayout(name_status, 1)
+
+        p_layout.addLayout(top_row)
+
+        # Speech bubble
+        self.speech_bubble = QLabel("I'm here to help you.\nJust say what you need\nor type a message.")
+        self.speech_bubble.setObjectName("speechBubble")
+        self.speech_bubble.setWordWrap(True)
+        p_layout.addWidget(self.speech_bubble)
+
+        layout.addWidget(profile_card)
+
+        # Card 2: Quick Actions Card
         actions_card = QFrame()
         actions_card.setObjectName("sideCard")
-        rl = QVBoxLayout(actions_card)
-        rl.setContentsMargins(16, 16, 16, 16)
-        rt = QLabel("Quick Actions")
-        rt.setObjectName("sideTitle")
-        rl.addWidget(rt)
-        for label, command in [
-            ("🌐  Open Chrome", "Open Chrome"),
-            ("🔎  Search Google", "Search Google for "),
-            ("📁  Open Downloads", "Open Downloads"),
-            ("📸  Take Screenshot", "Take a screenshot"),
-        ]:
-            b = QPushButton(label)
-            b.setObjectName("sideAction")
-            b.clicked.connect(lambda checked=False, cmd=command: self._quick_command(cmd))
-            rl.addWidget(b)
-        right.addWidget(actions_card)
+        a_layout = QVBoxLayout(actions_card)
+        a_layout.setContentsMargins(14, 14, 14, 14)
+        a_layout.setSpacing(8)
 
+        # Header with lightning icon
+        a_header = QHBoxLayout()
+        a_header.setSpacing(6)
+        light_icon = QLabel()
+        light_icon.setPixmap(render_lightning_icon(16, "#00c4ff"))
+        a_header.addWidget(light_icon)
+        a_title = QLabel("Quick Actions")
+        a_title.setObjectName("cardTitle")
+        a_header.addWidget(a_title)
+        a_header.addStretch()
+        a_layout.addLayout(a_header)
+        a_layout.addSpacing(2)
+
+        action_list = [
+            (render_chrome_icon(20), "Open Chrome", "Open Chrome"),
+            (render_folder_icon(20), "Open Downloads", "Open Downloads"),
+            (render_youtube_icon(20), "Open YouTube", "Open YouTube"),
+            (render_camera_icon(20), "Take Screenshot", "Take a screenshot"),
+            (render_note_icon(20), "Create a Note", "Remember that "),
+        ]
+
+        for icon_pm, text, cmd in action_list:
+            row_btn = QPushButton()
+            row_btn.setObjectName("quickActionRow")
+            row_btn.setFixedHeight(38)
+
+            r_layout = QHBoxLayout(row_btn)
+            r_layout.setContentsMargins(8, 4, 8, 4)
+            r_layout.setSpacing(8)
+
+            ic = QLabel()
+            ic.setFixedSize(20, 20)
+            ic.setPixmap(icon_pm)
+            r_layout.addWidget(ic)
+
+            tx = QLabel(text)
+            tx.setStyleSheet("color: #d1dfef; font-size: 13px; font-weight: 500;")
+            r_layout.addWidget(tx)
+            r_layout.addStretch()
+
+            ch = QLabel()
+            ch.setPixmap(render_chevron_right(14, "#6b829e"))
+            r_layout.addWidget(ch)
+
+            row_btn.clicked.connect(lambda checked=False, command=cmd: self._quick_command(command))
+            a_layout.addWidget(row_btn)
+
+        layout.addWidget(actions_card)
+
+        # Card 3: Voice Card
         voice_card = QFrame()
         voice_card.setObjectName("sideCard")
-        vl = QVBoxLayout(voice_card)
-        vl.setContentsMargins(16, 16, 16, 16)
-        vt = QLabel("Voice")
-        vt.setObjectName("sideTitle")
-        vl.addWidget(vt)
-        vd = QLabel("🎙  Natural conversation\n\nTalk normally. You don't have to rush.")
-        vd.setObjectName("sideDesc")
-        vd.setWordWrap(True)
-        vl.addWidget(vd)
-        listen_button = QPushButton("🎙  Start Listening")
-        listen_button.setObjectName("listenButton")
-        listen_button.clicked.connect(self._start_voice_input)
-        vl.addWidget(listen_button)
-        right.addWidget(voice_card)
-        right.addStretch()
+        v_layout = QVBoxLayout(voice_card)
+        v_layout.setContentsMargins(14, 14, 14, 14)
+        v_layout.setSpacing(10)
 
-        outer.addLayout(right, 0)
-        return page
+        # Header with soundwave icon
+        v_header = QHBoxLayout()
+        v_header.setSpacing(6)
+        sw_icon = QLabel()
+        sw_icon.setPixmap(render_soundwave_icon(16, "#00e5ff"))
+        v_header.addWidget(sw_icon)
+        v_title = QLabel("Voice")
+        v_title.setObjectName("cardTitle")
+        v_header.addWidget(v_title)
+        v_header.addStretch()
+        v_layout.addLayout(v_header)
 
-    def _build_tasks(self):
+        # Voice Selector dropdown simulation
+        voice_sel = QFrame()
+        voice_sel.setObjectName("voiceSelector")
+        vs_layout = QHBoxLayout(voice_sel)
+        vs_layout.setContentsMargins(10, 6, 10, 6)
+        vs_layout.setSpacing(8)
+
+        mic_ic = QLabel()
+        mic_ic.setPixmap(render_mic_icon(16, "#829ebf"))
+        vs_layout.addWidget(mic_ic)
+
+        vs_text = QLabel("Kritam (Female)")
+        vs_text.setObjectName("voiceSelectorText")
+        vs_layout.addWidget(vs_text)
+        vs_layout.addStretch()
+
+        down_ch = QLabel()
+        down_ch.setPixmap(render_chevron_down(14, "#748aa5"))
+        vs_layout.addWidget(down_ch)
+        v_layout.addWidget(voice_sel)
+
+        # Big Start Listening button
+        self.listen_btn = QPushButton("Start Listening")
+        self.listen_btn.setObjectName("startListeningButton")
+        self.listen_btn.setIcon(QIcon(render_mic_icon(18, "#ffffff")))
+        self.listen_btn.setFixedHeight(42)
+        self.listen_btn.clicked.connect(self._start_voice_input)
+        v_layout.addWidget(self.listen_btn)
+
+        layout.addWidget(voice_card)
+        layout.addStretch()
+
+        return frame
+
+    # =========================================================================
+    # SECONDARY PAGES (Chat, Tasks, Memory, Settings)
+    # =========================================================================
+    def _build_chat_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
-        title = QLabel("Tasks")
-        title.setObjectName("heroTitle")
-        layout.addWidget(title)
-        subtitle = QLabel("See what Kritam is working on.")
-        subtitle.setObjectName("muted")
-        layout.addWidget(subtitle)
+
+        t = QLabel("Conversation History")
+        t.setObjectName("pageHeading")
+        layout.addWidget(t)
+
         card = QFrame()
-        card.setObjectName("card")
-        inner = QVBoxLayout(card)
-        inner.setContentsMargins(22, 20, 22, 20)
-        heading = QLabel("Current task")
-        heading.setObjectName("cardTitle")
-        inner.addWidget(heading)
-        self.task_label = QLabel("Nothing is running right now.\\n\\nAsk Kritam to do something and you will see the progress here.")
-        self.task_label.setObjectName("cardText")
+        card.setObjectName("detailCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(16, 16, 16, 16)
+
+        self.chat_history_label = QLabel("No messages yet. Ask Kritam anything!")
+        self.chat_history_label.setWordWrap(True)
+        self.chat_history_label.setStyleSheet("color: #b5c7de; font-size: 13.5px; line-height: 1.5;")
+        c_layout.addWidget(self.chat_history_label)
+        layout.addWidget(card, 1)
+
+        return page
+
+    def _build_tasks_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(14)
+
+        t = QLabel("Tasks")
+        t.setObjectName("pageHeading")
+        layout.addWidget(t)
+
+        sub = QLabel("See what Kritam is currently executing or planning.")
+        sub.setObjectName("mutedText")
+        layout.addWidget(sub)
+
+        card = QFrame()
+        card.setObjectName("detailCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(20, 20, 20, 20)
+
+        card_title = QLabel("Current Tasks")
+        card_title.setObjectName("cardTitle")
+        c_layout.addWidget(card_title)
+
+        self.task_label = QLabel("Nothing is running right now.\n\nAsk Kritam to do something and you will see the progress here.")
         self.task_label.setWordWrap(True)
-        inner.addWidget(self.task_label)
+        self.task_label.setStyleSheet("color: #b5c7de; font-size: 13.5px; line-height: 1.5;")
+        c_layout.addWidget(self.task_label)
+
         layout.addWidget(card)
-        hint = QLabel("Kritam can handle simple requests or work through multi-step commands for you.")
-        hint.setObjectName("hint")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
         layout.addStretch()
         return page
 
-    def _build_memory(self):
+    def _build_memory_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
-        title = QLabel("Memory")
-        title.setObjectName("heroTitle")
-        layout.addWidget(title)
-        subtitle = QLabel("Things you have asked Kritam to remember.")
-        subtitle.setObjectName("muted")
-        layout.addWidget(subtitle)
+
+        t = QLabel("Memory")
+        t.setObjectName("pageHeading")
+        layout.addWidget(t)
+
+        sub = QLabel("Things you have asked Kritam to remember.")
+        sub.setObjectName("mutedText")
+        layout.addWidget(sub)
+
         card = QFrame()
-        card.setObjectName("card")
-        inner = QVBoxLayout(card)
-        inner.setContentsMargins(22, 20, 22, 20)
-        heading = QLabel("What Kritam remembers")
-        heading.setObjectName("cardTitle")
-        inner.addWidget(heading)
+        card.setObjectName("detailCard")
+        c_layout = QVBoxLayout(card)
+        c_layout.setContentsMargins(20, 20, 20, 20)
+
+        card_title = QLabel("What Kritam Remembers")
+        card_title.setObjectName("cardTitle")
+        c_layout.addWidget(card_title)
+
         self.memory_label = QLabel(self.assistant.memory.summary())
-        self.memory_label.setObjectName("cardText")
         self.memory_label.setWordWrap(True)
-        inner.addWidget(self.memory_label)
+        self.memory_label.setStyleSheet("color: #b5c7de; font-size: 13.5px; line-height: 1.5;")
+        c_layout.addWidget(self.memory_label)
+
         layout.addWidget(card)
-        hint = QLabel("You can say: Kritam, remember that ...")
-        hint.setObjectName("hint")
-        layout.addWidget(hint)
         layout.addStretch()
         return page
 
-    def _build_settings(self):
+    def _build_settings_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(14)
-        title = QLabel("Settings")
-        title.setObjectName("heroTitle")
-        layout.addWidget(title)
-        subtitle = QLabel("Make Kritam work the way you like.")
-        subtitle.setObjectName("muted")
-        layout.addWidget(subtitle)
+
+        t = QLabel("Settings")
+        t.setObjectName("pageHeading")
+        layout.addWidget(t)
+
         sections = [
             ("General", [
                 ("Assistant name", self.assistant.name),
                 ("Language", self.assistant.settings.get("language", "en").upper()),
             ]),
             ("Voice", [
-                ("Voice speed", f"{self.assistant.settings.get('voice_rate', 170)} words/min"),
+                ("Voice speed", f"{self.assistant.settings.get('voice_rate', 160)} words/min"),
                 ("Wake word", "Hey Kritam"),
+                ("Active Voice", "Kritam (Female)"),
             ]),
-            ("Privacy", [
-                ("Memory", "Stored on this computer"),
-                ("Conversations", "Stored on this computer"),
+            ("Privacy & Storage", [
+                ("Memory", "Stored locally on this computer"),
+                ("Conversations", "Stored locally on this computer"),
             ]),
         ]
+
         for section_title, items in sections:
             card = QFrame()
-            card.setObjectName("card")
+            card.setObjectName("detailCard")
             inner = QVBoxLayout(card)
-            inner.setContentsMargins(20, 16, 20, 16)
-            section = QLabel(section_title)
-            section.setObjectName("cardTitle")
-            inner.addWidget(section)
+            inner.setContentsMargins(18, 14, 18, 14)
+            inner.setSpacing(8)
+
+            sec_lbl = QLabel(section_title)
+            sec_lbl.setObjectName("cardTitle")
+            inner.addWidget(sec_lbl)
+
             for label_text, value_text in items:
                 row = QHBoxLayout()
-                label = QLabel(label_text)
-                label.setObjectName("settingLabel")
-                value = QLabel(value_text)
-                value.setObjectName("settingValue")
-                row.addWidget(label)
+                lbl = QLabel(label_text)
+                lbl.setObjectName("settingLabel")
+                val = QLabel(value_text)
+                val.setObjectName("settingValue")
+                row.addWidget(lbl)
                 row.addStretch()
-                row.addWidget(value)
+                row.addWidget(val)
                 inner.addLayout(row)
+
             layout.addWidget(card)
-        about = QLabel("Kritam is designed to keep everyday computer tasks simple.")
-        about.setObjectName("hint")
-        about.setWordWrap(True)
-        layout.addWidget(about)
+
         layout.addStretch()
         return page
+
+    # =========================================================================
+    # NAVIGATION & ACTIONS
+    # =========================================================================
     def _select_page(self, index):
-        for i, button in enumerate(self.nav_buttons):
-            button.setChecked(i == index)
+        for i, (btn, icon_name) in enumerate(self.nav_buttons):
+            is_active = (i == index)
+            btn.setChecked(is_active)
+            btn.setIcon(QIcon(render_nav_icon(icon_name, active=is_active, size=20)))
+
         self.stack.setCurrentIndex(index)
-        if index == 1:
+        if index == 2:
             self._refresh_task()
-        elif index == 2:
-            self._refresh_memory()
         elif index == 3:
-            self._refresh_settings()
+            self._refresh_memory()
 
     def _quick_command(self, command):
         self.command_input.setText(command)
         self.command_input.setFocus()
 
-        # One-click actions execute immediately; prompts that need a query
-        # stay in the composer so the user can finish the request.
+        # Immediate actions execute immediately
         if command.strip().lower() in {
             "open chrome",
             "open downloads",
+            "open youtube",
             "take a screenshot",
         }:
             self._send_text()
 
     def _add_message(self, text, is_user):
         prefix = "You: " if is_user else "Kritam: "
-        self.activity_label.setText(prefix + text)
+        if hasattr(self, "speech_bubble"):
+            if not is_user:
+                self.speech_bubble.setText(text)
+        if hasattr(self, "chat_history_label"):
+            cur = self.chat_history_label.text()
+            if "No messages yet" in cur:
+                cur = ""
+            self.chat_history_label.setText(cur + f"\n{prefix}{text}\n")
 
     def _send_text(self):
         command = self.command_input.text().strip()
@@ -644,8 +950,6 @@ class MainWindow(QMainWindow):
         self._start_worker(command=command)
 
     def _start_voice_input(self):
-        # Foreground voice is a deliberate push-to-talk flow. The background
-        # wake listener is paused while the foreground mic owns the device.
         if self.thread is not None:
             if self._recording and self.worker is not None:
                 self._finish_voice_input()
@@ -659,7 +963,7 @@ class MainWindow(QMainWindow):
         self.command_input.hide()
         self.voice_bar.show()
         self.voice_bar.start_animation()
-        self.mic_button.hide()
+        self.mic_btn.hide()
         self._set_busy(True, "Listening...")
         self._start_worker(listen=True)
 
@@ -680,7 +984,7 @@ class MainWindow(QMainWindow):
         self.voice_bar.hide()
         self.voice_bar.setEnabled(True)
         self.command_input.show()
-        self.mic_button.show()
+        self.mic_btn.show()
         self._set_busy(False, "Ready")
         self.worker.stop()
 
@@ -707,19 +1011,16 @@ class MainWindow(QMainWindow):
                 self._add_message("I couldn't hear a command.", False)
         else:
             self._add_message(result.get("response", "Done."), False)
+
         self._recording = False
         self.voice_bar.stop_animation()
         self.voice_bar.setEnabled(True)
         self.voice_bar.hide()
         self.command_input.show()
-        self.mic_button.show()
-        self.mic_button.setEnabled(True)
-        self.mic_button.setText("🎙")
-        self.mic_button.setToolTip("Talk to Kritam")
+        self.mic_btn.show()
         self._set_busy(False, "Ready")
         self._refresh_task()
         self._refresh_memory()
-        self._refresh_status()
 
     @Slot(str)
     def _worker_error(self, message):
@@ -728,12 +1029,9 @@ class MainWindow(QMainWindow):
         self.voice_bar.setEnabled(True)
         self.voice_bar.hide()
         self.command_input.show()
-        self.mic_button.show()
-        self.mic_button.setEnabled(True)
-        self.mic_button.setText("🎙")
-        self.mic_button.setToolTip("Talk to Kritam")
+        self.mic_btn.show()
         self._set_busy(False, "Ready")
-        self._add_message("Hmm, I couldn't complete that right now. Please try again.", False)
+        self._add_message("Sorry, I encountered an issue. Please try again.", False)
 
     def _worker_cleanup(self):
         if self.thread:
@@ -747,7 +1045,7 @@ class MainWindow(QMainWindow):
     def _setup_tray(self):
         self.tray = QSystemTrayIcon(self)
         self.tray.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
-        self.tray.setToolTip("Kritam — listening for Hey Kritam")
+        self.tray.setToolTip("Kritam — listening for 'Hey Kritam'")
 
         menu = QMenu()
         show_action = QAction("Open Kritam", self)
@@ -788,10 +1086,9 @@ class MainWindow(QMainWindow):
     def _background_command_finished(self, result):
         self._add_message(result["command"], True)
         self._add_message(result.get("response", "Done."), False)
-        self._set_busy(False, "Wake word active")
+        self._set_busy(False, "Ready")
         self._refresh_task()
         self._refresh_memory()
-        self._refresh_status()
 
     @Slot(str)
     def _background_error(self, message):
@@ -800,53 +1097,36 @@ class MainWindow(QMainWindow):
     def _stop_background_listener(self):
         worker = self.bg_worker
         thread = self.bg_thread
-
         if worker:
             worker.stop()
-
         if thread:
             thread.quit()
-            if thread.wait(7000):
+            if thread.wait(5000):
                 thread.deleteLater()
                 self.bg_thread = None
                 self.bg_worker = None
-            else:
-                print("Kritam background listener: waiting for thread to finish.")
-
-    def _start_orb_animation(self):
-        self.orb_timer = QTimer(self)
-        self.orb_timer.timeout.connect(self._pulse_orb)
-        self.orb_timer.start(1600)
-
-    def _pulse_orb(self):
-        if hasattr(self, "hero_orb"):
-            self.hero_orb.set_active(True)
-            QTimer.singleShot(300, self._finish_orb_pulse)
-
-    def _finish_orb_pulse(self):
-        if hasattr(self, "hero_orb"):
-            self.hero_orb.set_active(False)
 
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
-        if hasattr(self, "hero_orb"):
-            self.hero_orb.set_active(busy)
-
-    def _set_ready_state(self):
-        if hasattr(self, "hero_orb"):
-            self.hero_orb.set_active(False)
-
-    def _refresh_status(self):
-        self._set_ready_state()
+        if hasattr(self, "hero_robot"):
+            self.hero_robot.set_active(busy)
+        if hasattr(self, "avatar_robot"):
+            self.avatar_robot.set_active(busy)
+        if hasattr(self, "status_lbl"):
+            if busy:
+                self.status_lbl.setText(f"● {text}")
+                self.status_lbl.setStyleSheet("color: #00d2ff; font-size: 12px; font-weight: 650;")
+            else:
+                self.status_lbl.setText("● Ready to assist")
+                self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
 
     def _refresh_task(self):
-        self.task_label.setText(self.assistant.task_manager.status_text())
+        if hasattr(self, "task_label"):
+            self.task_label.setText(self.assistant.task_manager.status_text())
 
     def _refresh_memory(self):
-        self.memory_label.setText(self.assistant.memory.summary())
-
-    def _refresh_settings(self):
-        return
+        if hasattr(self, "memory_label"):
+            self.memory_label.setText(self.assistant.memory.summary())
 
     def closeEvent(self, event):
         if getattr(self, "_really_exiting", False):
