@@ -1,6 +1,8 @@
 """Main window interface for Kritam AI Assistant matching the reference UI."""
 
 import math
+import os
+import sys
 import threading
 from PySide6.QtCore import QObject, QThread, Signal, Slot, Qt, QTimer, QPoint, QRectF
 from PySide6.QtGui import (
@@ -12,14 +14,18 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QScrollArea,
+    QSlider,
     QStackedWidget,
     QSystemTrayIcon,
     QStyle,
@@ -288,8 +294,10 @@ class BackgroundWorker(QObject):
 class MainWindow(QMainWindow):
     """Primary application window for Kritam."""
 
-    def __init__(self):
+    def __init__(self, on_logout=None, account=None):
         super().__init__()
+        self.on_logout = on_logout
+        self.account = account or {}
         self.assistant = Kritam()
         self.setWindowTitle("KRITAM - Your Personal AI Assistant")
         self.resize(1260, 800)
@@ -333,12 +341,10 @@ class MainWindow(QMainWindow):
         # Left Sidebar
         body_layout.addWidget(self._build_sidebar())
 
-        # Center Main Stack (Home, Chat, Tasks, Memory, Settings)
+        # Center Main Stack (Home, Chat, Settings)
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_home_page())
         self.stack.addWidget(self._build_chat_page())
-        self.stack.addWidget(self._build_tasks_page())
-        self.stack.addWidget(self._build_memory_page())
         self.stack.addWidget(self._build_settings_page())
         body_layout.addWidget(self.stack, 1)
 
@@ -370,9 +376,7 @@ class MainWindow(QMainWindow):
         nav_items = [
             ("Home", "home", 0),
             ("Chat", "chat", 1),
-            ("Tasks", "tasks", 2),
-            ("Memory", "memory", 3),
-            ("Settings", "settings", 4),
+            ("Settings", "settings", 2),
         ]
 
         for label, icon_name, index in nav_items:
@@ -858,45 +862,130 @@ class MainWindow(QMainWindow):
         t.setObjectName("pageHeading")
         layout.addWidget(t)
 
-        sections = [
-            ("General", [
-                ("Assistant name", self.assistant.name),
-                ("Language", self.assistant.settings.get("language", "en").upper()),
-            ]),
-            ("Voice", [
-                ("Voice speed", f"{self.assistant.settings.get('voice_rate', 160)} words/min"),
-                ("Wake word", "Hey Kritam"),
-                ("Active Voice", "Kritam (Female)"),
-            ]),
-            ("Privacy & Storage", [
-                ("Memory", "Stored locally on this computer"),
-                ("Conversations", "Stored locally on this computer"),
-            ]),
-        ]
+        sub = QLabel("Personalize how Kritam looks, sounds and works on your PC.")
+        sub.setObjectName("mutedText")
+        layout.addWidget(sub)
 
-        for section_title, items in sections:
-            card = QFrame()
-            card.setObjectName("detailCard")
-            inner = QVBoxLayout(card)
-            inner.setContentsMargins(18, 14, 18, 14)
-            inner.setSpacing(8)
+        # Account
+        account_card = QFrame()
+        account_card.setObjectName("detailCard")
+        account_layout = QVBoxLayout(account_card)
+        account_layout.setContentsMargins(18, 16, 18, 16)
+        account_title = QLabel("Account")
+        account_title.setObjectName("cardTitle")
+        account_layout.addWidget(account_title)
 
-            sec_lbl = QLabel(section_title)
-            sec_lbl.setObjectName("cardTitle")
-            inner.addWidget(sec_lbl)
+        account_name = self.account.get("name", "Local User")
+        account_email = self.account.get("email", "Local account")
+        account_text = QLabel(f"{account_name}\n{account_email}")
+        account_text.setObjectName("settingValue")
+        account_layout.addWidget(account_text)
 
-            for label_text, value_text in items:
-                row = QHBoxLayout()
-                lbl = QLabel(label_text)
-                lbl.setObjectName("settingLabel")
-                val = QLabel(value_text)
-                val.setObjectName("settingValue")
-                row.addWidget(lbl)
-                row.addStretch()
-                row.addWidget(val)
-                inner.addLayout(row)
+        logout = QPushButton("Sign Out")
+        logout.setObjectName("secondaryActionButton")
+        logout.setFixedHeight(38)
+        logout.clicked.connect(self._logout)
+        account_layout.addWidget(logout, 0, Qt.AlignLeft)
+        layout.addWidget(account_card)
 
-            layout.addWidget(card)
+        # Assistant preferences
+        pref_card = QFrame()
+        pref_card.setObjectName("detailCard")
+        pref_layout = QVBoxLayout(pref_card)
+        pref_layout.setContentsMargins(18, 16, 18, 16)
+        pref_layout.setSpacing(12)
+
+        pref_title = QLabel("Assistant")
+        pref_title.setObjectName("cardTitle")
+        pref_layout.addWidget(pref_title)
+
+        name_row = QHBoxLayout()
+        name_label = QLabel("Assistant name")
+        name_label.setObjectName("settingLabel")
+        self.settings_name = QLineEdit(self.assistant.settings.get("assistant_name", "Kritam"))
+        self.settings_name.setObjectName("settingsInput")
+        self.settings_name.setFixedWidth(230)
+        name_row.addWidget(name_label)
+        name_row.addStretch()
+        name_row.addWidget(self.settings_name)
+        pref_layout.addLayout(name_row)
+
+        language_row = QHBoxLayout()
+        language_label = QLabel("Language")
+        language_label.setObjectName("settingLabel")
+        self.settings_language = QComboBox()
+        self.settings_language.setObjectName("settingsCombo")
+        self.settings_language.addItem("English", "en")
+        self.settings_language.addItem("Hindi / Hinglish", "hi")
+        current_language = self.assistant.settings.get("language", "en")
+        language_index = max(0, self.settings_language.findData(current_language))
+        self.settings_language.setCurrentIndex(language_index)
+        language_row.addWidget(language_label)
+        language_row.addStretch()
+        language_row.addWidget(self.settings_language)
+        pref_layout.addLayout(language_row)
+
+        speed_row = QHBoxLayout()
+        speed_label = QLabel("Voice speed")
+        speed_label.setObjectName("settingLabel")
+        self.settings_voice_speed = QSlider(Qt.Horizontal)
+        self.settings_voice_speed.setRange(120, 210)
+        self.settings_voice_speed.setValue(int(self.assistant.settings.get("voice_rate", 160)))
+        self.settings_voice_speed.setObjectName("settingsSlider")
+        self.settings_speed_value = QLabel(f"{self.settings_voice_speed.value()} WPM")
+        self.settings_speed_value.setObjectName("settingValue")
+        self.settings_voice_speed.valueChanged.connect(
+            lambda value: self.settings_speed_value.setText(f"{value} WPM")
+        )
+        speed_row.addWidget(speed_label)
+        speed_row.addStretch()
+        speed_row.addWidget(self.settings_voice_speed, 1)
+        speed_row.addWidget(self.settings_speed_value)
+        pref_layout.addLayout(speed_row)
+
+        wake = QCheckBox("Enable “Hey Kritam” background listening")
+        wake.setObjectName("settingsCheck")
+        wake.setChecked(bool(self.assistant.settings.get("wake_word_enabled", True)))
+        self.settings_wake = wake
+        pref_layout.addWidget(wake)
+
+        startup = QCheckBox("Start Kritam with Windows")
+        startup.setObjectName("settingsCheck")
+        startup.setChecked(bool(self.assistant.settings.get("start_with_windows", False)))
+        self.settings_startup = startup
+        pref_layout.addWidget(startup)
+
+        save = QPushButton("Save Changes")
+        save.setObjectName("primaryActionButton")
+        save.setFixedHeight(40)
+        save.clicked.connect(self._save_settings)
+        pref_layout.addWidget(save, 0, Qt.AlignLeft)
+
+        layout.addWidget(pref_card)
+
+        # Privacy
+        privacy_card = QFrame()
+        privacy_card.setObjectName("detailCard")
+        privacy_layout = QVBoxLayout(privacy_card)
+        privacy_layout.setContentsMargins(18, 16, 18, 16)
+        privacy_title = QLabel("Privacy & Data")
+        privacy_title.setObjectName("cardTitle")
+        privacy_layout.addWidget(privacy_title)
+
+        privacy_text = QLabel(
+            "Memory, settings and command history are stored locally on this PC. "
+            "You can clear saved memory without opening a separate Memory page."
+        )
+        privacy_text.setObjectName("mutedText")
+        privacy_text.setWordWrap(True)
+        privacy_layout.addWidget(privacy_text)
+
+        clear_memory = QPushButton("Clear Saved Memory")
+        clear_memory.setObjectName("secondaryActionButton")
+        clear_memory.setFixedHeight(36)
+        clear_memory.clicked.connect(self._clear_saved_memory)
+        privacy_layout.addWidget(clear_memory, 0, Qt.AlignLeft)
+        layout.addWidget(privacy_card)
 
         layout.addStretch()
         return page
@@ -911,10 +1000,71 @@ class MainWindow(QMainWindow):
             btn.setIcon(QIcon(render_nav_icon(icon_name, active=is_active, size=20)))
 
         self.stack.setCurrentIndex(index)
-        if index == 2:
-            self._refresh_task()
-        elif index == 3:
-            self._refresh_memory()
+
+    def _save_settings(self):
+        name = self.settings_name.text().strip() or "Kritam"
+        language = self.settings_language.currentData() or "en"
+        rate = self.settings_voice_speed.value()
+        wake_enabled = self.settings_wake.isChecked()
+        startup_enabled = self.settings_startup.isChecked()
+
+        self.assistant.settings.set("assistant_name", name)
+        self.assistant.settings.set("language", language)
+        self.assistant.settings.set("voice_rate", rate)
+        self.assistant.settings.set("wake_word_enabled", wake_enabled)
+        self.assistant.settings.set("start_with_windows", startup_enabled)
+        self.assistant.name = name
+        self.assistant.text_to_speech.engine.setProperty("rate", rate)
+
+        if wake_enabled and self.bg_thread is None:
+            self._start_background_listener()
+        elif not wake_enabled and self.bg_thread is not None:
+            self._stop_background_listener()
+
+        self._set_startup_setting(startup_enabled)
+        self.speech_bubble.setText("Your settings are saved.")
+        self._set_busy(False, "Ready")
+
+    def _set_startup_setting(self, enabled):
+        if not sys.platform.startswith("win"):
+            return
+        try:
+            import winreg
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                key_path,
+                0,
+                winreg.KEY_SET_VALUE,
+            ) as key:
+                if enabled:
+                    command = f'"{sys.executable}" "{os.path.abspath(sys.argv[0])}"'
+                    winreg.SetValueEx(key, "Kritam", 0, winreg.REG_SZ, command)
+                else:
+                    try:
+                        winreg.DeleteValue(key, "Kritam")
+                    except FileNotFoundError:
+                        pass
+        except OSError:
+            pass
+
+    def _clear_saved_memory(self):
+        reply = QMessageBox.question(
+            self,
+            "Clear saved memory",
+            "Delete all saved memories from this computer?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply == QMessageBox.Yes:
+            self.assistant.memory.clear()
+            self.speech_bubble.setText("Saved memory has been cleared.")
+
+    def _logout(self):
+        self._stop_background_listener()
+        self.hide()
+        if self.on_logout:
+            self.on_logout()
 
     def _quick_command(self, command):
         self.command_input.setText(command)
@@ -1019,8 +1169,6 @@ class MainWindow(QMainWindow):
         self.command_input.show()
         self.mic_btn.show()
         self._set_busy(False, "Ready")
-        self._refresh_task()
-        self._refresh_memory()
 
     @Slot(str)
     def _worker_error(self, message):
@@ -1087,8 +1235,6 @@ class MainWindow(QMainWindow):
         self._add_message(result["command"], True)
         self._add_message(result.get("response", "Done."), False)
         self._set_busy(False, "Ready")
-        self._refresh_task()
-        self._refresh_memory()
 
     @Slot(str)
     def _background_error(self, message):
@@ -1119,14 +1265,6 @@ class MainWindow(QMainWindow):
             else:
                 self.status_lbl.setText("● Ready to assist")
                 self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
-
-    def _refresh_task(self):
-        if hasattr(self, "task_label"):
-            self.task_label.setText(self.assistant.task_manager.status_text())
-
-    def _refresh_memory(self):
-        if hasattr(self, "memory_label"):
-            self.memory_label.setText(self.assistant.memory.summary())
 
     def closeEvent(self, event):
         if getattr(self, "_really_exiting", False):
