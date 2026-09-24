@@ -72,6 +72,7 @@ class FastRouter:
 
         if command in {"play pause", "play or pause", "pause music", "resume music", "toggle play pause"}:
             return {"type": "media_play_pause"}
+        # English music commands.
         match = re.fullmatch(r"(?:play|play the song) (.+?) (?:on|in) (youtube|spotify)", command)
         if match:
             return {"type": "play_music", "query": match.group(1).strip(), "platform": match.group(2).strip()}
@@ -79,6 +80,34 @@ class FastRouter:
         match = re.fullmatch(r"(?:open|start) (youtube|spotify) and play (.+)", command)
         if match:
             return {"type": "play_music", "query": match.group(2).strip(), "platform": match.group(1).strip()}
+
+        # Natural Hindi/Hinglish music commands, for example:
+        # "Kritam Haryanvi song bajao YouTube par".
+        match = re.fullmatch(
+            r"(?:hey|hi|okay|ok)?\s*kritam\s+(.+?)\s+(?:bajao|chalao|lagao|play)\s+"
+            r"(?:on\s+|in\s+)?(?:youtube|spotify)(?:\s+(?:par|pe|pr))?",
+            command,
+        )
+        if match:
+            platform = "youtube" if "youtube" in command else "spotify"
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": platform}
+
+        match = re.fullmatch(
+            r"(?:play|bajao|chalao|lagao)\s+(.+?)\s+"
+            r"(?:youtube|spotify)(?:\s+(?:par|pe|pr))?",
+            command,
+        )
+        if match:
+            platform = "youtube" if "youtube" in command else "spotify"
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": platform}
+
+        match = re.fullmatch(
+            r"(.+?)\s+(?:youtube|spotify)\s+(?:par|pe|pr)\s+(?:bajao|chalao|lagao|play)",
+            command,
+        )
+        if match:
+            platform = "youtube" if "youtube" in command else "spotify"
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": platform}
 
         if command in {"minimize window", "minimize this window", "minimize"}:
             return {"type": "minimize_window"}
