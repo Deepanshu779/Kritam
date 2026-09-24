@@ -257,7 +257,7 @@ class MainWindow(QMainWindow):
         layout.setSpacing(6)
 
         brand_row = QHBoxLayout()
-        logo = QLabel("K")
+        logo = QLabel("A")
         logo.setObjectName("sidebarLogo")
         logo.setFixedSize(42, 42)
         brand_row.addWidget(logo)
@@ -276,9 +276,8 @@ class MainWindow(QMainWindow):
         items = [
             ("⌂   Home", 0),
             ("◌   Chat", 0),
-            ("♩   Voice", 0),
-            ("▦   Apps & Tools", 1),
-            ("□   Memory", 2),
+            ("✓   Tasks", 1),
+            ("♧   Memory", 2),
             ("⚙   Settings", 3),
         ]
         for label, index in items:
@@ -296,7 +295,7 @@ class MainWindow(QMainWindow):
         footer.setObjectName("sidebarProfile")
         footer_layout = QVBoxLayout(footer)
         footer_layout.setContentsMargins(14, 12, 14, 12)
-        footer_title = QLabel("●  Kritam is ready")
+        footer_title = QLabel("●  Ready to assist")
         footer_title.setObjectName("readyText")
         footer_layout.addWidget(footer_title)
         footer_hint = QLabel("Ready to listen, help and act.")
