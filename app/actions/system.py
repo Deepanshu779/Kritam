@@ -38,14 +38,27 @@ class SystemManager:
             )
             path = os.path.join(screenshots_dir, filename)
 
-            # Capture every connected display and include layered Windows.
-            # Pillow supports all_screens/include_layered_windows on Windows.
-            image = ImageGrab.grab(
-                all_screens=True,
-                include_layered_windows=True,
-            )
+            # Capture the full Windows desktop. Newer Pillow versions support
+            # all_screens/include_layered_windows; keep fallbacks for older
+            # Pillow builds so the command still works reliably.
+            try:
+                image = ImageGrab.grab(
+                    all_screens=True,
+                    include_layered_windows=True,
+                )
+            except TypeError:
+                try:
+                    image = ImageGrab.grab(all_screens=True)
+                except TypeError:
+                    image = ImageGrab.grab()
+
+            if image is None or image.width <= 0 or image.height <= 0:
+                return False
+
             image.save(path, "PNG")
-            return os.path.isfile(path)
+
+            # Verify that Windows actually received a non-empty file.
+            return os.path.isfile(path) and os.path.getsize(path) > 0
 
         except Exception as error:
             print(f"Screenshot error: {error}")
