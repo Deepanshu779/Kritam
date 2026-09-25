@@ -5,12 +5,12 @@ import speech_recognition as sr
 
 class BackgroundVoiceListener:
 
-    WAKE_PATTERN = re.compile(r"\b(?:hey|hi|okay|ok)\s+kritam\b", re.IGNORECASE)
+    WAKE_PATTERN = re.compile(r"\b(?:hey|hi|okay|ok)?\s*kritam\b", re.IGNORECASE)
 
     def __init__(self, speech_to_text):
         self.speech_to_text = speech_to_text
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 1.35
+        self.recognizer.pause_threshold = 1.15
         self.recognizer.phrase_threshold = 0.08
         self.recognizer.non_speaking_duration = 0.55
         self.recognizer.dynamic_energy_threshold = True
@@ -47,7 +47,7 @@ class BackgroundVoiceListener:
         self._prepare()
 
         while not self.stop_event.is_set():
-            limit = 30 if self.armed else 5
+            limit = 30 if self.armed else 6
             audio = self._listen_phrase(phrase_time_limit=limit)
             if audio is None:
                 continue
