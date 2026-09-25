@@ -294,9 +294,10 @@ class BackgroundWorker(QObject):
 class MainWindow(QMainWindow):
     """Primary application window for Kritam."""
 
-    def __init__(self, on_logout=None, account=None):
+    def __init__(self, on_logout=None, on_login=None, account=None):
         super().__init__()
         self.on_logout = on_logout
+        self.on_login = on_login
         self.account = account or {}
         self.assistant = Kritam()
         self.setWindowTitle("KRITAM - Your Personal AI Assistant")
@@ -812,17 +813,31 @@ class MainWindow(QMainWindow):
         account_title.setObjectName("cardTitle")
         account_layout.addWidget(account_title)
 
-        account_name = self.account.get("name", "Local User")
-        account_email = self.account.get("email", "Local account")
-        account_text = QLabel(f"{account_name}\n{account_email}")
-        account_text.setObjectName("settingValue")
-        account_layout.addWidget(account_text)
+        if self.account.get("email"):
+            account_name = self.account.get("name", "Local User")
+            account_email = self.account.get("email", "Local account")
+            account_text = QLabel(f"{account_name}\n{account_email}")
+            account_text.setObjectName("settingValue")
+            account_layout.addWidget(account_text)
 
-        logout = QPushButton("Sign Out")
-        logout.setObjectName("secondaryActionButton")
-        logout.setFixedHeight(38)
-        logout.clicked.connect(self._logout)
-        account_layout.addWidget(logout, 0, Qt.AlignLeft)
+            account_action = QPushButton("Sign Out")
+            account_action.setObjectName("secondaryActionButton")
+            account_action.setFixedHeight(38)
+            account_action.clicked.connect(self._logout)
+        else:
+            account_text = QLabel(
+                "You are using Kritam in local mode.\n"
+                "Sign in only if you want a local profile."
+            )
+            account_text.setObjectName("settingValue")
+            account_layout.addWidget(account_text)
+
+            account_action = QPushButton("Sign In / Create Account")
+            account_action.setObjectName("secondaryActionButton")
+            account_action.setFixedHeight(38)
+            account_action.clicked.connect(self._open_login)
+
+        account_layout.addWidget(account_action, 0, Qt.AlignLeft)
         layout.addWidget(account_card)
 
         # Assistant preferences
@@ -997,8 +1012,13 @@ class MainWindow(QMainWindow):
             self.assistant.memory.clear()
             self.speech_bubble.setText("Saved memory has been cleared.")
 
+    def _open_login(self):
+        if self.on_login:
+            self.on_login()
+
     def _logout(self):
         self._stop_background_listener()
+        self.account = {}
         self.hide()
         if self.on_logout:
             self.on_logout()
