@@ -72,6 +72,72 @@ class FastRouter:
 
         if command in {"play pause", "play or pause", "pause music", "resume music", "toggle play pause"}:
             return {"type": "media_play_pause"}
+        # Natural music phrasing that commonly appears in Hindi/Hinglish.
+        match = re.fullmatch(
+            r"(?:.*?)(?:youtube|spotify)\s+(?:par|pe|pr|on)\s+(.+?)\s+"
+            r"(?:bajao|chalao|lagao|play)(?:\s+do)?",
+            command,
+        )
+        if match:
+            platform = "youtube" if "youtube" in command else "spotify"
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": platform}
+
+        match = re.fullmatch(
+            r"(?:mujhe|please|can you|could you)?\s*(?:youtube|spotify)\s+"
+            r"(?:par|pe|pr|on)\s+(.+?)\s+(?:baja|chala|laga|play)(?:\s+do)?",
+            command,
+        )
+        if match:
+            platform = "youtube" if "youtube" in command else "spotify"
+            return {"type": "play_music", "query": match.group(1).strip(), "platform": platform}
+
+        # Natural screenshot requests.
+        if re.search(
+            r"\b(?:take|capture|click|save)\b.*\b(?:screenshot|screen shot|screen capture)\b",
+            command,
+        ) or re.search(
+            r"\b(?:screenshot|screen shot)\b.*\b(?:le|lo|kar|karo|lena|lelo)\b",
+            command,
+        ):
+            return {"type": "take_screenshot"}
+
+        # Natural app-opening requests.
+        app_match = re.fullmatch(
+            r"(?:please\s+|can you\s+|could you\s+|mujhe\s+|kritam[,.]?\s+)?"
+            r"(?:open|launch|start|kholo|khol|chalao|shuru karo)\s+"
+            r"(?:the\s+|my\s+)?(google chrome|chrome|calculator|calc|notepad|"
+            r"paint|file explorer|explorer|task manager|settings)(?:\s+please)?",
+            command,
+        )
+        if app_match:
+            raw = app_match.group(1).strip()
+            aliases = {
+                "google chrome": "chrome",
+                "chrome": "chrome",
+                "calculator": "calculator",
+                "calc": "calculator",
+                "notepad": "notepad",
+                "paint": "paint",
+                "file explorer": "file explorer",
+                "explorer": "file explorer",
+                "task manager": "task manager",
+                "settings": "settings",
+            }
+            return {"type": "open_application", "application": aliases[raw]}
+
+        # Natural web search requests.
+        search_match = re.fullmatch(
+            r"(?:please\s+|can you\s+|could you\s+|mujhe\s+|kritam[,.]?\s+)?"
+            r"(?:search|google|find|look up|dhundo|dhoondo)\s+(.+?)"
+            r"(?:\s+(?:on|in|par|pe)\s+(?:google|the web|internet))?$",
+            command,
+        )
+        if search_match:
+            query = search_match.group(1).strip()
+            query = re.sub(r"\s+(?:on|in|par|pe)\s+(?:google|the web|internet)$", "", query).strip()
+            if query:
+                return {"type": "search_web", "query": query}
+
         # English music commands.
         match = re.fullmatch(r"(?:play|play the song) (.+?) (?:on|in) (youtube|spotify)", command)
         if match:
