@@ -1,4 +1,6 @@
 import os
+import subprocess
+import time
 
 from brain.ai_provider import OllamaProvider
 
@@ -15,10 +17,37 @@ class AIProviderManager:
         return None
 
     def available(self):
-        return self.provider is not None and self.provider.is_available()
+        if self.provider is None:
+            return False
+
+        if self.provider.is_available():
+            return True
+
+        # Start the local Ollama service automatically when it is installed.
+        # This keeps natural-language commands usable without requiring the
+        # user to manually open a terminal first.
+        if self.provider_name == "ollama":
+            try:
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                subprocess.Popen(
+                    ["ollama", "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=creationflags,
+                )
+                for _ in range(12):
+                    time.sleep(0.25)
+                    if self.provider.is_available():
+                        return True
+            except (OSError, FileNotFoundError):
+                pass
+
+        return False
 
     def ask(self, prompt):
         if not self.provider:
+            return None
+        if not self.available():
             return None
         return self.provider.ask(prompt)
 
