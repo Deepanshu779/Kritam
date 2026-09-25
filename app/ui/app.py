@@ -35,6 +35,11 @@ def run():
         auth_window.hide()
 
     def show_auth():
+        if main_window is not None:
+            try:
+                main_window.hide()
+            except Exception:
+                pass
         auth_window.login_email.clear()
         auth_window.login_password.clear()
         auth_window.login_error.clear()
