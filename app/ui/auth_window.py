@@ -61,8 +61,9 @@ class AuthWindow(QMainWindow):
                 border: 1px solid #193a60;
                 border-radius: 10px;
                 color: #ffffff;
-                padding: 11px 12px;
+                padding: 0 12px;
                 font-size: 13px;
+                min-height: 38px;
             }
             QLineEdit#authInput:focus {
                 border: 1px solid #2c9eff;
@@ -183,6 +184,8 @@ class AuthWindow(QMainWindow):
         field = QLineEdit()
         field.setObjectName("authInput")
         field.setPlaceholderText(placeholder)
+        field.setFixedHeight(40)
+        field.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         if password:
             field.setEchoMode(QLineEdit.Password)
         box.addWidget(field)
