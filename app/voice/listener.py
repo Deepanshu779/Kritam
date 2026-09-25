@@ -35,31 +35,28 @@ class VoiceListener:
                 return None
 
     def listen_until_stopped(self, stop_event):
-        """Record continuously until the UI asks us to stop.
+        """Capture one natural speech turn for the foreground mic button.
 
-        This is used by the foreground mic button. Unlike listen(), it does
-        not stop on a short pause, so the user can speak naturally and then
-        click the mic button again to finish and send the recording.
+        The button is push-to-start rather than push-to-talk: once speech is
+        detected, normal pauses end the turn automatically. This avoids the
+        old raw-stream loop that could feel stuck or require a second click.
         """
         self._prepare()
         with self.microphone as source:
             print("Kritam: foreground recording started.")
-            chunks = []
-            while not stop_event.is_set():
-                try:
-                    # SpeechRecognition MicrophoneStream.read() does not accept exception_on_overflow.
-                    chunk = source.stream.read(source.CHUNK)
-                except Exception as exc:
-                    print(f"Kritam: microphone read stopped: {exc}")
-                    break
-                chunks.append(chunk)
-
-            print("Kritam: foreground recording stopped.")
-            if not chunks:
+            try:
+                audio = self.recognizer.listen(
+                    source,
+                    timeout=8,
+                    phrase_time_limit=20,
+                )
+                if stop_event.is_set():
+                    return None
+                print("Kritam: foreground recording stopped.")
+                return audio
+            except sr.WaitTimeoutError:
+                print("Kritam: no speech detected.")
                 return None
-
-            return sr.AudioData(
-                b"".join(chunks),
-                source.SAMPLE_RATE,
-                source.SAMPLE_WIDTH,
-            )
+            except Exception as exc:
+                print(f"Kritam: foreground recording error: {exc}")
+                return None
