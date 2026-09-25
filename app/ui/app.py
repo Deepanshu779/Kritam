@@ -28,6 +28,7 @@ def run():
 
         main_window = MainWindow(
             on_logout=show_auth,
+            on_login=show_auth,
             account=account,
         )
         main_window.show()
@@ -43,7 +44,15 @@ def run():
         auth_window.activateWindow()
 
     auth_window.authenticated.connect(show_main)
-    auth_window.show()
+
+    # Kritam starts directly in local mode. Account authentication is optional
+    # and can be opened manually from Settings whenever the user wants it.
+    main_window = MainWindow(
+        on_logout=show_auth,
+        on_login=show_auth,
+        account={},
+    )
+    main_window.show()
     return app.exec()
 
 
