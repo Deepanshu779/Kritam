@@ -54,6 +54,17 @@ class PersistentMemory:
                 return {"key": key, "value": value}
         return None
 
+    def forget(self, key):
+        key = key.strip().lower()
+        if not key:
+            return False
+        facts = self.all_facts()
+        matched = next((k for k in facts if key in k or k in key), None)
+        if matched:
+            self.data["facts"].pop(matched, None)
+            return self._save()
+        return False
+
     def all_facts(self):
         return dict(self.data.get("facts", {}))
 

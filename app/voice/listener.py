@@ -17,22 +17,28 @@ class VoiceListener:
     def _prepare(self):
         if self._calibrated:
             return
-        with self.microphone as source:
-            print("Calibrating microphone...")
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
-        self._calibrated = True
+        try:
+            with self.microphone as source:
+                print("Calibrating microphone...")
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
+            self._calibrated = True
+        except Exception as error:
+            print(f"Microphone calibration error: {error}")
 
     def listen(self, timeout=1, phrase_time_limit=30):
-        self._prepare()
-        with self.microphone as source:
-            try:
+        try:
+            self._prepare()
+            with self.microphone as source:
                 return self.recognizer.listen(
                     source,
                     timeout=timeout,
                     phrase_time_limit=phrase_time_limit,
                 )
-            except sr.WaitTimeoutError:
-                return None
+        except sr.WaitTimeoutError:
+            return None
+        except Exception as error:
+            print(f"Microphone listen error: {error}")
+            return None
 
     def listen_until_stopped(self, stop_event):
         """Capture one natural speech turn for the foreground mic button.
@@ -41,10 +47,10 @@ class VoiceListener:
         detected, normal pauses end the turn automatically. This avoids the
         old raw-stream loop that could feel stuck or require a second click.
         """
-        self._prepare()
-        with self.microphone as source:
-            print("Kritam: foreground recording started.")
-            try:
+        try:
+            self._prepare()
+            with self.microphone as source:
+                print("Kritam: foreground recording started.")
                 audio = self.recognizer.listen(
                     source,
                     timeout=8,
@@ -54,9 +60,9 @@ class VoiceListener:
                     return None
                 print("Kritam: foreground recording stopped.")
                 return audio
-            except sr.WaitTimeoutError:
-                print("Kritam: no speech detected.")
-                return None
-            except Exception as exc:
-                print(f"Kritam: foreground recording error: {exc}")
-                return None
+        except sr.WaitTimeoutError:
+            print("Kritam: no speech detected.")
+            return None
+        except Exception as exc:
+            print(f"Kritam: foreground recording error: {exc}")
+            return None

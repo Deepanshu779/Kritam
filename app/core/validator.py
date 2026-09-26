@@ -35,13 +35,17 @@ class ActionValidator:
         if t == "play_music":
             return intent.get("platform", "").lower().strip() in {"youtube", "spotify"} and bool(intent.get("query", "").strip())
         if t == "browser_open_result":
-            return isinstance(intent.get("number"), int) and 1 <= intent["number"] <= 5
+            try:
+                num = int(intent.get("number"))
+                return 1 <= num <= 5
+            except (ValueError, TypeError):
+                return False
         if t == "browser_open_result_by_text":
             return bool(intent.get("text", "").strip())
-        if t in {"memory_summary", "memory_clear", "ai_status"}:
+        if t in {"memory_summary", "memory_clear", "ai_status", "history_summary", "task_status"}:
             return True
         if t == "set_setting":
-            return intent.get("key") in {"assistant_name", "language"} and bool(intent.get("value", "").strip())
+            return intent.get("key") in {"assistant_name", "language"} and bool(str(intent.get("value", "")).strip())
         if t == "memory_remember":
             return bool(intent.get("key", "").strip()) and bool(intent.get("value", "").strip())
         if t in {"memory_recall", "memory_forget"}:

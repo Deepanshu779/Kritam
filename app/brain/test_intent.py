@@ -1,4 +1,12 @@
-from intent_engine import IntentEngine
+import sys
+from pathlib import Path
+
+# Ensure the 'app' directory is in sys.path
+_app_dir = str(Path(__file__).resolve().parent.parent)
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
+from brain.intent_engine import IntentEngine
 
 
 def main():

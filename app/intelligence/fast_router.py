@@ -43,7 +43,7 @@ class FastRouter:
         if command in {"clear memory", "forget everything you remember", "delete saved memories"}:
             return {"type": "memory_clear"}
 
-        match = re.fullmatch(r"(?:forget|forget my) (.+)", command)
+        match = re.fullmatch(r"forget\s+(?:my\s+)?(.+)", command)
         if match:
             return {"type": "memory_forget", "key": match.group(1).strip()}
 

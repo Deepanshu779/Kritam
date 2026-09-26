@@ -71,14 +71,16 @@ class Kritam:
         if intent.get("type") == "repeat_last_action":
             intent = self.context.repeat_last()
             if intent is None:
-                self._speak("There is no previous successful action to repeat.")
-                return False
+                msg = "There is no previous successful action to repeat."
+                self._speak(msg)
+                return False, msg
 
         if not self.validator.validate(intent):
-            self._speak("I can't perform that action yet.")
+            msg = "I can't perform that action yet."
+            self._speak(msg)
             self.context.add_turn(text, intent, False)
             self.history.add(text, intent, False)
-            return False
+            return False, msg
 
         t = intent["type"]
 
@@ -87,37 +89,35 @@ class Kritam:
             self._speak(status)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
-            return True
+            return True, status
 
         if t == "memory_remember":
             success = self.memory.remember(intent["key"], intent["value"])
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self._speak("I'll remember that." if success else "I couldn't save that memory.")
-            return success
+            msg = "I'll remember that." if success else "I couldn't save that memory."
+            self._speak(msg)
+            return success, msg
 
         if t == "memory_recall":
             result = self.memory.find(intent["key"])
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
             if result:
-                self._speak(f"Your {result['key']} is {result['value']}.")
+                msg = f"Your {result['key']} is {result['value']}."
             else:
-                self._speak("I don't have that saved.")
-            return True
+                msg = "I don't have that saved."
+            self._speak(msg)
+            return True, msg
 
         if t == "memory_forget":
-            key = intent["key"].strip().lower()
-            facts = self.memory.all_facts()
-            matched = next((k for k in facts if key in k), None)
-            success = False
-            if matched:
-                self.memory.data["facts"].pop(matched, None)
-                success = self.memory._save()
+            key = intent.get("key", "").strip().lower()
+            success = self.memory.forget(key)
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self._speak("I've forgotten that." if success else "I don't have that saved.")
-            return success
+            msg = "I've forgotten that." if success else "I don't have that saved."
+            self._speak(msg)
+            return success, msg
 
         if t == "set_setting":
             success = self.settings.set(intent["key"], intent["value"])
@@ -125,48 +125,51 @@ class Kritam:
                 self.name = intent["value"]
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self._speak(
-                "Setting updated." if success else "I couldn't update that setting."
-            )
-            return success
+            msg = "Setting updated." if success else "I couldn't update that setting."
+            self._speak(msg)
+            return success, msg
 
         if t == "task_status":
-            self._speak(self.task_manager.status_text())
+            msg = self.task_manager.status_text()
+            self._speak(msg)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
-            return True
+            return True, msg
 
         if t == "history_summary":
             recent = self.history.recent(5)
             if not recent:
-                response = "There is no command history yet."
+                msg = "There is no command history yet."
             else:
-                response = "Recently: " + ". ".join(
+                msg = "Recently: " + ". ".join(
                     item["command"] for item in recent
                 )
-            self._speak(response)
+            self._speak(msg)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
-            return True
+            return True, msg
 
         if t == "memory_summary":
-            self._speak(self.memory.summary())
+            msg = self.memory.summary()
+            self._speak(msg)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
-            return True
+            return True, msg
 
         if t == "memory_clear":
             success = self.memory.clear()
             self.context.add_turn(text, intent, success)
             self.history.add(text, intent, success)
-            self._speak("Saved memory cleared." if success else "I couldn't clear saved memory.")
-            return success
+            msg = "Saved memory cleared." if success else "I couldn't clear saved memory."
+            self._speak(msg)
+            return success, msg
 
         if t == "conversation":
-            self._speak(intent.get("response", "How can I help?"))
+            msg = intent.get("response", "How can I help?")
+            self._speak(msg)
             self.context.add_turn(text, intent, True)
             self.history.add(text, intent, True)
-            return True
+            return True, msg
 
         success = self.action_registry.execute(intent)
         self.context.add_turn(text, intent, success)
@@ -174,29 +177,31 @@ class Kritam:
 
         if success:
             messages = {
-                "open_application": f"Opening {intent['application']}.",
-                "open_website": f"Opening {intent['website']}.",
+                "open_application": f"Opening {intent.get('application', 'application')}.",
+                "open_website": f"Opening {intent.get('website', 'website')}.",
                 "search_web": "Searching the web.",
                 "browser_search": "Search results are ready.",
-                "browser_open_result": f"Opening result {intent['number']}.",
+                "browser_open_result": f"Opening result {intent.get('number', '')}.",
                 "browser_back": "Going back.",
                 "browser_open_result_by_text": "Opening the matching result.",
                 "browser_new_tab": "New tab opened.",
                 "browser_close_tab": "Tab closed.",
-                "open_folder": f"Opening {intent['folder']}.",
+                "open_folder": f"Opening {intent.get('folder', 'folder')}.",
                 "take_screenshot": "Screenshot saved.",
                 "volume_up": "Volume increased.",
                 "volume_down": "Volume decreased.",
                 "volume_mute": "Volume muted.",
                 "media_play_pause": "Playback toggled.",
-                "play_music": f"Playing {intent['query']} on {intent['platform'].title()}.",
+                "play_music": f"Playing {intent.get('query', '')} on {intent.get('platform', '').title()}.",
                 "minimize_window": "Window minimized.",
                 "maximize_window": "Window maximized.",
             }
-            self._speak(messages.get(t, "Done."))
+            msg = messages.get(t, "Done.")
+            self._speak(msg)
         else:
-            self._speak("I couldn't complete that action.")
-        return success
+            msg = "I couldn't complete that action."
+            self._speak(msg)
+        return success, msg
 
     def _process_command(self, text):
         intent = self.fast_router.route(text, context=self.context)
@@ -229,11 +234,14 @@ class Kritam:
             tasks = self.planner.split(text)
             self.task_manager.start(text, len(tasks))
             success_all = True
+            responses = []
 
             for task in tasks:
-                success = self._process_command(task)
+                success, response = self._process_command(task)
                 self.task_manager.complete(success)
                 success_all = success_all and success
+                if response:
+                    responses.append(response)
 
                 if not success and len(tasks) > 1:
                     self.task_manager.fail()
@@ -242,9 +250,10 @@ class Kritam:
             if success_all:
                 self.task_manager.finish()
 
+            final_response = " ".join(responses) if responses else ("Task completed." if success_all else "I couldn't complete the task.")
             return {
                 "success": success_all,
-                "response": "Task completed." if success_all else "I couldn't complete the task.",
+                "response": final_response,
             }
         finally:
             self.silent_mode = previous_silent_mode
@@ -278,7 +287,7 @@ class Kritam:
                     self._speak("Okay. See you later.")
                     return
 
-                success = self._process_command(task)
+                success, _ = self._process_command(task)
                 self.task_manager.complete(success)
                 if not success and len(tasks) > 1:
                     self.task_manager.fail()

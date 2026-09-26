@@ -3,6 +3,7 @@ PyAudio
 pyttsx3
 ollama
 faster-whisper
+numpy
 Pillow
 playwright
 PySide6

@@ -24,24 +24,29 @@ class BackgroundVoiceListener:
     def _prepare(self):
         if self._calibrated:
             return
-        with self.microphone as source:
-            print("Kritam background listener: calibrating...")
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
-        self._calibrated = True
+        try:
+            with self.microphone as source:
+                print("Kritam background listener: calibrating...")
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
+            self._calibrated = True
+        except Exception as exc:
+            print(f"Kritam background listener calibration error: {exc}")
 
     def stop(self):
         self.stop_event.set()
 
     def _listen_phrase(self, phrase_time_limit=5):
-        with self.microphone as source:
-            try:
+        try:
+            with self.microphone as source:
                 return self.recognizer.listen(
                     source,
                     timeout=1,
                     phrase_time_limit=phrase_time_limit,
                 )
-            except sr.WaitTimeoutError:
-                return None
+        except sr.WaitTimeoutError:
+            return None
+        except Exception:
+            return None
 
     def listen_for_command(self):
         self._prepare()

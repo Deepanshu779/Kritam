@@ -81,7 +81,8 @@ class SystemManager:
             hwnd = USER32.GetForegroundWindow()
             if not hwnd:
                 return False
-            return bool(USER32.ShowWindow(hwnd, 6))
+            USER32.ShowWindow(hwnd, 6)
+            return True
         except Exception as error:
             print(f"Window minimize error: {error}")
             return False

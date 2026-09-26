@@ -61,31 +61,31 @@ class BrowserManager:
         # shared Playwright objects here because Playwright is thread-bound.
         try:
             if platform == "youtube":
-                # Resolve the first YouTube result to a real watch URL without
-                # creating a Playwright object in the worker thread.
-                import re
-                import urllib.request
-
                 search_url = (
                     "https://www.youtube.com/results?search_query="
                     + urllib.parse.quote_plus(query)
                 )
-                request = urllib.request.Request(
-                    search_url,
-                    headers={"User-Agent": "Mozilla/5.0"},
-                )
-                with urllib.request.urlopen(request, timeout=8) as response:
-                    html = response.read().decode("utf-8", errors="ignore")
+                try:
+                    import re
+                    import urllib.request
 
-                match = re.search(r'"videoId":"([A-Za-z0-9_-]{11})"', html)
-                if match:
-                    os.startfile(
-                        "https://www.youtube.com/watch?v=" + match.group(1)
+                    request = urllib.request.Request(
+                        search_url,
+                        headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
                     )
-                    return True
+                    with urllib.request.urlopen(request, timeout=6) as response:
+                        html = response.read().decode("utf-8", errors="ignore")
 
-                # If YouTube changes its page structure, still open the
-                # search results rather than failing completely.
+                    match = re.search(r'"videoId":"([A-Za-z0-9_-]{11})"', html)
+                    if match:
+                        os.startfile(
+                            "https://www.youtube.com/watch?v=" + match.group(1)
+                        )
+                        return True
+                except Exception:
+                    pass
+
+                # If scraping fails or YouTube blocks bot requests, still open search results
                 os.startfile(search_url)
                 return True
 
@@ -96,7 +96,7 @@ class BrowserManager:
                 os.startfile(url)
                 return True
 
-        except (OSError, ValueError, TimeoutError, urllib.error.URLError):
+        except (OSError, ValueError):
             return False
 
         return False
@@ -243,7 +243,7 @@ class BrowserManager:
             self._page.close()
             pages = self._context.pages if self._context else []
             self._page = pages[-1] if pages else None
-            return self._page is not None
+            return True
         except Exception as error:
             print(f"Close tab error: {error}")
             return False
