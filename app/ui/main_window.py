@@ -241,6 +241,9 @@ class Worker(QObject):
         "you can stop",
         "goodbye",
         "bye kritam",
+        "band karo",
+        "ruko",
+        "stop",
     }
 
     def __init__(self, assistant, command=None, listen=False):
@@ -261,7 +264,7 @@ class Worker(QObject):
                     if not text:
                         continue
 
-                    normalized = text.lower().strip()
+                    normalized = text.lower().strip(" ,.!?")
                     if normalized in self.STOP_PHRASES:
                         self.assistant._speak("Okay, I'll stop listening.")
                         break
@@ -295,7 +298,12 @@ class BackgroundWorker(QObject):
     def __init__(self, assistant):
         super().__init__()
         self.assistant = assistant
-        self.listener = BackgroundVoiceListener(assistant.speech_to_text)
+        self.listener = BackgroundVoiceListener(
+            assistant.speech_to_text,
+            tts=assistant.text_to_speech,
+            assistant_name=assistant.name,
+            on_wake=lambda: self.wake_detected.emit(),
+        )
         self.running = True
 
     @Slot()
