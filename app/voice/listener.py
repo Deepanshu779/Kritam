@@ -41,28 +41,30 @@ class VoiceListener:
             return None
 
     def listen_until_stopped(self, stop_event):
-        """Capture one natural speech turn for the foreground mic button.
-
-        The button is push-to-start rather than push-to-talk: once speech is
-        detected, normal pauses end the turn automatically. This avoids the
-        old raw-stream loop that could feel stuck or require a second click.
-        """
+        """Capture one natural speech turn while remaining cancellable."""
         try:
             self._prepare()
             with self.microphone as source:
                 print("Kritam: foreground recording started.")
-                audio = self.recognizer.listen(
-                    source,
-                    timeout=8,
-                    phrase_time_limit=20,
-                )
-                if stop_event.is_set():
-                    return None
-                print("Kritam: foreground recording stopped.")
-                return audio
-        except sr.WaitTimeoutError:
-            print("Kritam: no speech detected.")
-            return None
+
+                # Use short timeout slices so the Stop/Cancel button can
+                # interrupt listening instead of waiting up to 8 seconds.
+                while not stop_event.is_set():
+                    try:
+                        audio = self.recognizer.listen(
+                            source,
+                            timeout=0.5,
+                            phrase_time_limit=20,
+                        )
+                        if stop_event.is_set():
+                            return None
+                        print("Kritam: foreground recording stopped.")
+                        return audio
+                    except sr.WaitTimeoutError:
+                        continue
+
+                return None
+
         except Exception as exc:
             print(f"Kritam: foreground recording error: {exc}")
             return None
