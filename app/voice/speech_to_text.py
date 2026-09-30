@@ -11,6 +11,8 @@ class SpeechToText:
         self.recognizer = sr.Recognizer()
 
         model_name = os.getenv("KRITAM_WHISPER_MODEL", "base")
+        # Use a multilingual model by default. English-only variants (.en)
+        # are intentionally not used so language can change naturally between turns.
         self.model = WhisperModel(
             model_name,
             device="cpu",
@@ -54,6 +56,7 @@ class SpeechToText:
                 # Whisper model lets Kritam understand Hindi, English,
                 # Hinglish and many other supported languages.
                 language=None,
+                multilingual=True,
                 beam_size=3,
                 best_of=3,
                 temperature=0.0,
@@ -63,7 +66,7 @@ class SpeechToText:
                     speech_pad_ms=250,
                 ),
                 condition_on_previous_text=False,
-                initial_prompt="Kritam. Open Chrome. YouTube. Spotify. Google. Calculator. Notepad. Play music. Take a screenshot. Remember this.",
+                initial_prompt="Kritam. Google. YouTube. Spotify. Chrome. Calculator. Python.",
             )
 
             text = " ".join(segment.text for segment in segments)
