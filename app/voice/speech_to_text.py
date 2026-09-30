@@ -11,8 +11,8 @@ class SpeechToText:
         self.recognizer = sr.Recognizer()
 
         model_name = os.getenv("KRITAM_WHISPER_MODEL", "base")
-        # Use a multilingual model by default. English-only variants (.en)
-        # are intentionally not used so language can change naturally between turns.
+        # Keep the default model multilingual so Kritam can detect the
+        # spoken language automatically on every turn.
         self.model = WhisperModel(
             model_name,
             device="cpu",
@@ -42,8 +42,7 @@ class SpeechToText:
             raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
             samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
 
-            # Normalize microphone level before Whisper. This helps when the
-            # laptop mic records speech quietly or from a little distance.
+            # Normalize microphone level before Whisper.
             peak = float(np.max(np.abs(samples))) if samples.size else 0.0
             if peak > 0.01:
                 target_peak = 0.85
@@ -52,11 +51,9 @@ class SpeechToText:
 
             segments, _ = self.model.transcribe(
                 samples,
-                # Auto-detect the spoken language. Using the multilingual
-                # Whisper model lets Kritam understand Hindi, English,
-                # Hinglish and many other supported languages.
+                # language=None lets Whisper auto-detect Hindi, English,
+                # Hinglish and other supported languages.
                 language=None,
-                multilingual=True,
                 beam_size=3,
                 best_of=3,
                 temperature=0.0,
@@ -75,4 +72,3 @@ class SpeechToText:
         except Exception as error:
             print(f"Local STT error: {error}")
             return ""
-
