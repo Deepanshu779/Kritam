@@ -29,16 +29,26 @@ if _root_dir not in sys.path:
 if _app_dir not in sys.path:
     sys.path.insert(0, _app_dir)
 
-import app
-from voice.audio_processor import AudioProcessor
-from voice.vad import SpeechActivityDetector
-from voice.transcript_validator import TranscriptValidator
-from voice.wake_word import WakeWordDetector
-from voice.text_to_speech import TextToSpeech
-from voice.listener import VoiceListener
-from intelligence.fast_router import FastRouter
-from core.context import ConversationContext
-from core.task_planner import TaskPlanner
+try:
+    from app.voice.audio_processor import AudioProcessor
+    from app.voice.vad import SpeechActivityDetector
+    from app.voice.transcript_validator import TranscriptValidator
+    from app.voice.wake_word import WakeWordDetector
+    from app.voice.text_to_speech import TextToSpeech
+    from app.voice.listener import VoiceListener
+    from app.intelligence.fast_router import FastRouter
+    from app.core.context import ConversationContext
+    from app.core.task_planner import TaskPlanner
+except ImportError:
+    from voice.audio_processor import AudioProcessor
+    from voice.vad import SpeechActivityDetector
+    from voice.transcript_validator import TranscriptValidator
+    from voice.wake_word import WakeWordDetector
+    from voice.text_to_speech import TextToSpeech
+    from voice.listener import VoiceListener
+    from intelligence.fast_router import FastRouter
+    from core.context import ConversationContext
+    from core.task_planner import TaskPlanner
 
 
 class TestAudioProcessor(unittest.TestCase):
