@@ -93,11 +93,13 @@ Hey Kritam, search Google for Python
 Hey Kritam, take a screenshot
 ```
 
-The current prototype uses local microphone phrase detection plus Faster-Whisper transcription. The speech model defaults to `tiny.en` for lower latency and can be changed with:
+The current prototype uses local microphone phrase detection plus multilingual Faster-Whisper transcription. The default model is the multilingual `base` model and language is auto-detected per turn. You can change the model with:
 
 ```
-KRITAM_WHISPER_MODEL=small.en
+KRITAM_WHISPER_MODEL=small
 ```
+
+Kritam also supports continuous conversation from the main microphone button: after one spoken turn finishes, Kritam responds and automatically listens for the next turn. Say "stop listening", "that's all", or "goodbye" to end the conversation.
 
 When the application window is closed, Kritam remains in the system tray and continues listening. Use **Exit Kritam** from the tray menu to stop the background listener.
 
@@ -106,7 +108,9 @@ When the application window is closed, Kritam remains in the system tray and con
 ### Voice
 
 - Microphone input
-- Local speech recognition with Faster-Whisper
+- Local multilingual speech recognition with Faster-Whisper
+- Automatic language detection for spoken turns
+- Continuous turn-based voice conversation
 - Text-to-speech with pyttsx3
 - Female voice selection when a compatible Windows voice is available
 
