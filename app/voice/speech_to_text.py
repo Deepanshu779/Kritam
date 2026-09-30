@@ -43,11 +43,14 @@ class SpeechToText:
             peak = float(np.max(np.abs(samples)))
             rms = float(np.sqrt(np.mean(np.square(samples))))
 
-            # Whisper works better when quiet laptop microphone input is
-            # brought into a predictable range.
+            # Very quiet recordings are usually ambient noise or speaker
+            # bleed, not a deliberate command.
+            if rms < 0.0012 or peak < 0.004:
+                print("Kritam STT: audio level too low; ignoring.")
+                return ""
+
             if peak > 0.003:
-                target_peak = 0.85
-                samples = samples * min(target_peak / peak, 6.0)
+                samples = samples * min(0.85 / peak, 6.0)
                 samples = np.clip(samples, -1.0, 1.0)
 
             print(
@@ -55,9 +58,6 @@ class SpeechToText:
                 f"peak={peak:.4f} rms={rms:.4f}"
             )
 
-            # Do not use Whisper's VAD here. SpeechRecognition has already
-            # detected the speech phrase, and the extra VAD was incorrectly
-            # discarding some valid microphone recordings.
             segments, _ = self.model.transcribe(
                 samples,
                 language=None,
@@ -65,10 +65,9 @@ class SpeechToText:
                 best_of=5,
                 temperature=0.0,
                 condition_on_previous_text=False,
-                initial_prompt=(
-                    "Kritam. Hey Kritam. Google. YouTube. Spotify. "
-                    "Chrome. Calculator. Python."
-                ),
+                no_speech_threshold=0.6,
+                log_prob_threshold=-1.0,
+                compression_ratio_threshold=2.4,
             )
 
             parts = [segment.text.strip() for segment in segments if segment.text.strip()]
