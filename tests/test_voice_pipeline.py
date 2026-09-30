@@ -16,10 +16,20 @@ L. Mixed language: "Actually YouTube pe Haryanvi song chala do."
 M. Repetition / hallucination filtering: Rejecting repeated loops without blacklisting legitimate terms.
 """
 
+import sys
 import time
 import unittest
+from pathlib import Path
 import numpy as np
 
+_root_dir = str(Path(__file__).resolve().parent.parent)
+_app_dir = str(Path(__file__).resolve().parent.parent / "app")
+if _root_dir not in sys.path:
+    sys.path.insert(0, _root_dir)
+if _app_dir not in sys.path:
+    sys.path.insert(0, _app_dir)
+
+import app
 from voice.audio_processor import AudioProcessor
 from voice.vad import SpeechActivityDetector
 from voice.transcript_validator import TranscriptValidator
