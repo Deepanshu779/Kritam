@@ -29,6 +29,16 @@ class IntentEngine:
         prompt = f"""
 Analyze the user's request and return ONLY one valid JSON object.
 
+Language and conversation rules:
+- Detect the language and style of the user's message automatically.
+- Understand natural speech, incomplete phrases, corrections, filler words, code-switching and mixed-language speech.
+- The user may switch languages between turns without changing settings.
+- For conversation intents, respond naturally in the same language or mixed-language style used by the user.
+- Keep spoken responses concise and human, usually one or two sentences.
+- Do not force English when the user is speaking another language.
+- Preserve names, song titles, application names, URLs and search terms exactly when useful.
+- Never claim an action was completed unless the application reports success.
+
 Allowed intent types:
 - conversation: type, response
 - open_application: type, application
@@ -40,6 +50,7 @@ Allowed intent types:
 - browser_back: type
 - browser_new_tab: type
 - browser_close_tab: type
+- play_music: type, query, platform (platform must be youtube or spotify)
 - open_folder: type, folder
 - take_screenshot: type
 - memory_remember: type, key, value
