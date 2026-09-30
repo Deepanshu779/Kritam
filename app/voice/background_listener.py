@@ -10,12 +10,12 @@ class BackgroundVoiceListener:
     def __init__(self, speech_to_text):
         self.speech_to_text = speech_to_text
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 1.15
-        self.recognizer.phrase_threshold = 0.08
+        self.recognizer.pause_threshold = 1.0
+        self.recognizer.phrase_threshold = 0.12
         self.recognizer.non_speaking_duration = 0.55
         self.recognizer.dynamic_energy_threshold = True
-        self.recognizer.dynamic_energy_adjustment_damping = 0.15
-        self.recognizer.dynamic_energy_ratio = 1.5
+        self.recognizer.dynamic_energy_adjustment_damping = 0.10
+        self.recognizer.dynamic_energy_ratio = 1.35
         self.microphone = sr.Microphone()
         self.stop_event = threading.Event()
         self.armed = False
@@ -27,7 +27,11 @@ class BackgroundVoiceListener:
         try:
             with self.microphone as source:
                 print("Kritam background listener: calibrating...")
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                print(
+                    f"Kritam background listener: threshold="
+                    f"{self.recognizer.energy_threshold:.0f}"
+                )
             self._calibrated = True
         except Exception as exc:
             print(f"Kritam background listener calibration error: {exc}")
@@ -45,25 +49,26 @@ class BackgroundVoiceListener:
                 )
         except sr.WaitTimeoutError:
             return None
-        except Exception:
+        except Exception as exc:
+            print(f"Background microphone error: {exc}")
             return None
 
     def listen_for_command(self):
         self._prepare()
 
         while not self.stop_event.is_set():
-            limit = 30 if self.armed else 6
+            limit = 20 if self.armed else 5
             audio = self._listen_phrase(phrase_time_limit=limit)
             if audio is None:
                 continue
 
-            print('Background listener: speech captured, transcribing...')
+            print("Background listener: speech captured, transcribing...")
             text = self.speech_to_text.convert(audio)
             if not text:
-                print('Background listener: no speech recognized.')
+                print("Background listener: no speech recognized.")
                 continue
 
-            print(f'Background listener heard: {text}')
+            print(f"Background listener heard: {text}")
 
             match = self.WAKE_PATTERN.search(text)
             if match:
@@ -75,6 +80,7 @@ class BackgroundVoiceListener:
                     return remainder
                 continue
 
+            # Ignore everything until an actual Kritam wake word is heard.
             if self.armed:
                 self.armed = False
                 return text
