@@ -5,12 +5,12 @@ class VoiceListener:
 
     def __init__(self):
         self.recognizer = sr.Recognizer()
-        self.recognizer.pause_threshold = 1.1
-        self.recognizer.phrase_threshold = 0.1
-        self.recognizer.non_speaking_duration = 0.5
+        self.recognizer.pause_threshold = 0.9
+        self.recognizer.phrase_threshold = 0.05
+        self.recognizer.non_speaking_duration = 0.4
         self.recognizer.dynamic_energy_threshold = True
-        self.recognizer.dynamic_energy_adjustment_damping = 0.15
-        self.recognizer.dynamic_energy_ratio = 1.35
+        self.recognizer.dynamic_energy_adjustment_damping = 0.10
+        self.recognizer.dynamic_energy_ratio = 1.15
         self.microphone = sr.Microphone()
         self._calibrated = False
 
@@ -20,7 +20,8 @@ class VoiceListener:
         try:
             with self.microphone as source:
                 print("Calibrating microphone...")
-                self.recognizer.adjust_for_ambient_noise(source, duration=0.8)
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                print(f"Kritam: microphone energy threshold = {self.recognizer.energy_threshold:.0f}")
             self._calibrated = True
         except Exception as error:
             print(f"Microphone calibration error: {error}")
@@ -41,14 +42,11 @@ class VoiceListener:
             return None
 
     def listen_until_stopped(self, stop_event):
-        """Capture one natural speech turn while remaining cancellable."""
+        """Capture one natural speech turn with a speech-sensitive threshold."""
         try:
             self._prepare()
             with self.microphone as source:
                 print("Kritam: foreground recording started.")
-
-                # Use short timeout slices so the Stop/Cancel button can
-                # interrupt listening instead of waiting up to 8 seconds.
                 while not stop_event.is_set():
                     try:
                         audio = self.recognizer.listen(
@@ -58,6 +56,7 @@ class VoiceListener:
                         )
                         if stop_event.is_set():
                             return None
+
                         print("Kritam: foreground recording stopped.")
                         return audio
                     except sr.WaitTimeoutError:
