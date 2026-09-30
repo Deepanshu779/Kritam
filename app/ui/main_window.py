@@ -227,10 +227,21 @@ class VoiceRecordingBar(QWidget):
 
 
 class Worker(QObject):
-    """Background worker thread for executing text or speech actions."""
+    """Background worker for text commands and natural continuous voice conversation."""
 
     finished = Signal(dict)
+    turn = Signal(dict)
     error = Signal(str)
+
+    STOP_PHRASES = {
+        "stop listening",
+        "stop listening kritam",
+        "that's all",
+        "thats all",
+        "you can stop",
+        "goodbye",
+        "bye kritam",
+    }
 
     def __init__(self, assistant, command=None, listen=False):
         super().__init__()
@@ -243,15 +254,30 @@ class Worker(QObject):
     def run(self):
         try:
             if self.listen:
-                text = self.assistant.listen_until_stopped(self.stop_event)
-                if not text:
-                    self.finished.emit({"kind": "voice", "text": "", "success": False})
-                    return
-                result = self.assistant.process_text(text, speak=False)
-                self.finished.emit({"kind": "voice", "text": text, **result})
-            else:
-                result = self.assistant.process_text(self.command, speak=False)
-                self.finished.emit({"kind": "command", **result})
+                while not self.stop_event.is_set():
+                    text = self.assistant.listen_until_stopped(self.stop_event)
+                    if self.stop_event.is_set():
+                        break
+                    if not text:
+                        continue
+
+                    normalized = text.lower().strip()
+                    if normalized in self.STOP_PHRASES:
+                        self.assistant._speak("Okay, I'll stop listening.")
+                        break
+
+                    result = self.assistant.process_text(text, speak=True)
+                    self.turn.emit({
+                        "kind": "voice_turn",
+                        "text": text,
+                        **result,
+                    })
+
+                self.finished.emit({"kind": "voice_end"})
+                return
+
+            result = self.assistant.process_text(self.command, speak=False)
+            self.finished.emit({"kind": "command", **result})
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -1070,6 +1096,8 @@ class MainWindow(QMainWindow):
         self.command_input.hide()
         self.voice_bar.show()
         self.voice_bar.start_animation()
+        self.voice_bar.finish_button.setText("■")
+        self.voice_bar.finish_button.setToolTip("Stop conversation")
         self.mic_btn.hide()
         self._set_busy(True, "Listening...")
         self._start_worker(listen=True)
@@ -1081,6 +1109,7 @@ class MainWindow(QMainWindow):
         self._set_busy(True, "Processing...")
         self.voice_bar.stop_animation()
         self.voice_bar.setEnabled(False)
+        self.voice_bar.finish_button.setText("✓")
         self.worker.stop()
 
     def _cancel_voice_input(self):
@@ -1090,6 +1119,7 @@ class MainWindow(QMainWindow):
         self.voice_bar.stop_animation()
         self.voice_bar.hide()
         self.voice_bar.setEnabled(True)
+        self.voice_bar.finish_button.setText("✓")
         self.command_input.show()
         self.mic_btn.show()
         self._set_busy(False, "Ready")
@@ -1101,6 +1131,7 @@ class MainWindow(QMainWindow):
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self._worker_finished)
+        self.worker.turn.connect(self._worker_turn)
         self.worker.error.connect(self._worker_error)
         self.worker.finished.connect(self.thread.quit)
         self.worker.error.connect(self.thread.quit)
@@ -1108,16 +1139,23 @@ class MainWindow(QMainWindow):
         self.thread.start()
 
     @Slot(dict)
+    def _worker_turn(self, result):
+        self._add_message(result.get("text", ""), True)
+        self._add_message(result.get("response", "Done."), False)
+        if self._recording:
+            self._set_busy(True, "Listening...")
+
+    @Slot(dict)
     def _worker_finished(self, result):
-        if result["kind"] == "voice":
+        if result.get("kind") == "command":
+            self._add_message(result.get("response", "Done."), False)
+        elif result.get("kind") == "voice":
             text = result.get("text", "")
             if text:
                 self._add_message(text, True)
                 self._add_message(result.get("response", "Done."), False)
             else:
                 self._add_message("I couldn't hear a command.", False)
-        else:
-            self._add_message(result.get("response", "Done."), False)
 
         self._recording = False
         self.voice_bar.stop_animation()
@@ -1136,7 +1174,7 @@ class MainWindow(QMainWindow):
         self.command_input.show()
         self.mic_btn.show()
         self._set_busy(False, "Ready")
-        self._add_message("Sorry, I encountered an issue. Please try again.", False)
+        self._add_message("Hmm, I couldn't complete that right now. Please try again.", False)
 
     def _worker_cleanup(self):
         if self.thread:
