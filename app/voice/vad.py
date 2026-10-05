@@ -1,11 +1,4 @@
-"""Voice Activity Detection (VAD) module for Kritam assistant.
-
-Provides real-time speech onset and offset detection with:
-- Adaptive noise floor estimation
-- Pre-roll ring buffering to preserve initial word consonants
-- Natural hangover duration to accommodate conversational mid-sentence pauses
-- Rejection of transient clicks/pops
-"""
+"""Voice Activity Detection (VAD) module for Kritam assistant."""
 
 import collections
 from typing import List, Optional, Tuple
@@ -20,10 +13,10 @@ class SpeechActivityDetector:
         sample_rate: int = 16000,
         frame_duration_ms: int = 30,
         onset_consecutive_frames: int = 3,
-        hangover_duration_s: float = 0.85,
-        min_speech_duration_s: float = 0.35,
-        max_utterance_duration_s: float = 20.0,
-        pre_roll_duration_s: float = 0.35,
+        hangover_duration_s: float = 1.0,
+        min_speech_duration_s: float = 0.5,
+        max_utterance_duration_s: float = 22.0,
+        pre_roll_duration_s: float = 0.45,
         base_energy_threshold: float = 0.008,
     ):
         self.sample_rate = sample_rate
@@ -38,12 +31,13 @@ class SpeechActivityDetector:
 
         # Pre-roll ring buffer
         self._pre_roll_buffer = collections.deque(maxlen=self.pre_roll_max_frames)
-        
+
         # State tracking
         self.noise_floor = self.base_energy_threshold * 0.7
         self.alpha_noise = 0.05  # EMA smoothing factor for background noise
         self.speech_active = False
         self.consecutive_speech_frames = 0
+        self.speech_frame_count = 0
         self.silence_counter = 0
         self.active_frames: List[np.ndarray] = []
 
@@ -52,6 +46,7 @@ class SpeechActivityDetector:
         self._pre_roll_buffer.clear()
         self.speech_active = False
         self.consecutive_speech_frames = 0
+        self.speech_frame_count = 0
         self.silence_counter = 0
         self.active_frames.clear()
 
@@ -63,12 +58,18 @@ class SpeechActivityDetector:
         rms = float(np.sqrt(np.mean(np.square(frame))))
         peak = float(np.max(np.abs(frame)))
 
-        dynamic_threshold = max(
+        start_threshold = max(
             self.base_energy_threshold,
             self.noise_floor * 2.2 + 0.002,
         )
+        continue_threshold = max(
+            self.base_energy_threshold * 0.85,
+            self.noise_floor * 1.7 + 0.001,
+        )
+        dynamic_threshold = continue_threshold if self.speech_active else start_threshold
 
-        is_speech = (rms > dynamic_threshold) and (peak > dynamic_threshold * 1.5)
+        peak_gate = max(dynamic_threshold * 1.2, self.base_energy_threshold * 1.05)
+        is_speech = (rms > dynamic_threshold) and (peak > peak_gate)
 
         # Update noise floor adaptively when non-speech is detected
         if not is_speech:
@@ -82,6 +83,7 @@ class SpeechActivityDetector:
         is_speech, _ = self.is_frame_speech(frame)
 
         if not self.speech_active:
+            self._pre_roll_buffer.append(frame.copy())
             # Currently in idle / listening for speech onset
             if is_speech:
                 self.consecutive_speech_frames += 1
@@ -90,11 +92,10 @@ class SpeechActivityDetector:
                     self.speech_active = True
                     self.silence_counter = 0
                     self.active_frames = list(self._pre_roll_buffer)
-                    self.active_frames.append(frame.copy())
+                    self.speech_frame_count = self.consecutive_speech_frames
                     self.consecutive_speech_frames = 0
             else:
                 self.consecutive_speech_frames = 0
-                self._pre_roll_buffer.append(frame.copy())
             return None
 
         # Speech is currently active
@@ -102,6 +103,7 @@ class SpeechActivityDetector:
 
         if is_speech:
             self.silence_counter = 0
+            self.speech_frame_count += 1
         else:
             self.silence_counter += 1
 
@@ -119,13 +121,22 @@ class SpeechActivityDetector:
 
         return None
 
+    def force_finalize(self) -> Optional[np.ndarray]:
+        """Finalize the current utterance immediately."""
+        if not self.active_frames:
+            return None
+        utterance = self._finalize_utterance()
+        self.reset()
+        return utterance
+
     def _finalize_utterance(self) -> Optional[np.ndarray]:
         """Concatenate frames and validate minimum duration."""
-        if len(self.active_frames) < self.min_speech_frames:
+        if self.speech_frame_count < self.min_speech_frames:
             return None
 
         # Exclude trailing hangover silence frames from final audio
-        cutoff = max(1, len(self.active_frames) - int(self.silence_counter * 0.7))
+        trailing_trim = max(0, self.silence_counter - 3)
+        cutoff = max(1, len(self.active_frames) - trailing_trim)
         frames_to_keep = self.active_frames[:cutoff]
 
         if not frames_to_keep:

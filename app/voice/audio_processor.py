@@ -26,7 +26,7 @@ class AudioProcessor:
         self,
         silence_rms_threshold: float = 0.003,
         silence_peak_threshold: float = 0.012,
-        min_speech_duration_s: float = 0.35,
+        min_speech_duration_s: float = 0.5,
         target_peak: float = 0.75,
         max_gain: float = 2.5,
     ):

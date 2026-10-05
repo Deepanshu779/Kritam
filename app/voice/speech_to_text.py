@@ -6,6 +6,7 @@ import speech_recognition as sr
 from faster_whisper import WhisperModel
 
 from voice.transcript_validator import TranscriptValidator
+from voice.audio_processor import AudioProcessor
 
 
 class SpeechToText:
@@ -22,6 +23,7 @@ class SpeechToText:
             num_workers=1,
         )
         self.validator = TranscriptValidator()
+        self.audio_processor = AudioProcessor(min_speech_duration_s=0.45)
         self.last_language = None
         self.last_language_probability = 0.0
         self.last_metadata = {}
@@ -60,19 +62,20 @@ class SpeechToText:
             if samples.size == 0:
                 return "", {}
 
-            duration = samples.size / 16000.0
-            peak = float(np.max(np.abs(samples)))
-            rms = float(np.sqrt(np.mean(np.square(samples))))
-
-            if rms < 0.0010 or peak < 0.003:
-                print("Kritam STT: audio level too low; ignoring.")
+            samples = np.asarray(samples, dtype=np.float32).reshape(-1)
+            metrics = self.audio_processor.calculate_metrics(samples)
+            if metrics.is_silence:
+                print("Kritam STT: rejected low-energy or too-short audio.")
                 return "", {}
 
-            if peak > 0.003:
-                gain = min(0.85 / peak, 5.0)
-                samples = np.clip(samples * gain, -1.0, 1.0)
+            samples = self.audio_processor.safe_normalize(samples)
+            post_peak = float(np.max(np.abs(samples)))
+            post_rms = float(np.sqrt(np.mean(np.square(samples))))
 
-            print(f"Kritam STT: audio={duration:.2f}s peak={peak:.4f} rms={rms:.4f}")
+            print(
+                f"Kritam STT: audio={metrics.duration_s:.2f}s peak={post_peak:.4f} "
+                f"rms={post_rms:.4f}"
+            )
 
             segments, info = self.model.transcribe(
                 samples,
@@ -112,7 +115,7 @@ class SpeechToText:
 
             result = self.validator.validate(
                 raw_text,
-                duration,
+                metrics.duration_s,
                 avg_logprob=avg_logprob,
                 no_speech_prob=no_speech_prob,
                 compression_ratio=compression_ratio,
@@ -121,7 +124,7 @@ class SpeechToText:
             metadata = {
                 "language": language,
                 "language_probability": language_probability,
-                "audio_duration": duration,
+                "audio_duration": metrics.duration_s,
                 "avg_logprob": avg_logprob,
                 "no_speech_prob": no_speech_prob,
                 "compression_ratio": compression_ratio,

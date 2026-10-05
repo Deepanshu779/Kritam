@@ -12,11 +12,15 @@ import time
 import threading
 from typing import Optional
 import numpy as np
-import pyaudio
 import speech_recognition as sr
+try:
+    import pyaudio
+except Exception:
+    pyaudio = None
 
 from voice.vad import SpeechActivityDetector
 from voice.audio_processor import AudioProcessor
+from voice.mic_guard import microphone_session
 
 
 class VoiceListener:
@@ -34,18 +38,21 @@ class VoiceListener:
             sample_rate=self.SAMPLE_RATE,
             frame_duration_ms=self.FRAME_MS,
             onset_consecutive_frames=3,
-            hangover_duration_s=0.85,
-            min_speech_duration_s=0.35,
-            pre_roll_duration_s=0.35,
+            hangover_duration_s=1.0,
+            min_speech_duration_s=0.5,
+            max_utterance_duration_s=22.0,
+            pre_roll_duration_s=0.45,
         )
-        self.pyaudio_instance: Optional[pyaudio.PyAudio] = None
+        self.pyaudio_instance: Optional["pyaudio.PyAudio"] = None
         self._lock = threading.Lock()
         self._initialized = False
 
     def _ensure_pyaudio(self):
+        if pyaudio is None:
+            raise RuntimeError("PyAudio unavailable")
         if self.pyaudio_instance is None:
             self.pyaudio_instance = pyaudio.PyAudio()
-            print("[Kritam Voice] microphone initialized")
+            print(f"[Kritam Voice] microphone initialized sr={self.SAMPLE_RATE}Hz mono chunk={self.CHUNK_SIZE}")
             self._initialized = True
 
     def set_tts(self, tts):
@@ -75,76 +82,108 @@ class VoiceListener:
     ) -> Optional[np.ndarray]:
         """Stream frames from PyAudio through SpeechActivityDetector."""
         with self._lock:
-            self._ensure_pyaudio()
-            self.vad.reset()
+            with microphone_session() as acquired:
+                if not acquired:
+                    print("[Kritam Voice] microphone busy; capture skipped")
+                    return None
 
-            stream = None
-            try:
-                stream = self.pyaudio_instance.open(
-                    format=pyaudio.paInt16,
-                    channels=self.CHANNELS,
-                    rate=self.SAMPLE_RATE,
-                    input=True,
-                    frames_per_buffer=self.CHUNK_SIZE,
-                )
-            except Exception as exc:
-                print(f"[Kritam Voice] Failed to open microphone stream: {exc}")
-                return self._fallback_listen(timeout, phrase_time_limit, stop_event)
+                try:
+                    self._ensure_pyaudio()
+                except Exception as exc:
+                    print(f"[Kritam Voice] PyAudio init failed: {exc}")
+                    return self._fallback_listen(timeout, phrase_time_limit, stop_event)
 
-            start_time = time.time()
-            speech_started_logged = False
+                self.vad.reset()
 
-            try:
-                while not stop_event.is_set():
-                    # Check overall timeout before speech begins
-                    if not self.vad.speech_active and timeout is not None:
-                        if time.time() - start_time > timeout:
-                            return None
+                stream = None
+                try:
+                    stream = self.pyaudio_instance.open(
+                        format=pyaudio.paInt16,
+                        channels=self.CHANNELS,
+                        rate=self.SAMPLE_RATE,
+                        input=True,
+                        frames_per_buffer=self.CHUNK_SIZE,
+                    )
+                except Exception as exc:
+                    print(f"[Kritam Voice] Failed to open microphone stream: {exc}")
+                    return self._fallback_listen(timeout, phrase_time_limit, stop_event)
 
-                    # Prevent listening to assistant's own TTS output
-                    if self.is_tts_speaking():
-                        # Discard frames while TTS speaks or settles
+                start_time = time.time()
+                speech_started_logged = False
+                speech_start_time = None
+
+                try:
+                    while not stop_event.is_set():
+                        # Check overall timeout before speech begins
+                        if not self.vad.speech_active and timeout is not None:
+                            if time.time() - start_time > timeout:
+                                return None
+
+                        # Prevent listening to assistant's own TTS output
+                        if self.is_tts_speaking():
+                            # Discard frames while TTS speaks or settles
+                            try:
+                                stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                            except Exception:
+                                pass
+                            self.vad.reset()
+                            speech_started_logged = False
+                            speech_start_time = None
+                            time.sleep(0.02)
+                            continue
+
+                        # Read frame from mic
                         try:
-                            stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                            raw_bytes = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                        except Exception:
+                            time.sleep(0.01)
+                            continue
+
+                        if not raw_bytes or len(raw_bytes) != self.CHUNK_SIZE * 2:
+                            continue
+
+                        frame = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                        utterance = self.vad.process_frame(frame)
+
+                        if self.vad.speech_active and not speech_started_logged:
+                            speech_started_logged = True
+                            speech_start_time = time.time()
+                            print(
+                                f"[Kritam Voice] speech started (noise_floor={self.vad.noise_floor:.4f}, "
+                                f"onset_frames={self.vad.onset_consecutive_frames}, "
+                                f"hangover_frames={self.vad.hangover_frames})"
+                            )
+
+                        if self.vad.speech_active and speech_start_time is not None:
+                            if (time.time() - speech_start_time) >= phrase_time_limit:
+                                utterance = self.vad.force_finalize()
+                                if utterance is None:
+                                    speech_started_logged = False
+                                    speech_start_time = None
+                                    continue
+
+                        if utterance is not None:
+                            metrics = self.audio_processor.calculate_metrics(utterance)
+                            print(
+                                f"[Kritam Voice] speech ended duration={metrics.duration_s:.2f}s "
+                                f"rms={metrics.rms:.4f} peak={metrics.peak:.4f}"
+                            )
+                            if metrics.is_silence:
+                                print("[Kritam Voice] rejected capture (silence/too short)")
+                                speech_started_logged = False
+                                speech_start_time = None
+                                continue
+                            return self.audio_processor.safe_normalize(utterance)
+
+                    return None
+
+                finally:
+                    if stream:
+                        try:
+                            stream.stop_stream()
+                            stream.close()
                         except Exception:
                             pass
-                        self.vad.reset()
-                        time.sleep(0.02)
-                        continue
-
-                    # Read frame from mic
-                    try:
-                        raw_bytes = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
-                    except Exception as e:
-                        time.sleep(0.01)
-                        continue
-
-                    if not raw_bytes or len(raw_bytes) != self.CHUNK_SIZE * 2:
-                        continue
-
-                    frame = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-
-                    utterance = self.vad.process_frame(frame)
-
-                    if self.vad.speech_active and not speech_started_logged:
-                        print("[Kritam Voice] speech started")
-                        speech_started_logged = True
-
-                    if utterance is not None:
-                        print("[Kritam Voice] speech ended")
-                        duration_s = len(utterance) / self.SAMPLE_RATE
-                        print(f"[Kritam Voice] audio captured: {duration_s:.2f}s")
-                        return utterance
-
-                return None
-
-            finally:
-                if stream:
-                    try:
-                        stream.stop_stream()
-                        stream.close()
-                    except Exception:
-                        pass
 
     def _fallback_listen(
         self,

@@ -12,11 +12,15 @@ import time
 import threading
 from typing import Optional, Callable
 import numpy as np
-import pyaudio
+try:
+    import pyaudio
+except Exception:
+    pyaudio = None
 
 from voice.vad import SpeechActivityDetector
 from voice.wake_word import WakeWordDetector
 from voice.audio_processor import AudioProcessor
+from voice.mic_guard import microphone_session
 
 
 class BackgroundVoiceListener:
@@ -37,14 +41,15 @@ class BackgroundVoiceListener:
             sample_rate=self.SAMPLE_RATE,
             frame_duration_ms=self.FRAME_MS,
             onset_consecutive_frames=3,
-            hangover_duration_s=0.75,
-            min_speech_duration_s=0.35,
-            pre_roll_duration_s=0.30,
+            hangover_duration_s=1.0,
+            min_speech_duration_s=0.5,
+            max_utterance_duration_s=22.0,
+            pre_roll_duration_s=0.45,
         )
         self.stop_event = threading.Event()
         self.armed = False
         self.armed_time = 0.0
-        self.pyaudio_instance: Optional[pyaudio.PyAudio] = None
+        self.pyaudio_instance: Optional["pyaudio.PyAudio"] = None
         self._lock = threading.Lock()
 
     def set_assistant_name(self, name: str):
@@ -61,110 +66,156 @@ class BackgroundVoiceListener:
     def stop(self):
         """Signal background listener to terminate."""
         self.stop_event.set()
+        self.close()
+
+    def close(self):
+        """Release shared microphone resources."""
+        with self._lock:
+            if self.pyaudio_instance:
+                try:
+                    self.pyaudio_instance.terminate()
+                except Exception:
+                    pass
+                self.pyaudio_instance = None
 
     def listen_for_command(self) -> str:
         """Listen in background with low CPU consumption until a valid wake command is captured."""
         with self._lock:
-            if self.pyaudio_instance is None:
-                self.pyaudio_instance = pyaudio.PyAudio()
-                print("[Kritam Voice] background listener initialized")
+            with microphone_session() as acquired:
+                if not acquired:
+                    print("[Kritam Voice] background microphone busy; retrying")
+                    time.sleep(0.1)
+                    return ""
 
-            stream = None
-            try:
-                stream = self.pyaudio_instance.open(
-                    format=pyaudio.paInt16,
-                    channels=self.CHANNELS,
-                    rate=self.SAMPLE_RATE,
-                    input=True,
-                    frames_per_buffer=self.CHUNK_SIZE,
-                )
-            except Exception as exc:
-                print(f"[Kritam Voice] Background microphone stream error: {exc}")
-                time.sleep(1.0)
-                return ""
+                if pyaudio is None:
+                    print("[Kritam Voice] background listener unavailable: PyAudio missing")
+                    time.sleep(0.5)
+                    return ""
 
-            try:
-                self.vad.reset()
+                if self.pyaudio_instance is None:
+                    self.pyaudio_instance = pyaudio.PyAudio()
+                    print(
+                        f"[Kritam Voice] background listener initialized sr={self.SAMPLE_RATE}Hz "
+                        f"mono chunk={self.CHUNK_SIZE}"
+                    )
 
-                while not self.stop_event.is_set():
-                    # If armed state has timed out (e.g. user said 'Hey Kritam' and walked away for > 10s)
-                    if self.armed and (time.time() - self.armed_time > 10.0):
-                        print("[Kritam Voice] Armed wake state timed out.")
-                        self.armed = False
+                stream = None
+                try:
+                    stream = self.pyaudio_instance.open(
+                        format=pyaudio.paInt16,
+                        channels=self.CHANNELS,
+                        rate=self.SAMPLE_RATE,
+                        input=True,
+                        frames_per_buffer=self.CHUNK_SIZE,
+                    )
+                except Exception as exc:
+                    print(f"[Kritam Voice] Background microphone stream error: {exc}")
+                    time.sleep(1.0)
+                    return ""
 
-                    # Check TTS echo suppression
-                    if self.is_tts_speaking():
-                        try:
-                            stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
-                        except Exception:
-                            pass
-                        self.vad.reset()
-                        time.sleep(0.03)
-                        continue
+                try:
+                    self.vad.reset()
+                    speech_started_logged = False
 
-                    # Capture frame
-                    try:
-                        raw_bytes = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
-                    except Exception:
-                        time.sleep(0.01)
-                        continue
+                    while not self.stop_event.is_set():
+                        # If armed state has timed out (e.g. user said 'Hey Kritam' and walked away for > 10s)
+                        if self.armed and (time.time() - self.armed_time > 10.0):
+                            print("[Kritam Voice] Armed wake state timed out.")
+                            self.armed = False
 
-                    if not raw_bytes or len(raw_bytes) != self.CHUNK_SIZE * 2:
-                        continue
-
-                    frame = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
-
-                    # Process frame through VAD: CPU remains very low during ambient silence
-                    utterance = self.vad.process_frame(frame)
-
-                    if utterance is None:
-                        continue
-
-                    # A complete speech turn was detected!
-                    if self.is_tts_speaking():
-                        continue
-
-                    text, meta = self.speech_to_text.convert_with_metadata(utterance)
-                    if not text:
-                        continue
-
-                    print(f"[Kritam Voice] background heard: \"{text}\"")
-
-                    # Check for wake word
-                    wake_res = self.wake_detector.detect(text)
-
-                    if wake_res.detected:
-                        print("[Kritam Voice] wake word detected")
-                        if self.on_wake:
+                        # Check TTS echo suppression
+                        if self.is_tts_speaking():
                             try:
-                                self.on_wake()
+                                stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
                             except Exception:
                                 pass
-
-                        if wake_res.command_remainder:
-                            # Immediate wake + command: "Hey Kritam, open Chrome"
-                            self.armed = False
-                            return wake_res.command_remainder
-                        else:
-                            # Wake word alone: "Hey Kritam." [pause]
-                            self.armed = True
-                            self.armed_time = time.time()
+                            self.vad.reset()
+                            time.sleep(0.03)
                             continue
 
-                    # If already armed from a previous turn, any valid spoken utterance is the command!
-                    if self.armed:
-                        self.armed = False
-                        return text
+                        # Capture frame
+                        try:
+                            raw_bytes = stream.read(self.CHUNK_SIZE, exception_on_overflow=False)
+                        except Exception:
+                            time.sleep(0.01)
+                            continue
 
-                    # Speech didn't contain wake word and wasn't armed; discard quietly
-                    continue
+                        if not raw_bytes or len(raw_bytes) != self.CHUNK_SIZE * 2:
+                            continue
 
-                return ""
+                        frame = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float32) / 32768.0
 
-            finally:
-                if stream:
-                    try:
-                        stream.stop_stream()
-                        stream.close()
-                    except Exception:
-                        pass
+                        # Process frame through VAD: CPU remains very low during ambient silence
+                        utterance = self.vad.process_frame(frame)
+                        if self.vad.speech_active and not speech_started_logged:
+                            speech_started_logged = True
+                            print(
+                                f"[Kritam Voice] background speech started "
+                                f"(noise_floor={self.vad.noise_floor:.4f})"
+                            )
+
+                        if utterance is None:
+                            continue
+                        speech_started_logged = False
+
+                        # A complete speech turn was detected!
+                        if self.is_tts_speaking():
+                            continue
+
+                        metrics = self.audio_processor.calculate_metrics(utterance)
+                        if metrics.is_silence:
+                            print("[Kritam Voice] background rejected capture (silence/too short)")
+                            continue
+
+                        audio = self.audio_processor.safe_normalize(utterance)
+                        print(
+                            f"[Kritam Voice] background speech ended duration={metrics.duration_s:.2f}s "
+                            f"rms={metrics.rms:.4f} peak={metrics.peak:.4f}"
+                        )
+                        text, meta = self.speech_to_text.convert_with_metadata(audio)
+                        if not text:
+                            reason = (meta or {}).get("rejection_reason")
+                            if reason:
+                                print(f"[Kritam Voice] STT rejected: {reason}")
+                            continue
+
+                        print(f"[Kritam Voice] background heard: \"{text}\"")
+
+                        # Check for wake word
+                        wake_res = self.wake_detector.detect(text)
+
+                        if wake_res.detected:
+                            print("[Kritam Voice] wake word detected")
+                            if self.on_wake:
+                                try:
+                                    self.on_wake()
+                                except Exception:
+                                    pass
+
+                            if wake_res.command_remainder:
+                                # Immediate wake + command: "Hey Kritam, open Chrome"
+                                self.armed = False
+                                return wake_res.command_remainder
+                            else:
+                                # Wake word alone: "Hey Kritam." [pause]
+                                self.armed = True
+                                self.armed_time = time.time()
+                                continue
+
+                        # If already armed from a previous turn, any valid spoken utterance is the command!
+                        if self.armed:
+                            self.armed = False
+                            return text
+
+                        # Speech didn't contain wake word and wasn't armed; discard quietly
+                        continue
+
+                    return ""
+
+                finally:
+                    if stream:
+                        try:
+                            stream.stop_stream()
+                            stream.close()
+                        except Exception:
+                            pass
