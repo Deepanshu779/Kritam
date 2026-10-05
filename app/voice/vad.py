@@ -17,7 +17,7 @@ class SpeechActivityDetector:
         min_speech_duration_s: float = 0.5,
         max_utterance_duration_s: float = 22.0,
         pre_roll_duration_s: float = 0.45,
-        base_energy_threshold: float = 0.008,
+        base_energy_threshold: float = 0.0025,
     ):
         self.sample_rate = sample_rate
         self.frame_duration_ms = frame_duration_ms
@@ -33,7 +33,7 @@ class SpeechActivityDetector:
         self._pre_roll_buffer = collections.deque(maxlen=self.pre_roll_max_frames)
 
         # State tracking
-        self.noise_floor = self.base_energy_threshold * 0.7
+        self.noise_floor = min(0.0015, self.base_energy_threshold * 0.6)
         self.alpha_noise = 0.05  # EMA smoothing factor for background noise
         self.speech_active = False
         self.consecutive_speech_frames = 0
@@ -58,17 +58,20 @@ class SpeechActivityDetector:
         rms = float(np.sqrt(np.mean(np.square(frame))))
         peak = float(np.max(np.abs(frame)))
 
+        # Laptop/headset microphones can produce quiet speech with RMS around
+        # 0.004-0.010. Keep the absolute floor low and use the noise floor
+        # relative to the live microphone signal.
         start_threshold = max(
             self.base_energy_threshold,
-            self.noise_floor * 2.2 + 0.002,
+            self.noise_floor * 1.4 + 0.0006,
         )
         continue_threshold = max(
-            self.base_energy_threshold * 0.85,
-            self.noise_floor * 1.7 + 0.001,
+            self.base_energy_threshold * 0.8,
+            self.noise_floor * 1.2 + 0.0004,
         )
         dynamic_threshold = continue_threshold if self.speech_active else start_threshold
 
-        peak_gate = max(dynamic_threshold * 1.2, self.base_energy_threshold * 1.05)
+        peak_gate = max(dynamic_threshold * 1.1, self.base_energy_threshold * 1.05)
         is_speech = (rms > dynamic_threshold) and (peak > peak_gate)
 
         # Update noise floor adaptively when non-speech is detected
