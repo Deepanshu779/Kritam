@@ -56,8 +56,29 @@ class SpeechToText:
             return ""
 
         try:
-            raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
-            samples = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+            # The voice pipeline may provide either SpeechRecognition AudioData
+            # or a NumPy waveform. Support both so STT stays independent of
+            # the microphone/VAD implementation.
+            if isinstance(audio, np.ndarray):
+                samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+
+                # Normalize integer-style or unusually scaled waveforms.
+                max_input = float(np.max(np.abs(samples))) if samples.size else 0.0
+                if max_input > 1.0:
+                    samples = samples / 32768.0
+            elif hasattr(audio, "get_raw_data"):
+                raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
+                samples = (
+                    np.frombuffer(raw, dtype=np.int16)
+                    .astype(np.float32)
+                    / 32768.0
+                )
+            else:
+                print(
+                    f"Kritam STT: unsupported audio type "
+                    f"{type(audio).__name__}; ignoring."
+                )
+                return ""
 
             if samples.size == 0:
                 return ""
