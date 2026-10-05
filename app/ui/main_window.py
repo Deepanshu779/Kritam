@@ -1222,6 +1222,16 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def _start_background_listener(self):
+        # Never create a second background microphone worker. This is
+        # especially important when foreground voice stops and resumes the
+        # wake-word listener.
+        if self.bg_thread is not None:
+            if self.bg_thread.isRunning():
+                return
+            self.bg_thread.deleteLater()
+            self.bg_thread = None
+            self.bg_worker = None
+
         self.bg_thread = QThread()
         self.bg_worker = BackgroundWorker(self.assistant)
         self.bg_worker.moveToThread(self.bg_thread)
@@ -1250,10 +1260,15 @@ class MainWindow(QMainWindow):
             worker.stop()
         if thread:
             thread.quit()
-            if thread.wait(5000):
+            finished = thread.wait(5000)
+            if finished:
                 thread.deleteLater()
                 self.bg_thread = None
                 self.bg_worker = None
+            else:
+                # Do not start another microphone worker while this one is
+                # still alive. It will be cleaned up when the thread exits.
+                return
 
     def _set_busy(self, busy, text):
         self.command_input.setEnabled(not busy)
