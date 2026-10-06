@@ -1288,7 +1288,8 @@ class MainWindow(QMainWindow):
 
     @Slot(dict)
     def _worker_turn(self, result):
-        self._add_message(result.get("text", ""), True)
+        # Transcript is already rendered by _on_transcript_ready().
+        # Only append the assistant response during persistent voice turns.
         self._add_message(result.get("response", "Done."), False)
 
     @Slot(dict)
