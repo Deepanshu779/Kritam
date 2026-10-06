@@ -219,7 +219,7 @@ class VoiceRecordingBar(QWidget):
 
         self.finish_button = QPushButton("✓")
         self.finish_button.setObjectName("voiceFinish")
-        self.finish_button.setToolTip("Finish speaking")
+        self.finish_button.setToolTip("End conversation")
         self.finish_button.setFixedSize(34, 34)
         self.finish_button.clicked.connect(self.finish_requested.emit)
         layout.addWidget(self.finish_button)
@@ -259,7 +259,7 @@ class VoiceRecordingBar(QWidget):
 
 
 class Worker(QObject):
-    """Background worker for text commands and natural single-turn voice conversation."""
+    """Background worker for text commands and persistent natural voice conversation."""
 
     state_changed = Signal(str)
     transcript_ready = Signal(str)
@@ -287,86 +287,131 @@ class Worker(QObject):
         self.listen = listen
         self.stop_event = threading.Event()
         self.cancelled = False
+        self._finish_after_turn = False
 
     def cancel(self):
-        """Immediately cancel speech recording without executing audio."""
+        """Cancel the entire voice session immediately."""
         self.cancelled = True
         self.stop_event.set()
+        # Stop any active TTS so cancellation is responsive.
+        try:
+            self.assistant.text_to_speech.stop()
+        except Exception:
+            pass
 
     def stop(self):
-        """Request stop of speech capture."""
+        """End persistent conversation mode after the current capture/turn."""
+        self._finish_after_turn = True
         self.stop_event.set()
 
     @Slot()
     def run(self):
         try:
             if self.listen:
-                self.state_changed.emit("LISTENING")
+                # Persistent conversation mode:
+                # LISTENING -> capture -> PROCESSING -> SPEAKING -> LISTENING ...
+                while not self.cancelled:
+                    self.stop_event.clear()
+                    self.state_changed.emit("LISTENING")
 
-                def _on_speech_started():
-                    if not self.cancelled and not self.stop_event.is_set():
-                        self.state_changed.emit("SPEECH_DETECTED")
+                    def _on_speech_started():
+                        if not self.cancelled:
+                            self.state_changed.emit("SPEECH_DETECTED")
 
-                # Listen for one natural utterance using VAD
-                audio = self.assistant.listener.listen_until_stopped(
-                    self.stop_event,
-                    timeout=12.0,
-                    on_speech_detected=_on_speech_started,
-                )
+                    audio = self.assistant.listener.listen_until_stopped(
+                        self.stop_event,
+                        timeout=12.0,
+                        on_speech_detected=_on_speech_started,
+                    )
 
-                if self.cancelled:
-                    self.finished.emit({"kind": "cancelled"})
-                    return
-
-                if audio is None:
-                    if self.stop_event.is_set():
+                    if self.cancelled:
                         self.finished.emit({"kind": "cancelled"})
-                    else:
-                        self.finished.emit({"kind": "no_speech"})
-                    return
+                        return
 
-                # Audio received: begin transcribing with existing Faster-Whisper pipeline
-                self.state_changed.emit("PROCESSING")
-                text = self.assistant.speech_to_text.convert(audio)
-                if not text or not text.strip():
-                    if self.cancelled or self.stop_event.is_set():
+                    # The user pressed the end button while waiting for speech.
+                    if self._finish_after_turn and audio is None:
+                        self.finished.emit({
+                            "kind": "voice_end",
+                            "response": "Okay, I'll stop listening.",
+                            "success": True,
+                        })
+                        return
+
+                    if audio is None:
+                        # A timeout/no-speech turn should not kill the whole
+                        # conversation. Return to listening automatically.
+                        self.state_changed.emit("LISTENING")
+                        continue
+
+                    self.state_changed.emit("PROCESSING")
+                    text = self.assistant.speech_to_text.convert(audio)
+
+                    if self.cancelled:
                         self.finished.emit({"kind": "cancelled"})
-                    else:
-                        self.finished.emit({"kind": "no_speech"})
-                    return
+                        return
 
-                text = text.strip()
-                normalized = text.lower().strip(" ,.!?")
-                if normalized in self.STOP_PHRASES:
+                    if not text or not text.strip():
+                        # Ignore an unusable transcription and keep listening.
+                        self.state_changed.emit("LISTENING")
+                        continue
+
+                    text = text.strip()
+                    normalized = text.lower().strip(" ,.!?")
+
                     self.transcript_ready.emit(text)
-                    self.state_changed.emit("SPEAKING")
-                    self.assistant._speak("Okay, I'll stop listening.")
-                    self.finished.emit({
-                        "kind": "voice_end",
+
+                    if normalized in self.STOP_PHRASES:
+                        self.state_changed.emit("SPEAKING")
+                        self.assistant._speak("Okay, I'll stop listening.")
+                        self.finished.emit({
+                            "kind": "voice_end",
+                            "text": text,
+                            "response": "Okay, I'll stop listening.",
+                            "success": True,
+                        })
+                        return
+
+                    # Let TTS state drive the UI into SPEAKING, then return
+                    # automatically to LISTENING when the response finishes.
+                    def _tts_started(_text):
+                        if not self.cancelled:
+                            self.state_changed.emit("SPEAKING")
+
+                    prev_tts_start = getattr(
+                        self.assistant.text_to_speech, "on_start", None
+                    )
+                    self.assistant.text_to_speech.on_start = _tts_started
+                    try:
+                        result = self.assistant.process_text(text, speak=True)
+                    finally:
+                        self.assistant.text_to_speech.on_start = prev_tts_start
+
+                    self.turn.emit({
                         "text": text,
-                        "response": "Okay, I'll stop listening.",
-                        "success": True,
+                        **result,
                     })
-                    return
 
-                # Transcribed user message ready: immediately post to conversation
-                self.transcript_ready.emit(text)
-                self.state_changed.emit("PROCESSING")
+                    if self.cancelled:
+                        self.finished.emit({"kind": "cancelled"})
+                        return
 
-                def _tts_started(_text):
-                    self.state_changed.emit("SPEAKING")
+                    if self._finish_after_turn:
+                        self.finished.emit({
+                            "kind": "voice_end",
+                            "text": text,
+                            "response": "Okay, I'll stop listening.",
+                            "success": True,
+                        })
+                        return
 
-                prev_tts_start = getattr(self.assistant.text_to_speech, "on_start", None)
-                self.assistant.text_to_speech.on_start = _tts_started
-                try:
-                    result = self.assistant.process_text(text, speak=True)
-                finally:
-                    self.assistant.text_to_speech.on_start = prev_tts_start
+                    # This is the key conversational loop: after Kritam
+                    # finishes speaking, immediately open the microphone again.
+                    self.state_changed.emit("LISTENING")
 
                 self.finished.emit({
-                    "kind": "voice",
-                    "text": text,
-                    **result,
+                    "kind": "voice_end",
+                    "response": "Okay, I'll stop listening.",
+                    "success": True,
                 })
                 return
 
@@ -379,7 +424,6 @@ class Worker(QObject):
             traceback.print_exc()
             self.state_changed.emit("ERROR")
             self.error.emit("Something went wrong. Please try again.")
-
 
 class BackgroundWorker(QObject):
     """Background wake word listener."""
@@ -1192,7 +1236,7 @@ class MainWindow(QMainWindow):
             self._start_voice_input()
 
     def _start_voice_input(self):
-        """Start a single-turn natural voice session."""
+        """Start a persistent natural voice conversation session."""
         if self.thread is not None:
             if self._recording and self.worker is not None:
                 self._cancel_voice_input()
@@ -1208,7 +1252,7 @@ class MainWindow(QMainWindow):
         self._start_worker(listen=True)
 
     def _finish_voice_input(self):
-        """User explicitly clicked finish button while speaking."""
+        """End the persistent voice conversation after the current turn."""
         if not self._recording or self.worker is None:
             return
         self.worker.stop()
