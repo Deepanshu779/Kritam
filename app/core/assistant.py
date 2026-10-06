@@ -211,14 +211,14 @@ class Kritam:
         print(f"Kritam Intent: {intent}")
         return self._handle_intent(text, intent)
 
-    def listen_once(self):
-        audio = self.listener.listen()
+    def listen_once(self, timeout=8.0, on_speech_detected=None):
+        audio = self.listener.listen(timeout=timeout, on_speech_detected=on_speech_detected)
         if audio is None:
             return ""
         return self.speech_to_text.convert(audio) or ""
 
-    def listen_until_stopped(self, stop_event):
-        audio = self.listener.listen_until_stopped(stop_event)
+    def listen_until_stopped(self, stop_event, timeout=12.0, on_speech_detected=None):
+        audio = self.listener.listen_until_stopped(stop_event, timeout=timeout, on_speech_detected=on_speech_detected)
         if audio is None:
             return ""
         return self.speech_to_text.convert(audio) or ""

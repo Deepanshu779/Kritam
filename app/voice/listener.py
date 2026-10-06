@@ -65,20 +65,21 @@ class VoiceListener:
             return self.tts.is_active_or_settling()
         return False
 
-    def listen(self, timeout: float = 8.0, phrase_time_limit: float = 20.0) -> Optional[np.ndarray]:
+    def listen(self, timeout: float = 8.0, phrase_time_limit: float = 20.0, on_speech_detected=None) -> Optional[np.ndarray]:
         """Capture one speech turn within the given timeout window."""
         stop_event = threading.Event()
-        return self._capture_stream(timeout=timeout, phrase_time_limit=phrase_time_limit, stop_event=stop_event)
+        return self._capture_stream(timeout=timeout, phrase_time_limit=phrase_time_limit, stop_event=stop_event, on_speech_detected=on_speech_detected)
 
-    def listen_until_stopped(self, stop_event: threading.Event) -> Optional[np.ndarray]:
+    def listen_until_stopped(self, stop_event: threading.Event, timeout: Optional[float] = None, on_speech_detected=None) -> Optional[np.ndarray]:
         """Capture one natural speech turn until speech ends or stop_event is triggered."""
-        return self._capture_stream(timeout=None, phrase_time_limit=25.0, stop_event=stop_event)
+        return self._capture_stream(timeout=timeout, phrase_time_limit=25.0, stop_event=stop_event, on_speech_detected=on_speech_detected)
 
     def _capture_stream(
         self,
         timeout: Optional[float],
         phrase_time_limit: float,
         stop_event: threading.Event,
+        on_speech_detected=None,
     ) -> Optional[np.ndarray]:
         """Stream frames from PyAudio through SpeechActivityDetector."""
         with self._lock:
@@ -148,6 +149,11 @@ class VoiceListener:
                         if self.vad.speech_active and not speech_started_logged:
                             speech_started_logged = True
                             speech_start_time = time.time()
+                            if on_speech_detected:
+                                try:
+                                    on_speech_detected()
+                                except Exception:
+                                    pass
                             print(
                                 f"[Kritam Voice] speech started (noise_floor={self.vad.noise_floor:.4f}, "
                                 f"onset_frames={self.vad.onset_consecutive_frames}, "
@@ -190,6 +196,7 @@ class VoiceListener:
         timeout: Optional[float],
         phrase_time_limit: float,
         stop_event: threading.Event,
+        on_speech_detected=None,
     ) -> Optional[np.ndarray]:
         """Fallback capture using speech_recognition if PyAudio direct stream fails."""
         try:

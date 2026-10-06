@@ -24,6 +24,8 @@ class TextToSpeech:
         self._lock = threading.Lock()
         self._queue = queue.Queue()
         self._stop_event = threading.Event()
+        self.on_start = None
+        self.on_end = None
 
         try:
             self.engine = pyttsx3.init()
@@ -112,6 +114,11 @@ class TextToSpeech:
                     self.is_speaking = True
 
                 print("[Kritam Voice] TTS started")
+                if callable(self.on_start):
+                    try:
+                        self.on_start(text)
+                    except Exception:
+                        pass
                 try:
                     if self.engine:
                         self.engine.say(text)
@@ -123,6 +130,11 @@ class TextToSpeech:
                         self.is_speaking = False
                         self.last_spoke_time = time.time()
                     print("[Kritam Voice] TTS finished")
+                    if callable(self.on_end):
+                        try:
+                            self.on_end()
+                        except Exception:
+                            pass
                     if done_event:
                         done_event.set()
                     self._queue.task_done()

@@ -228,6 +228,8 @@ class FastRouter:
                 return {"type": "open_application", "application": context.last_application}
             if context and getattr(context, "last_website", None):
                 return {"type": "open_website", "website": context.last_website}
+            if context and getattr(context, "last_search_query", None):
+                return {"type": "browser_open_result", "number": 1}
 
         # Website patterns ("open youtube", "open google", "visit github")
         website_patterns = [
@@ -312,37 +314,33 @@ class FastRouter:
             if query:
                 return {"type": "search_web", "query": query}
 
-        # Browser result navigation ("Open the second result", "second result kholo", "second wala kholo", "open that one")
-        if command_lower in {
-            "open the second result",
-            "open second result",
-            "the second result",
-            "second result kholo",
-            "second result",
-            "second wala kholo",
-        }:
-            return {"type": "browser_open_result", "number": 2}
-
-        if command_lower in {
-            "open the first result",
-            "open first result",
-            "the first result",
-            "first result kholo",
-            "first result",
-            "first wala kholo",
-            "the first one",
-            "open first search result",
-        }:
-            return {"type": "browser_open_result", "number": 1}
+        # Browser result navigation ("Open the second result", "Open number 3", "Open that one", "second wala kholo")
+        ordinal_map = {
+            "first": 1, "1st": 1, "one": 1, "1": 1, "pehla": 1,
+            "second": 2, "2nd": 2, "two": 2, "2": 2, "doosra": 2, "dusra": 2,
+            "third": 3, "3rd": 3, "three": 3, "3": 3, "teesra": 3, "tisra": 3,
+            "fourth": 4, "4th": 4, "four": 4, "4": 4, "chautha": 4,
+            "fifth": 5, "5th": 5, "five": 5, "5": 5, "paanchwa": 5, "panchwa": 5,
+        }
+        res_match = re.fullmatch(
+            r"(?:open|show|show me|go to|visit|kholo)?\s*(?:the\s+)?(?:(?:result\s+)?number\s+|result\s+)?"
+            r"(first|second|third|fourth|fifth|1st|2nd|3rd|4th|5th|[1-5])"
+            r"(?:\s+(?:result|one|wala))?(?:\s+(?:kholo|open karo))?",
+            command_lower,
+        )
+        if res_match:
+            num = ordinal_map.get(res_match.group(1).lower())
+            if num:
+                return {"type": "browser_open_result", "number": num}
 
         if command_lower in {
             "open that one",
             "open that",
+            "that one",
             "ye wala open karo",
             "ye wala kholo",
             "wo wala open karo",
             "wo wala kholo",
-            "that one",
         }:
             return {"type": "browser_open_result", "number": 1}
 

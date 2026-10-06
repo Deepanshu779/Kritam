@@ -224,6 +224,88 @@ class TestAssistantProcessText(unittest.TestCase):
         self.assertTrue(len(result["response"]) > 0)
 
 
+class TestIntentEngine(unittest.TestCase):
+
+    class MockAIProviderManager:
+        def __init__(self, response=None):
+            self.response = response
+            self.captured_prompt = None
+
+        def ask(self, prompt):
+            self.captured_prompt = prompt
+            return self.response
+
+    def setUp(self):
+        from brain.intent_engine import IntentEngine
+        self.engine = IntentEngine()
+
+    def test_prompt_construction_and_simple_conversation(self):
+        mock = self.MockAIProviderManager(
+            '{"type": "conversation", "response": "Python was created by Guido van Rossum."}'
+        )
+        self.engine.ai = mock
+        intent = self.engine.understand("Who created Python?")
+        self.assertIsNotNone(mock.captured_prompt)
+        self.assertIn("Who created Python?", mock.captured_prompt)
+        self.assertEqual(intent.get("type"), "conversation")
+        self.assertEqual(intent.get("response"), "Python was created by Guido van Rossum.")
+
+    def test_complex_request(self):
+        mock = self.MockAIProviderManager(
+            '{"type": "browser_search", "query": "Python tutorials"}'
+        )
+        self.engine.ai = mock
+        intent = self.engine.understand("Open Chrome, search for Python tutorials and open the first result")
+        self.assertEqual(intent.get("type"), "browser_search")
+        self.assertEqual(intent.get("query"), "Python tutorials")
+
+    def test_correction(self):
+        mock = self.MockAIProviderManager(
+            '{"type": "open_application", "application": "chrome"}'
+        )
+        self.engine.ai = mock
+        intent = self.engine.understand("Actually, open Chrome instead")
+        self.assertEqual(intent.get("type"), "open_application")
+        self.assertEqual(intent.get("application"), "chrome")
+
+    def test_follow_up_with_context(self):
+        from core.context import ConversationContext
+        context = ConversationContext()
+        context.add_turn("search for laptops", {"type": "search_web", "query": "laptops"}, True)
+
+        mock = self.MockAIProviderManager(
+            '{"type": "browser_open_result", "number": 1}'
+        )
+        self.engine.ai = mock
+        intent = self.engine.understand("Open the first one", context=context)
+        self.assertIsNotNone(mock.captured_prompt)
+        self.assertIn("search for laptops", mock.captured_prompt)
+        self.assertEqual(intent.get("type"), "browser_open_result")
+        self.assertEqual(intent.get("number"), 1)
+
+    def test_structured_json_with_markdown_fences(self):
+        mock = self.MockAIProviderManager(
+            '```json\n{"type": "play_music", "query": "Arijit Singh", "platform": "youtube"}\n```'
+        )
+        self.engine.ai = mock
+        intent = self.engine.understand("play arijit singh")
+        self.assertEqual(intent.get("type"), "play_music")
+        self.assertEqual(intent.get("query"), "Arijit Singh")
+        self.assertEqual(intent.get("platform"), "youtube")
+
+    def test_malformed_model_response(self):
+        mock = self.MockAIProviderManager("This is not valid JSON at all: {broken")
+        self.engine.ai = mock
+        intent = self.engine.understand("some random input")
+        self.assertEqual(intent, {"type": "unknown"})
+
+    def test_empty_model_response(self):
+        mock = self.MockAIProviderManager("")
+        self.engine.ai = mock
+        intent = self.engine.understand("some random input")
+        self.assertEqual(intent, {"type": "unknown"})
+
+
 if __name__ == "__main__":
     unittest.main()
 

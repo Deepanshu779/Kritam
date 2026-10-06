@@ -38,7 +38,7 @@ Language and conversation rules:
 - Do not force English when the user is speaking another language.
 - Preserve names, song titles, application names, URLs and search terms exactly when useful.
 - Resolve natural references such as "it", "that", "the first one", "the second result", "play that", "open it", and "go back" from recent conversation context when the context makes the reference clear.
-- If a reference cannot be resolved safely, return {"type":"conversation","response":"Could you clarify what you mean?"} instead of inventing details.
+- If a reference cannot be resolved safely, return {{"type":"conversation","response":"Could you clarify what you mean?"}} instead of inventing details.
 - Treat "actually", "wait", "no", "instead", "I mean", and similar phrases as natural corrections to the previous request.
 - Never claim an action was completed unless the application reports success.
 

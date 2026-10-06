@@ -209,15 +209,47 @@ class VoiceRecordingBar(QWidget):
         self.cancel_button.clicked.connect(self.cancel_requested.emit)
         layout.addWidget(self.cancel_button)
 
+        self.status_label = QLabel("Listening...")
+        self.status_label.setObjectName("voiceStatusLabel")
+        self.status_label.setStyleSheet("color: #00d2ff; font-size: 13px; font-weight: 600;")
+        layout.addWidget(self.status_label)
+
         self.wave = VoiceWaveWidget()
         layout.addWidget(self.wave, 1)
 
         self.finish_button = QPushButton("✓")
         self.finish_button.setObjectName("voiceFinish")
-        self.finish_button.setToolTip("Submit voice input")
+        self.finish_button.setToolTip("Finish speaking")
         self.finish_button.setFixedSize(34, 34)
         self.finish_button.clicked.connect(self.finish_requested.emit)
         layout.addWidget(self.finish_button)
+
+    def set_state(self, state: str, text: str = None):
+        """Update visual indicators and labels based on the voice state."""
+        if state == "LISTENING":
+            self.status_label.setText(text or "Listening...")
+            self.status_label.setStyleSheet("color: #00d2ff; font-size: 13px; font-weight: 600;")
+            self.wave.start()
+        elif state == "SPEECH_DETECTED":
+            self.status_label.setText(text or "Listening...")
+            self.status_label.setStyleSheet("color: #00e676; font-size: 13px; font-weight: 600;")
+            self.wave.start()
+        elif state == "PROCESSING":
+            self.status_label.setText(text or "Thinking...")
+            self.status_label.setStyleSheet("color: #ffd600; font-size: 13px; font-weight: 600;")
+            self.wave.stop()
+        elif state == "SPEAKING":
+            self.status_label.setText(text or "Speaking...")
+            self.status_label.setStyleSheet("color: #b388ff; font-size: 13px; font-weight: 600;")
+            self.wave.start()
+        elif state == "ERROR":
+            self.status_label.setText(text or "Something went wrong")
+            self.status_label.setStyleSheet("color: #ff5252; font-size: 13px; font-weight: 600;")
+            self.wave.stop()
+        elif state == "IDLE":
+            self.status_label.setText("Click microphone to talk")
+            self.status_label.setStyleSheet("color: #7b8ea8; font-size: 13px; font-weight: 600;")
+            self.wave.stop()
 
     def start_animation(self):
         self.wave.start()
@@ -227,10 +259,12 @@ class VoiceRecordingBar(QWidget):
 
 
 class Worker(QObject):
-    """Background worker for text commands and natural continuous voice conversation."""
+    """Background worker for text commands and natural single-turn voice conversation."""
 
-    finished = Signal(dict)
+    state_changed = Signal(str)
+    transcript_ready = Signal(str)
     turn = Signal(dict)
+    finished = Signal(dict)
     error = Signal(str)
 
     STOP_PHRASES = {
@@ -252,40 +286,99 @@ class Worker(QObject):
         self.command = command
         self.listen = listen
         self.stop_event = threading.Event()
+        self.cancelled = False
+
+    def cancel(self):
+        """Immediately cancel speech recording without executing audio."""
+        self.cancelled = True
+        self.stop_event.set()
+
+    def stop(self):
+        """Request stop of speech capture."""
+        self.stop_event.set()
 
     @Slot()
     def run(self):
         try:
             if self.listen:
-                while not self.stop_event.is_set():
-                    text = self.assistant.listen_until_stopped(self.stop_event)
+                self.state_changed.emit("LISTENING")
+
+                def _on_speech_started():
+                    if not self.cancelled and not self.stop_event.is_set():
+                        self.state_changed.emit("SPEECH_DETECTED")
+
+                # Listen for one natural utterance using VAD
+                audio = self.assistant.listener.listen_until_stopped(
+                    self.stop_event,
+                    timeout=12.0,
+                    on_speech_detected=_on_speech_started,
+                )
+
+                if self.cancelled:
+                    self.finished.emit({"kind": "cancelled"})
+                    return
+
+                if audio is None:
                     if self.stop_event.is_set():
-                        break
-                    if not text:
-                        continue
+                        self.finished.emit({"kind": "cancelled"})
+                    else:
+                        self.finished.emit({"kind": "no_speech"})
+                    return
 
-                    normalized = text.lower().strip(" ,.!?")
-                    if normalized in self.STOP_PHRASES:
-                        self.assistant._speak("Okay, I'll stop listening.")
-                        break
+                # Audio received: begin transcribing with existing Faster-Whisper pipeline
+                self.state_changed.emit("PROCESSING")
+                text = self.assistant.speech_to_text.convert(audio)
+                if not text or not text.strip():
+                    if self.cancelled or self.stop_event.is_set():
+                        self.finished.emit({"kind": "cancelled"})
+                    else:
+                        self.finished.emit({"kind": "no_speech"})
+                    return
 
-                    result = self.assistant.process_text(text, speak=True)
-                    self.turn.emit({
-                        "kind": "voice_turn",
+                text = text.strip()
+                normalized = text.lower().strip(" ,.!?")
+                if normalized in self.STOP_PHRASES:
+                    self.transcript_ready.emit(text)
+                    self.state_changed.emit("SPEAKING")
+                    self.assistant._speak("Okay, I'll stop listening.")
+                    self.finished.emit({
+                        "kind": "voice_end",
                         "text": text,
-                        **result,
+                        "response": "Okay, I'll stop listening.",
+                        "success": True,
                     })
+                    return
 
-                self.finished.emit({"kind": "voice_end"})
+                # Transcribed user message ready: immediately post to conversation
+                self.transcript_ready.emit(text)
+                self.state_changed.emit("PROCESSING")
+
+                def _tts_started(_text):
+                    self.state_changed.emit("SPEAKING")
+
+                prev_tts_start = getattr(self.assistant.text_to_speech, "on_start", None)
+                self.assistant.text_to_speech.on_start = _tts_started
+                try:
+                    result = self.assistant.process_text(text, speak=True)
+                finally:
+                    self.assistant.text_to_speech.on_start = prev_tts_start
+
+                self.finished.emit({
+                    "kind": "voice",
+                    "text": text,
+                    **result,
+                })
                 return
 
+            # Text command mode
+            self.state_changed.emit("PROCESSING")
             result = self.assistant.process_text(self.command, speak=False)
             self.finished.emit({"kind": "command", **result})
         except Exception as exc:
-            self.error.emit(str(exc))
-
-    def stop(self):
-        self.stop_event.set()
+            import traceback
+            traceback.print_exc()
+            self.state_changed.emit("ERROR")
+            self.error.emit("Something went wrong. Please try again.")
 
 
 class BackgroundWorker(QObject):
@@ -349,6 +442,7 @@ class MainWindow(QMainWindow):
         self.bg_worker = None
         self._recording = False
         self._resume_background_after_voice = False
+        self.current_state = "IDLE"
 
         self._build_ui()
         self._setup_tray()
@@ -588,8 +682,8 @@ class MainWindow(QMainWindow):
         self.mic_btn.setFocusPolicy(Qt.NoFocus)
         self.mic_btn.setFixedSize(40, 40)
         self.mic_btn.setIcon(QIcon(render_mic_icon(20)))
-        self.mic_btn.setToolTip("Start Voice Input")
-        self.mic_btn.clicked.connect(self._start_voice_input)
+        self.mic_btn.setToolTip("Click microphone to talk")
+        self.mic_btn.clicked.connect(self._toggle_voice_input)
         c_layout.addWidget(self.mic_btn)
 
         # Circular Send Button
@@ -790,7 +884,7 @@ class MainWindow(QMainWindow):
         self.listen_btn.setObjectName("startListeningButton")
         self.listen_btn.setIcon(QIcon(render_mic_icon(18, "#ffffff")))
         self.listen_btn.setFixedHeight(42)
-        self.listen_btn.clicked.connect(self._start_voice_input)
+        self.listen_btn.clicked.connect(self._toggle_voice_input)
         v_layout.addWidget(self.listen_btn)
 
         layout.addWidget(voice_card)
@@ -1087,102 +1181,93 @@ class MainWindow(QMainWindow):
             return
         self.command_input.clear()
         self._add_message(command, True)
-        self._set_busy(True, "Processing...")
+        self._set_state("PROCESSING", "Thinking...")
         self._start_worker(command=command)
 
+    def _toggle_voice_input(self):
+        """Toggle voice listening or cancel active voice session."""
+        if self._recording or getattr(self, "current_state", "IDLE") in ("LISTENING", "SPEECH_DETECTED"):
+            self._cancel_voice_input()
+        elif getattr(self, "current_state", "IDLE") == "IDLE":
+            self._start_voice_input()
+
     def _start_voice_input(self):
+        """Start a single-turn natural voice session."""
         if self.thread is not None:
             if self._recording and self.worker is not None:
-                self._finish_voice_input()
+                self._cancel_voice_input()
             return
 
-        self._resume_background_after_voice = self.bg_thread is not None
+        self._resume_background_after_voice = bool(
+            self.bg_thread and self.bg_thread.isRunning()
+        )
         if self._resume_background_after_voice:
             self._stop_background_listener()
 
-        self._recording = True
-        self.command_input.hide()
-        self.voice_bar.show()
-        self.voice_bar.start_animation()
-        self.voice_bar.finish_button.setText("■")
-        self.voice_bar.finish_button.setToolTip("Stop conversation")
-        self.mic_btn.hide()
-        self._set_busy(True, "Listening...")
+        self._set_state("LISTENING", "Listening...")
         self._start_worker(listen=True)
 
     def _finish_voice_input(self):
+        """User explicitly clicked finish button while speaking."""
         if not self._recording or self.worker is None:
             return
-        self._recording = False
-        self._set_busy(True, "Processing...")
-        self.voice_bar.stop_animation()
-        self.voice_bar.setEnabled(False)
-        self.voice_bar.finish_button.setText("✓")
         self.worker.stop()
 
     def _cancel_voice_input(self):
-        if not self._recording or self.worker is None:
-            return
-        self._recording = False
-        self.voice_bar.stop_animation()
-        self.voice_bar.hide()
-        self.voice_bar.setEnabled(True)
-        self.voice_bar.finish_button.setText("✓")
-        self.command_input.show()
-        self.mic_btn.show()
-        self._set_busy(False, "Ready")
-        self.worker.stop()
+        """Safely cancel the active voice session without running STT or actions."""
+        if self.worker is not None and self._recording:
+            self.worker.cancel()
+        self._set_state("IDLE")
 
     def _start_worker(self, command=None, listen=False):
         self.thread = QThread()
         self.worker = Worker(self.assistant, command=command, listen=listen)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self._worker_finished)
+        self.worker.state_changed.connect(self._on_worker_state_changed)
+        self.worker.transcript_ready.connect(self._on_transcript_ready)
         self.worker.turn.connect(self._worker_turn)
+        self.worker.finished.connect(self._worker_finished)
         self.worker.error.connect(self._worker_error)
         self.worker.finished.connect(self.thread.quit)
         self.worker.error.connect(self.thread.quit)
         self.thread.finished.connect(self._worker_cleanup)
         self.thread.start()
 
+    @Slot(str)
+    def _on_worker_state_changed(self, state):
+        self._set_state(state)
+
+    @Slot(str)
+    def _on_transcript_ready(self, text):
+        self._add_message(text, True)
+
     @Slot(dict)
     def _worker_turn(self, result):
         self._add_message(result.get("text", ""), True)
         self._add_message(result.get("response", "Done."), False)
-        if self._recording:
-            self._set_busy(True, "Listening...")
 
     @Slot(dict)
     def _worker_finished(self, result):
-        if result.get("kind") == "command":
+        kind = result.get("kind")
+        if kind == "command":
             self._add_message(result.get("response", "Done."), False)
-        elif result.get("kind") == "voice":
-            text = result.get("text", "")
-            if text:
-                self._add_message(text, True)
-                self._add_message(result.get("response", "Done."), False)
-            else:
-                self._add_message("I couldn't hear a command.", False)
+        elif kind == "voice":
+            self._add_message(result.get("response", "Done."), False)
+        elif kind == "voice_end":
+            self._add_message(result.get("response", "Okay, I'll stop listening."), False)
+        elif kind == "no_speech":
+            self._add_message("No speech detected. Try again.", False)
+        elif kind == "cancelled":
+            pass
 
-        self._recording = False
-        self.voice_bar.stop_animation()
-        self.voice_bar.setEnabled(True)
-        self.voice_bar.hide()
-        self.command_input.show()
-        self.mic_btn.show()
-        self._set_busy(False, "Ready")
+        self._set_state("IDLE")
 
     @Slot(str)
     def _worker_error(self, message):
-        self._recording = False
-        self.voice_bar.stop_animation()
-        self.voice_bar.setEnabled(True)
-        self.voice_bar.hide()
-        self.command_input.show()
-        self.mic_btn.show()
-        self._set_busy(False, "Ready")
-        self._add_message("Hmm, I couldn't complete that right now. Please try again.", False)
+        self._set_state("ERROR")
+        self._add_message("Something went wrong. Please try again.", False)
+        QTimer.singleShot(2500, lambda: self._set_state("IDLE"))
 
     def _worker_cleanup(self):
         if self.thread:
@@ -1270,22 +1355,118 @@ class MainWindow(QMainWindow):
                 # still alive. It will be cleaned up when the thread exits.
                 return
 
-    def _set_busy(self, busy, text):
-        self.command_input.setEnabled(not busy)
-        if hasattr(self, "hero_robot"):
-            self.hero_robot.set_active(busy)
-        if hasattr(self, "avatar_robot"):
-            self.avatar_robot.set_active(busy)
-        if hasattr(self, "status_lbl"):
-            if busy:
-                self.status_lbl.setText(f"● {text}")
-                self.status_lbl.setStyleSheet("color: #00d2ff; font-size: 12px; font-weight: 650;")
-            else:
+    def _set_state(self, state: str, custom_text: str = None):
+        """Transition window visual elements to match current assistant/voice state."""
+        self.current_state = state
+
+        if state == "IDLE":
+            self._recording = False
+            self.command_input.show()
+            self.command_input.setEnabled(True)
+            self.voice_bar.hide()
+            self.voice_bar.stop_animation()
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Click microphone to talk")
+            if hasattr(self, "listen_btn"):
+                self.listen_btn.setText("Start Listening")
+            if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Ready to assist")
                 self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(False)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(False)
+
+        elif state == "LISTENING":
+            self._recording = True
+            self.command_input.hide()
+            self.voice_bar.show()
+            self.voice_bar.set_state("LISTENING", custom_text or "Listening...")
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Listening... Click to cancel")
+            if hasattr(self, "listen_btn"):
+                self.listen_btn.setText("Cancel Listening")
+            if hasattr(self, "status_lbl"):
+                self.status_lbl.setText("● Listening...")
+                self.status_lbl.setStyleSheet("color: #00d2ff; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(True)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(True)
+
+        elif state == "SPEECH_DETECTED":
+            self._recording = True
+            self.voice_bar.set_state("SPEECH_DETECTED", custom_text or "Listening...")
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Listening... Click to cancel")
+            if hasattr(self, "status_lbl"):
+                self.status_lbl.setText("● Listening...")
+                self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(True)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(True)
+
+        elif state == "PROCESSING":
+            self.command_input.hide()
+            self.voice_bar.show()
+            self.voice_bar.set_state("PROCESSING", custom_text or "Thinking...")
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Thinking...")
+            if hasattr(self, "listen_btn"):
+                self.listen_btn.setText("Thinking...")
+            if hasattr(self, "status_lbl"):
+                self.status_lbl.setText("● Thinking...")
+                self.status_lbl.setStyleSheet("color: #ffd600; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(True)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(True)
+
+        elif state == "SPEAKING":
+            self.command_input.hide()
+            self.voice_bar.show()
+            self.voice_bar.set_state("SPEAKING", custom_text or "Speaking...")
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Speaking...")
+            if hasattr(self, "listen_btn"):
+                self.listen_btn.setText("Speaking...")
+            if hasattr(self, "status_lbl"):
+                self.status_lbl.setText("● Speaking...")
+                self.status_lbl.setStyleSheet("color: #b388ff; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(True)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(True)
+
+        elif state == "ERROR":
+            self.voice_bar.set_state("ERROR", custom_text or "Something went wrong")
+            self.mic_btn.show()
+            self.mic_btn.setToolTip("Something went wrong")
+            if hasattr(self, "listen_btn"):
+                self.listen_btn.setText("Start Listening")
+            if hasattr(self, "status_lbl"):
+                self.status_lbl.setText("● Something went wrong")
+                self.status_lbl.setStyleSheet("color: #ff5252; font-size: 12px; font-weight: 650;")
+            if hasattr(self, "hero_robot"):
+                self.hero_robot.set_active(False)
+            if hasattr(self, "avatar_robot"):
+                self.avatar_robot.set_active(False)
+
+    def _set_busy(self, busy, text):
+        if busy:
+            self._set_state("PROCESSING", text)
+        else:
+            self._set_state("IDLE")
 
     def closeEvent(self, event):
         if getattr(self, "_really_exiting", False):
+            if self.worker is not None:
+                self.worker.cancel()
+            if self.thread is not None:
+                self.thread.quit()
+                self.thread.wait(1000)
+            self._stop_background_listener()
             event.accept()
             return
 
@@ -1299,6 +1480,11 @@ class MainWindow(QMainWindow):
         event.ignore()
 
     def _exit_app(self):
+        if self.worker is not None:
+            self.worker.cancel()
+        if self.thread is not None:
+            self.thread.quit()
+            self.thread.wait(1000)
         self._stop_background_listener()
         self.tray.hide()
         self._really_exiting = True
