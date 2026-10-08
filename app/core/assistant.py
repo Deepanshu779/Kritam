@@ -80,6 +80,14 @@ class Kritam:
                 self._speak(msg)
                 return False, msg
 
+        if intent.get("type") in self.validator.COMPUTER_ACTIONS and not intent.get("confirmed", False):
+            mutating = intent.get("type") not in {"computer_list_directory", "computer_read_file", "computer_open_path"}
+            if mutating:
+                msg = "That will change something on your computer. Please confirm the exact change first."
+                self.context.add_turn(text, intent, False)
+                self.history.add(text, intent, False)
+                return False, msg
+
         if not self.validator.validate(intent):
             msg = "I can't perform that action yet."
             self._speak(msg)
