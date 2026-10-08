@@ -48,7 +48,7 @@ class ActionValidator:
         if t in {"computer_read_file", "computer_open_path"}:
             return bool(str(intent.get("path", "")).strip())
         if t in {"computer_create_folder", "computer_write_file", "computer_delete_file"}:
-            return bool(str(intent.get("path", "").strip())) and bool(intent.get("confirmed", False))
+            return bool(str(intent.get("path", "")).strip()) and bool(intent.get("confirmed", False))
         if t in {"computer_copy_file", "computer_move_file"}:
-            return bool(str(intent.get("source", "").strip())) and bool(str(intent.get("destination", "").strip())) and bool(intent.get("confirmed", False))
+            return bool(str(intent.get("source", "")).strip()) and bool(str(intent.get("destination", "")).strip()) and bool(intent.get("confirmed", False))
         return False
