@@ -247,9 +247,17 @@ class Kritam:
             return AgentResponse(False, "Invalid agent request.", error="invalid_request").to_dict()
 
         result = self.process_text(text, speak=speak)
+        last_intent = self.context.get_last_intent() or {}
+        needs_confirmation = (
+            last_intent.get("type") in self.validator.COMPUTER_ACTIONS
+            and last_intent.get("type") not in {"computer_list_directory", "computer_read_file", "computer_open_path"}
+            and not last_intent.get("confirmed", False)
+        )
         return AgentResponse(
             success=result.get("success", False),
             response=result.get("response", ""),
+            action=last_intent or None,
+            needs_confirmation=needs_confirmation,
         ).to_dict()
 
     def process_text(self, text, speak=True):
