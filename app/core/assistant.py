@@ -17,6 +17,8 @@ from actions.browser import BrowserManager
 from actions.files import FileManager
 from actions.system import SystemManager
 from actions.registry import ActionRegistry
+from actions.computer import ComputerManager
+from brain.agent_protocol import AgentRequest, AgentResponse
 
 
 class Kritam:
@@ -40,6 +42,7 @@ class Kritam:
         self.file_manager = FileManager()
         self.system_manager = SystemManager()
         self.action_registry = ActionRegistry()
+        self.computer_manager = ComputerManager()
         self.silent_mode = False
         self._register_actions()
 
@@ -66,6 +69,8 @@ class Kritam:
         self.action_registry.register("media_play_pause", self.system_manager.handle_media_play_pause)
         self.action_registry.register("minimize_window", self.system_manager.handle_minimize_window)
         self.action_registry.register("maximize_window", self.system_manager.handle_maximize_window)
+        for action_type in self.validator.COMPUTER_ACTIONS:
+            self.action_registry.register(action_type, self.computer_manager.handle)
 
     def _handle_intent(self, text, intent):
         if intent.get("type") == "repeat_last_action":
@@ -222,6 +227,22 @@ class Kritam:
         if audio is None:
             return ""
         return self.speech_to_text.convert(audio) or ""
+
+    def process_agent_request(self, request, speak=True):
+        """Process the structured agent request envelope."""
+        if isinstance(request, AgentRequest):
+            text = request.text
+        elif isinstance(request, dict):
+            input_data = request.get("input") or {}
+            text = input_data.get("text", "")
+        else:
+            return AgentResponse(False, "Invalid agent request.", error="invalid_request").to_dict()
+
+        result = self.process_text(text, speak=speak)
+        return AgentResponse(
+            success=result.get("success", False),
+            response=result.get("response", ""),
+        ).to_dict()
 
     def process_text(self, text, speak=True):
         text = text.strip()
