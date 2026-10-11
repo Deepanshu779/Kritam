@@ -1365,10 +1365,15 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             QMessageBox.warning(self, "Could not read file", f"Kritam could not read this file: {exc}")
             return
-        prompt = f"Please help me with the attached file {os.path.basename(path)}:\\n\\n{content}"
-        self.command_input.setText(prompt)
-        self.command_input.setCursorPosition(0)
-        self.command_input.setFocus()
+        prompt = f"Please help me with the attached file {os.path.basename(path)}:\n\n{content}"
+        target_input = (
+            self.chat_input
+            if hasattr(self, "chat_input") and self.stack.currentIndex() == 1
+            else self.command_input
+        )
+        target_input.setText(prompt)
+        target_input.setCursorPosition(0)
+        target_input.setFocus()
         self.speech_bubble.setText(f"Attached {os.path.basename(path)} as text context. Review the prompt before sending.")
 
     def _send_text(self):
