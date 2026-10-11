@@ -437,4 +437,20 @@ QScrollArea {
     border: none;
     background: transparent;
 }
+
+/* Chat-first workspace */
+QWidget#chatPage { background: transparent; }
+QScrollArea#chatScroll { background: transparent; border: none; }
+QFrame#chatComposer { background: #071322; border: 1px solid #1c3c64; border-radius: 24px; }
+QLineEdit#chatInput { background: transparent; border: none; color: #f4f7ff; padding: 9px 7px; font-size: 14px; }
+QPushButton#chatUtilityButton { background: #10243a; color: #c8d7e9; border: 1px solid #1d3c5b; border-radius: 18px; min-width: 36px; min-height: 36px; }
+QPushButton#chatUtilityButton:hover { background: #183652; }
+QPushButton#chatSendButton { background: #1687ed; border: 1px solid #3aa8ff; border-radius: 18px; min-width: 38px; min-height: 38px; }
+QPushButton#chatSendButton:hover { background: #329cf8; }
+QPushButton#chatSuggestion { background: #091a2c; border: 1px solid #1a3859; color: #bdcde0; border-radius: 16px; padding: 10px 12px; }
+QPushButton#chatSuggestion:hover { background: #102844; color: white; }
+QLabel#chatUserBubble { background: #135e9e; color: #ffffff; border: 1px solid #237dc2; border-radius: 16px; padding: 12px 15px; }
+QLabel#chatAssistantBubble { background: #091729; color: #e5edf8; border: 1px solid #163456; border-radius: 16px; padding: 12px 15px; }
+QLabel#chatFootnote, QLabel#chatStatus { color: #7285a0; font-size: 11px; }
+
 """
