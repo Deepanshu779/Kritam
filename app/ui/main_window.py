@@ -875,61 +875,8 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(profile_card)
 
-        # Card 2: Quick Actions Card
-        actions_card = QFrame()
-        actions_card.setObjectName("sideCard")
-        a_layout = QVBoxLayout(actions_card)
-        a_layout.setContentsMargins(14, 14, 14, 14)
-        a_layout.setSpacing(8)
-
-        # Header with lightning icon
-        a_header = QHBoxLayout()
-        a_header.setSpacing(6)
-        light_icon = QLabel()
-        light_icon.setPixmap(render_lightning_icon(16, "#00c4ff"))
-        a_header.addWidget(light_icon)
-        a_title = QLabel("Quick Actions")
-        a_title.setObjectName("cardTitle")
-        a_header.addWidget(a_title)
-        a_header.addStretch()
-        a_layout.addLayout(a_header)
-        a_layout.addSpacing(2)
-
-        action_list = [
-            (render_chrome_icon(20), "Open Chrome", "Open Chrome"),
-            (render_folder_icon(20), "Open Downloads", "Open Downloads"),
-            (render_youtube_icon(20), "Open YouTube", "Open YouTube"),
-            (render_camera_icon(20), "Take Screenshot", "Take a screenshot"),
-            (render_note_icon(20), "Create a Note", "Remember that "),
-        ]
-
-        for icon_pm, text, cmd in action_list:
-            row_btn = QPushButton()
-            row_btn.setObjectName("quickActionRow")
-            row_btn.setFixedHeight(38)
-
-            r_layout = QHBoxLayout(row_btn)
-            r_layout.setContentsMargins(8, 4, 8, 4)
-            r_layout.setSpacing(8)
-
-            ic = QLabel()
-            ic.setFixedSize(20, 20)
-            ic.setPixmap(icon_pm)
-            r_layout.addWidget(ic)
-
-            tx = QLabel(text)
-            tx.setStyleSheet("color: #d1dfef; font-size: 13px; font-weight: 500;")
-            r_layout.addWidget(tx)
-            r_layout.addStretch()
-
-            ch = QLabel()
-            ch.setPixmap(render_chevron_right(14, "#6b829e"))
-            r_layout.addWidget(ch)
-
-            row_btn.clicked.connect(lambda checked=False, command=cmd: self._quick_command(command))
-            a_layout.addWidget(row_btn)
-
-        layout.addWidget(actions_card)
+        # Quick Actions are already available as prompt cards in the main workspace.
+        # Keep the right sidebar focused on assistant status and voice controls.
 
         # Card 3: Voice Card
         voice_card = QFrame()
