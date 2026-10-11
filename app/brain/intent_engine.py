@@ -1,6 +1,7 @@
 import json
 
 from brain.ai_provider_manager import AIProviderManager
+from core.validator import ActionValidator
 
 
 class IntentEngine:
@@ -90,4 +91,11 @@ Return ONLY JSON.
 """
         response = self.ai.ask(prompt)
         intent = self._extract_json(response)
+        # Computer operations remain unavailable until their approval is
+        # backed by a separate user-confirmation flow. Never trust a model
+        # generated `confirmed` flag as authorization.
+        if intent and intent.get("type") in ActionValidator.COMPUTER_ACTIONS:
+            return {"type": "unknown"}
         return intent if intent is not None else {"type": "unknown"}
+
+
