@@ -18,6 +18,9 @@ class ComputerSecurityPolicy:
 
     PROTECTED_NAMES = {
         ".ssh", ".aws", ".azure", ".gnupg", "credentials", "secrets",
+        ".env", ".npmrc", ".pypirc", "id_rsa", "id_ed25519", "id_ecdsa",
+        "authorized_keys", "known_hosts", "credentials.json", "secrets.json",
+        "token.json", "cookies", "login data", "web data", "local state",
     }
 
     PROTECTED_PREFIXES = (
@@ -89,5 +92,9 @@ class ComputerSecurityPolicy:
         return True, ""
 
     def allowed_read(self, path):
+        if not self.is_user_path(path):
+            return False, "I can only read files inside your user folder."
         ok, reason = self.authorize("computer_read", path=path)
         return ok, reason
+
+
