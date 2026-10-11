@@ -453,4 +453,97 @@ QLabel#chatUserBubble { background: #135e9e; color: #ffffff; border: 1px solid #
 QLabel#chatAssistantBubble { background: #091729; color: #e5edf8; border: 1px solid #163456; border-radius: 16px; padding: 12px 15px; }
 QLabel#chatFootnote, QLabel#chatStatus { color: #7285a0; font-size: 11px; }
 
+/* Conversation surface: keep the transcript integrated with the app, not a grey box. */
+QScrollArea#conversationScroll {
+    background: transparent;
+    border: 1px solid #10243b;
+    border-radius: 14px;
+}
+QScrollArea#conversationScroll > QWidget,
+QScrollArea#conversationScroll > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+QScrollArea#conversationScroll QWidget#conversationContent {
+    background: transparent;
+}
+QScrollArea#conversationScroll QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 8px 2px 8px 0;
+}
+QScrollArea#conversationScroll QScrollBar::handle:vertical {
+    background: #29435f;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QScrollArea#conversationScroll QScrollBar::handle:vertical:hover {
+    background: #3b638a;
+}
+QScrollArea#conversationScroll QScrollBar::add-line:vertical,
+QScrollArea#conversationScroll QScrollBar::sub-line:vertical {
+    height: 0;
+}
+QScrollArea#conversationScroll QScrollBar::add-page:vertical,
+QScrollArea#conversationScroll QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+QLabel#chatUserBubble {
+    background: #123e68;
+    color: #f4f9ff;
+    border: 1px solid #23669c;
+    border-radius: 16px;
+    padding: 11px 15px;
+}
+QLabel#chatAssistantBubble {
+    background: #0a1524;
+    color: #e6eef8;
+    border: 1px solid #1b3049;
+    border-radius: 16px;
+    padding: 11px 15px;
+}
+QPushButton#promptCard {
+    background: #091524;
+    border: 1px solid #182b42;
+    border-radius: 12px;
+}
+QPushButton#promptCard:hover {
+    background: #0d2035;
+    border: 1px solid #2676b6;
+}
+QFrame#sideCard {
+    background: #071321;
+    border: 1px solid #172b41;
+    border-radius: 14px;
+}
+QFrame#composerFrame {
+    background: #081321;
+    border: 1px solid #25496b;
+    border-radius: 22px;
+}
+QFrame#composerFrame:focus-within {
+    border: 1px solid #1687ed;
+}
+QPushButton#quickActionRow {
+    background: #091625;
+    border: 1px solid #172b41;
+    border-radius: 9px;
+}
+QPushButton#quickActionRow:hover {
+    background: #10243a;
+    border: 1px solid #2a6a9f;
+}
+QPushButton#nav:checked {
+    background: #103b63;
+    border: 1px solid #1b75b9;
+}
+QPushButton#startListeningButton {
+    background: #124c7b;
+    border: 1px solid #2788ce;
+}
+QPushButton#startListeningButton:hover {
+    background: #175e95;
+    border: 1px solid #42a5ec;
+}
+
 """
