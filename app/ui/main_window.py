@@ -1323,6 +1323,7 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "chat_messages_layout"):
             bubble = QLabel(str(text))
+            bubble.setTextFormat(Qt.PlainText)
             bubble.setWordWrap(True)
             bubble.setTextInteractionFlags(Qt.TextSelectableByMouse)
             bubble.setMaximumWidth(720)
@@ -1346,8 +1347,18 @@ class MainWindow(QMainWindow):
         self._light_theme = not self._light_theme
         if self._light_theme:
             self.setStyleSheet(WINDOW_STYLE + LIGHT_THEME_STYLE)
+            if hasattr(self, "chat_welcome"):
+                self.chat_welcome.setText(
+                    '<div style="font-size:30px;font-weight:700;color:#172033;">What can I help with?</div>'
+                    '<div style="font-size:14px;color:#64748b;margin-top:8px;">Ask a question, start a task, or talk to Kritam.</div>'
+                )
         else:
             self.setStyleSheet(WINDOW_STYLE)
+            if hasattr(self, "chat_welcome"):
+                self.chat_welcome.setText(
+                    '<div style="font-size:30px;font-weight:700;color:#f4f7ff;">What can I help with?</div>'
+                    '<div style="font-size:14px;color:#93a4bc;margin-top:8px;">Ask a question, start a task, or talk to Kritam.</div>'
+                )
         self.title_bar.update()
 
     def _attach_file(self):
