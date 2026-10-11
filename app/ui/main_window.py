@@ -388,6 +388,17 @@ class Worker(QObject):
                         return
 
                     if not text or not text.strip():
+                        metadata = getattr(
+                            self.assistant.speech_to_text,
+                            "last_metadata",
+                            {},
+                        )
+                        if (metadata or {}).get("error") == "model_unavailable":
+                            self.state_changed.emit("ERROR")
+                            self.error.emit(
+                                "Local speech recognition is unavailable. Check the model setup and try again."
+                            )
+                            return
                         # Ignore an unusable transcription and keep listening.
                         self.state_changed.emit("LISTENING")
                         continue
@@ -486,6 +497,16 @@ class BackgroundWorker(QObject):
             while self.running and not self.listener.stop_event.is_set():
                 command = self.listener.listen_for_command()
                 if not command:
+                    metadata = getattr(
+                        self.assistant.speech_to_text,
+                        "last_metadata",
+                        {},
+                    )
+                    if (metadata or {}).get("error") == "model_unavailable":
+                        self.error.emit(
+                            "Local speech recognition is unavailable. Check the model setup and try again."
+                        )
+                        return
                     continue
                 self.wake_detected.emit()
                 result = self.assistant.process_text(command, speak=True)
@@ -1360,8 +1381,14 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _worker_error(self, message):
-        self._set_state("ERROR")
-        self._add_message("Something went wrong. Please try again.", False)
+        safe_messages = {
+            "Local speech recognition is unavailable. Check the model setup and try again.",
+        }
+        display_message = (
+            message if message in safe_messages else "Something went wrong. Please try again."
+        )
+        self._set_state("ERROR", display_message)
+        self._add_message(display_message, False)
         QTimer.singleShot(2500, lambda: self._set_state("IDLE"))
 
     def _worker_cleanup(self):
@@ -1437,7 +1464,11 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _background_error(self, message):
-        self._set_busy(False, "Ready")
+        self._add_message(message, False)
+        self._set_state("ERROR", "Voice recognition unavailable")
+        if self.bg_thread is not None:
+            self.bg_thread.quit()
+        QTimer.singleShot(4000, lambda: self._set_state("IDLE"))
 
     def _stop_background_listener(self):
         worker = self.bg_worker
