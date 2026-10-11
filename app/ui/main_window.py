@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
+    QFileDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -57,6 +58,27 @@ from ui.mascot import KritamRobotWidget
 from ui.sidebar_art import SidebarLogoWidget, SidebarFooterArtWidget
 
 
+
+LIGHT_THEME_STYLE = """
+QWidget { color: #172033; }
+QMainWindow, QFrame#rootWindowFrame, QWidget#homePage { background: #f4f7fb; }
+QFrame#customTitleBar { background: #eaf0f8; border-bottom: 1px solid #d9e2ee; }
+QLabel#titleBarTitle, QLabel#centerHeaderTitle, QLabel#heroHeadline, QLabel#sectionTitle,
+QLabel#cardTitle, QLabel#profileName, QLabel#pageHeading { color: #172033; }
+QLabel#centerHeaderSub, QLabel#heroBody, QLabel#mutedText, QLabel#settingLabel,
+QLabel#promptCardSub, QLabel#chipLabel { color: #64748b; }
+QFrame#sidebar, QFrame#sideCard, QFrame#detailCard { background: #ffffff; border: 1px solid #dce4ef; }
+QPushButton#nav { color: #526078; }
+QPushButton#nav:hover, QPushButton#promptCard:hover, QPushButton#quickActionRow:hover { background: #eaf2ff; color: #172033; }
+QPushButton#promptCard, QPushButton#quickActionRow { background: #ffffff; border-color: #dce4ef; }
+QFrame#composerFrame { background: #ffffff; border: 1px solid #c8d5e5; }
+QLineEdit#composerInput { color: #172033; }
+QLabel#speechBubble { background: #f1f5fb; color: #334155; border-color: #dce4ef; }
+QLineEdit#settingsInput, QComboBox#settingsCombo { background: #ffffff; color: #172033; border-color: #cbd5e1; }
+QPushButton#secondaryActionButton { background: #f1f5fb; color: #334155; border-color: #dce4ef; }
+QFrame#featureChip { background: #eef4fc; border-color: #dce4ef; }
+"""
+
 class CustomTitleBar(QFrame):
     """Frameless custom title bar with window controls and draggable header."""
 
@@ -93,6 +115,7 @@ class CustomTitleBar(QFrame):
         theme_btn.setObjectName("titleBarBtn")
         theme_btn.setToolTip("Toggle Theme")
         theme_btn.setFixedSize(28, 26)
+        theme_btn.clicked.connect(self.parent_window._toggle_theme)
         layout.addWidget(theme_btn)
 
         min_btn = QPushButton("—")
@@ -487,6 +510,7 @@ class MainWindow(QMainWindow):
         self._recording = False
         self._resume_background_after_voice = False
         self.current_state = "IDLE"
+        self._light_theme = False
 
         self._build_ui()
         self._setup_tray()
@@ -703,7 +727,8 @@ class MainWindow(QMainWindow):
         self.attach_btn.setFocusPolicy(Qt.NoFocus)
         self.attach_btn.setFixedSize(38, 38)
         self.attach_btn.setIcon(QIcon(render_paperclip_icon(20)))
-        self.attach_btn.setToolTip("Attach file or context")
+        self.attach_btn.setToolTip("Attach a text or code file as context")
+        self.attach_btn.clicked.connect(self._attach_file)
         c_layout.addWidget(self.attach_btn)
 
         # Text input field
@@ -1218,6 +1243,44 @@ class MainWindow(QMainWindow):
             if "No messages yet" in cur:
                 cur = ""
             self.chat_history_label.setText(cur + f"\n{prefix}{text}\n")
+
+    def _toggle_theme(self):
+        """Switch between the default dark interface and a readable light theme."""
+        self._light_theme = not self._light_theme
+        if self._light_theme:
+            self.setStyleSheet(WINDOW_STYLE + LIGHT_THEME_STYLE)
+        else:
+            self.setStyleSheet(WINDOW_STYLE)
+        self.title_bar.update()
+
+    def _attach_file(self):
+        """Add a small text/code file to the next prompt as explicit context."""
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Attach text or code file",
+            os.path.expanduser("~"),
+            "Text and code files (*.txt *.md *.py *.json *.csv *.log *.html *.css *.js *.ts);;All files (*)",
+        )
+        if not path:
+            return
+        allowed_suffixes = {".txt", ".md", ".py", ".json", ".csv", ".log", ".html", ".css", ".js", ".ts"}
+        if os.path.splitext(path)[1].lower() not in allowed_suffixes:
+            QMessageBox.information(
+                self, "Unsupported attachment",
+                "For this demo, attach a text or code file (TXT, MD, PY, JSON, CSV, LOG, HTML, CSS, JS or TS).",
+            )
+            return
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                content = handle.read(12000)
+        except OSError as exc:
+            QMessageBox.warning(self, "Could not read file", f"Kritam could not read this file: {exc}")
+            return
+        prompt = f"Please help me with the attached file {os.path.basename(path)}:\\n\\n{content}"
+        self.command_input.setText(prompt)
+        self.command_input.setCursorPosition(0)
+        self.command_input.setFocus()
+        self.speech_bubble.setText(f"Attached {os.path.basename(path)} as text context. Review the prompt before sending.")
 
     def _send_text(self):
         command = self.command_input.text().strip()
