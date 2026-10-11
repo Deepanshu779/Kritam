@@ -247,6 +247,20 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
         self.assertNotIn("RuntimeError", errors[0])
         self.assertNotIn("Traceback", errors[0])
 
+    def test_model_unavailable_is_reported_and_stops_voice_loop(self):
+        assistant = FakeAssistant(audio_data=b"valid_audio", stt_text="")
+        assistant.speech_to_text.last_metadata = {"error": "model_unavailable"}
+        worker = Worker(assistant, listen=True)
+        errors = []
+        worker.error.connect(errors.append)
+
+        worker.run()
+
+        self.assertEqual(
+            errors,
+            ["Local speech recognition is unavailable. Check the model setup and try again."],
+        )
+
 
 class TestMainWindowVoiceStateMachine(unittest.TestCase):
     @classmethod
