@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 import sys
 from pathlib import Path
@@ -49,6 +50,18 @@ class TestValidator(unittest.TestCase):
         self.assertTrue(self.validator.validate({"type": "browser_open_result", "number": "3"}))
         self.assertFalse(self.validator.validate({"type": "browser_open_result", "number": 10}))
         self.assertFalse(self.validator.validate({"type": "browser_open_result", "number": "invalid"}))
+
+    def test_malformed_model_fields_are_rejected(self):
+        malformed = (
+            {"type": "open_application", "application": 7},
+            {"type": "search_web", "query": ["private"]},
+            {"type": "browser_open_result", "number": True},
+            {"type": None},
+            None,
+        )
+        for intent in malformed:
+            with self.subTest(intent=intent):
+                self.assertFalse(self.validator.validate(intent))
 
     def test_blocked_intents(self):
         self.assertFalse(self.validator.validate({"type": "execute_shell"}))
@@ -177,6 +190,29 @@ class TestSettings(unittest.TestCase):
         reloaded = Settings(path=self.settings_path)
         self.assertEqual(reloaded.get("assistant_name"), "Maya")
 
+    def test_rejects_invalid_values_and_unknown_keys(self):
+        self.assertFalse(self.settings.set("voice_rate", True))
+        self.assertFalse(self.settings.set("voice_rate", 500))
+        self.assertFalse(self.settings.set("unknown", "value"))
+        self.assertEqual(self.settings.get("voice_rate"), 170)
+
+    def test_load_ignores_invalid_and_unknown_values(self):
+        with open(self.settings_path, "w", encoding="utf-8") as file:
+            file.write('{"assistant_name": 42, "voice_rate": true, "unknown": "x"}')
+
+        reloaded = Settings(path=self.settings_path)
+        self.assertEqual(reloaded.get("assistant_name"), "Kritam")
+        self.assertEqual(reloaded.get("voice_rate"), 170)
+        self.assertIsNone(reloaded.get("unknown"))
+
+    def test_failed_multi_setting_update_rolls_back(self):
+        previous = dict(self.settings.data)
+        with patch.object(self.settings, "save", return_value=False):
+            self.assertFalse(
+                self.settings.update({"assistant_name": "Maya", "voice_rate": 180})
+            )
+        self.assertEqual(self.settings.data, previous)
+
 
 class TestLocalAuth(unittest.TestCase):
 
@@ -207,6 +243,29 @@ class TestLocalAuth(unittest.TestCase):
 
 
 class TestAssistantProcessText(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls._test_home = tempfile.TemporaryDirectory(prefix="kritam-profile-")
+        cls._home_patch = patch.dict(
+            os.environ,
+            {"HOME": cls._test_home.name, "USERPROFILE": cls._test_home.name},
+        )
+        cls._home_patch.start()
+        cls._stt_patch = patch("core.assistant.SpeechToText", return_value=MagicMock())
+        cls._tts_patch = patch(
+            "core.assistant.TextToSpeech",
+            return_value=MagicMock(engine=None),
+        )
+        cls._stt_patch.start()
+        cls._tts_patch.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._tts_patch.stop()
+        cls._stt_patch.stop()
+        cls._home_patch.stop()
+        cls._test_home.cleanup()
 
     def test_conversational_response_preserved(self):
         from core.assistant import Kritam
@@ -259,6 +318,16 @@ class TestIntentEngine(unittest.TestCase):
         self.assertEqual(intent.get("type"), "browser_search")
         self.assertEqual(intent.get("query"), "Python tutorials")
 
+    def test_model_cannot_authorize_computer_actions(self):
+        mock = self.MockAIProviderManager(
+            '{"type":"computer_delete_file","path":"C:/Users/test/file.txt","confirmed":true}'
+        )
+        self.engine.ai = mock
+        self.assertEqual(
+            self.engine.understand("delete the file"),
+            {"type": "unknown"},
+        )
+
     def test_correction(self):
         mock = self.MockAIProviderManager(
             '{"type": "open_application", "application": "chrome"}'
@@ -308,4 +377,6 @@ class TestIntentEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 

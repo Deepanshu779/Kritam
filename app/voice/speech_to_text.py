@@ -1,9 +1,9 @@
 import os
 import re
+import threading
 
 import numpy as np
 import speech_recognition as sr
-from faster_whisper import WhisperModel
 
 from voice.transcript_validator import TranscriptValidator
 from voice.audio_processor import AudioProcessor
@@ -15,18 +15,37 @@ class SpeechToText:
     def __init__(self):
         self.recognizer = sr.Recognizer()
         model_name = os.getenv("KRITAM_WHISPER_MODEL", "base")
-        self.model = WhisperModel(
-            model_name,
-            device=os.getenv("KRITAM_WHISPER_DEVICE", "cpu"),
-            compute_type=os.getenv("KRITAM_WHISPER_COMPUTE", "int8"),
-            cpu_threads=int(os.getenv("KRITAM_WHISPER_THREADS", "4")),
-            num_workers=1,
-        )
+        self.model_name = model_name
+        self.model = None
+        self._model_error = None
+        self._model_lock = threading.Lock()
         self.validator = TranscriptValidator()
         self.audio_processor = AudioProcessor(min_speech_duration_s=0.45)
         self.last_language = None
         self.last_language_probability = 0.0
         self.last_metadata = {}
+
+    def _ensure_model(self):
+        """Load Whisper on first voice use so text mode starts without downloads."""
+        if self.model is not None or self._model_error is not None:
+            return self.model
+        with self._model_lock:
+            if self.model is not None or self._model_error is not None:
+                return self.model
+            try:
+                from faster_whisper import WhisperModel
+
+                self.model = WhisperModel(
+                    self.model_name,
+                    device=os.getenv("KRITAM_WHISPER_DEVICE", "cpu"),
+                    compute_type=os.getenv("KRITAM_WHISPER_COMPUTE", "int8"),
+                    cpu_threads=int(os.getenv("KRITAM_WHISPER_THREADS", "4")),
+                    num_workers=1,
+                )
+            except Exception as error:
+                self._model_error = error
+                print(f"Local STT model unavailable: {type(error).__name__}")
+            return self.model
 
     @staticmethod
     def _clean(text):
@@ -77,7 +96,13 @@ class SpeechToText:
                 f"rms={post_rms:.4f}"
             )
 
-            segments, info = self.model.transcribe(
+            model = self._ensure_model()
+            if model is None:
+                metadata = {"valid": False, "error": "model_unavailable"}
+                self.last_metadata = metadata
+                return "", metadata
+
+            segments, info = model.transcribe(
                 samples,
                 language=None,
                 task="transcribe",
@@ -159,3 +184,5 @@ class SpeechToText:
         """Compatibility wrapper returning only the transcript."""
         text, _ = self.convert_with_metadata(audio)
         return text
+
+

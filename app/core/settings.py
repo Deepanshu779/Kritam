@@ -83,13 +83,19 @@ class Settings:
         return self.data.get(key, default)
 
     def set(self, key, value):
-        if not self._is_valid(key, value):
+        return self.update({key: value})
+
+    def update(self, values):
+        """Persist a group of settings as one validated, atomic change."""
+        if not isinstance(values, dict) or any(
+            not self._is_valid(key, value) for key, value in values.items()
+        ):
             return False
-        previous = self.data[key]
-        self.data[key] = value
+        previous = dict(self.data)
+        self.data.update(values)
         if self.save():
             return True
-        self.data[key] = previous
+        self.data = previous
         return False
 
     def reset(self):
@@ -99,3 +105,5 @@ class Settings:
             return True
         self.data = previous
         return False
+
+

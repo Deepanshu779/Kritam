@@ -322,11 +322,9 @@ Task status
 AI status
 ```
 
-## September 2026 Deadline Plan
+## Release readiness
 
-The current focus is a stable working prototype before the end-of-September deadline. New features are frozen unless they directly improve reliability, safety, testing, or release readiness.
-
-### Final priorities
+Kritam is still in active development and has not published a public release. Current release-readiness priorities are:
 
 1. Desktop GUI integration
 2. Safety and controlled actions
@@ -395,3 +393,5 @@ This separation is central to Kritam's architecture.
 ## License
 
 License information will be added before the first public release.
+
+

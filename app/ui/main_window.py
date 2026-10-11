@@ -338,6 +338,12 @@ class Worker(QObject):
     @Slot()
     def run(self):
         try:
+            # A cancel request can arrive before the QThread starts. Treat it
+            # as cancellation instead of falling through as a successful end.
+            if self.cancelled:
+                self.finished.emit({"kind": "cancelled"})
+                return
+
             if self.listen:
                 # Persistent conversation mode:
                 # LISTENING -> capture -> PROCESSING -> SPEAKING -> LISTENING ...
@@ -382,6 +388,17 @@ class Worker(QObject):
                         return
 
                     if not text or not text.strip():
+                        metadata = getattr(
+                            self.assistant.speech_to_text,
+                            "last_metadata",
+                            {},
+                        )
+                        if (metadata or {}).get("error") == "model_unavailable":
+                            self.state_changed.emit("ERROR")
+                            self.error.emit(
+                                "Local speech recognition is unavailable. Check the model setup and try again."
+                            )
+                            return
                         # Ignore an unusable transcription and keep listening.
                         self.state_changed.emit("LISTENING")
                         continue
@@ -480,6 +497,16 @@ class BackgroundWorker(QObject):
             while self.running and not self.listener.stop_event.is_set():
                 command = self.listener.listen_for_command()
                 if not command:
+                    metadata = getattr(
+                        self.assistant.speech_to_text,
+                        "last_metadata",
+                        {},
+                    )
+                    if (metadata or {}).get("error") == "model_unavailable":
+                        self.error.emit(
+                            "Local speech recognition is unavailable. Check the model setup and try again."
+                        )
+                        return
                     continue
                 self.wake_detected.emit()
                 result = self.assistant.process_text(command, speak=True)
@@ -626,6 +653,12 @@ class MainWindow(QMainWindow):
         layout.addLayout(header_layout)
         layout.addSpacing(6)
 
+        self.welcome_panel = QWidget()
+        self.welcome_panel.setObjectName("welcomePanel")
+        welcome_layout = QVBoxLayout(self.welcome_panel)
+        welcome_layout.setContentsMargins(0, 0, 0, 0)
+        welcome_layout.setSpacing(8)
+
         # Hero Section: Left Headline + Right 3D Mascot Robot
         hero_layout = QHBoxLayout()
         hero_layout.setSpacing(16)
@@ -657,13 +690,12 @@ class MainWindow(QMainWindow):
         self.hero_robot = KritamRobotWidget(compact=False)
         hero_layout.addWidget(self.hero_robot, 0, Qt.AlignCenter)
 
-        layout.addLayout(hero_layout)
-        layout.addSpacing(4)
+        welcome_layout.addLayout(hero_layout)
 
         # Section Header: "Try asking me something..."
         section_title = QLabel("Try asking me something...")
         section_title.setObjectName("sectionTitle")
-        layout.addWidget(section_title)
+        welcome_layout.addWidget(section_title)
 
         # 2x3 Grid of Prompt Cards
         grid = QGridLayout()
@@ -713,8 +745,8 @@ class MainWindow(QMainWindow):
             card_btn.clicked.connect(lambda checked=False, command=cmd: self._quick_command(command))
             grid.addWidget(card_btn, row, col)
 
-        layout.addLayout(grid)
-        layout.addSpacing(4)
+        welcome_layout.addLayout(grid)
+        layout.addWidget(self.welcome_panel)
 
         # One persistent history for both typed commands and voice turns.
         self.conversation_scroll = QScrollArea()
@@ -897,7 +929,7 @@ class MainWindow(QMainWindow):
         v_header.addStretch()
         v_layout.addLayout(v_header)
 
-        # Voice Selector dropdown simulation
+        # The current TTS backend follows the installed system voice.
         voice_sel = QFrame()
         voice_sel.setObjectName("voiceSelector")
         vs_layout = QHBoxLayout(voice_sel)
@@ -908,14 +940,10 @@ class MainWindow(QMainWindow):
         mic_ic.setPixmap(render_mic_icon(16, "#829ebf"))
         vs_layout.addWidget(mic_ic)
 
-        vs_text = QLabel("Kritam (Female)")
+        vs_text = QLabel("System default voice")
         vs_text.setObjectName("voiceSelectorText")
         vs_layout.addWidget(vs_text)
         vs_layout.addStretch()
-
-        down_ch = QLabel()
-        down_ch.setPixmap(render_chevron_down(14, "#748aa5"))
-        vs_layout.addWidget(down_ch)
         v_layout.addWidget(voice_sel)
 
         # Big Start Listening button
@@ -1106,13 +1134,30 @@ class MainWindow(QMainWindow):
         wake_enabled = self.settings_wake.isChecked()
         startup_enabled = self.settings_startup.isChecked()
 
-        self.assistant.settings.set("assistant_name", name)
-        self.assistant.settings.set("language", language)
-        self.assistant.settings.set("voice_rate", rate)
-        self.assistant.settings.set("wake_word_enabled", wake_enabled)
-        self.assistant.settings.set("start_with_windows", startup_enabled)
+        updates = {
+            "assistant_name": name,
+            "language": language,
+            "voice_rate": rate,
+            "wake_word_enabled": wake_enabled,
+            "start_with_windows": startup_enabled,
+        }
+        if not self.assistant.settings.update(updates):
+            self.speech_bubble.setText("I couldn't save all settings. Please try again.")
+            self._set_busy(False, "Ready")
+            return
+
         self.assistant.name = name
-        self.assistant.text_to_speech.engine.setProperty("rate", rate)
+        engine = getattr(self.assistant.text_to_speech, "engine", None)
+        if engine is not None:
+            try:
+                engine.setProperty("rate", rate)
+            except Exception:
+                # Keep the saved preference; voice output may be unavailable
+                # on this machine or its audio backend may have failed.
+                pass
+
+        if self.bg_worker is not None:
+            self.bg_worker.listener.set_assistant_name(name)
 
         if wake_enabled and self.bg_thread is None:
             self._start_background_listener()
@@ -1184,6 +1229,8 @@ class MainWindow(QMainWindow):
 
     def _add_message(self, text, is_user):
         """Render each turn in the one visible conversation history."""
+        if is_user and hasattr(self, "welcome_panel"):
+            self.welcome_panel.hide()
         if hasattr(self, "speech_bubble") and not is_user:
             self.speech_bubble.setText(str(text))
         if not hasattr(self, "conversation_messages_layout"):
@@ -1334,8 +1381,14 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _worker_error(self, message):
-        self._set_state("ERROR")
-        self._add_message("Something went wrong. Please try again.", False)
+        safe_messages = {
+            "Local speech recognition is unavailable. Check the model setup and try again.",
+        }
+        display_message = (
+            message if message in safe_messages else "Something went wrong. Please try again."
+        )
+        self._set_state("ERROR", display_message)
+        self._add_message(display_message, False)
         QTimer.singleShot(2500, lambda: self._set_state("IDLE"))
 
     def _worker_cleanup(self):
@@ -1411,7 +1464,11 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _background_error(self, message):
-        self._set_busy(False, "Ready")
+        self._add_message(message, False)
+        self._set_state("ERROR", "Voice recognition unavailable")
+        if self.bg_thread is not None:
+            self.bg_thread.quit()
+        QTimer.singleShot(4000, lambda: self._set_state("IDLE"))
 
     def _stop_background_listener(self):
         worker = self.bg_worker
@@ -1563,3 +1620,5 @@ class MainWindow(QMainWindow):
         self.tray.hide()
         self._really_exiting = True
         self.close()
+
+
