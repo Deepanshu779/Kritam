@@ -547,10 +547,9 @@ class MainWindow(QMainWindow):
         # Left Sidebar
         body_layout.addWidget(self._build_sidebar())
 
-        # Center Main Stack (Home, Chat, Settings)
+        # One conversational workspace plus Settings. No duplicate chat page.
         self.stack = QStackedWidget()
         self.stack.addWidget(self._build_home_page())
-        self.stack.addWidget(self._build_chat_page())
         self.stack.addWidget(self._build_settings_page())
         body_layout.addWidget(self.stack, 1)
 
@@ -559,7 +558,7 @@ class MainWindow(QMainWindow):
 
         root_layout.addWidget(body_widget, 1)
         self.setCentralWidget(self.root_frame)
-        self._select_page(1)  # Open directly into the conversational workspace.
+        self._select_page(0)  # Open directly into the single conversational workspace.
 
     # =========================================================================
     # LEFT SIDEBAR
@@ -581,9 +580,8 @@ class MainWindow(QMainWindow):
         # Navigation menu buttons
         self.nav_buttons = []
         nav_items = [
-            ("Home", "home", 0),
-            ("Chat", "chat", 1),
-            ("Settings", "settings", 2),
+            ("Chat", "chat", 0),
+            ("Settings", "settings", 1),
         ]
 
         for label, icon_name, index in nav_items:
@@ -716,7 +714,22 @@ class MainWindow(QMainWindow):
             grid.addWidget(card_btn, row, col)
 
         layout.addLayout(grid)
-        layout.addSpacing(6)
+        layout.addSpacing(4)
+
+        # One persistent history for both typed commands and voice turns.
+        self.conversation_scroll = QScrollArea()
+        self.conversation_scroll.setObjectName("conversationScroll")
+        self.conversation_scroll.setWidgetResizable(True)
+        self.conversation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.conversation_scroll.setMinimumHeight(90)
+        self.conversation_scroll.setMaximumHeight(210)
+        self.conversation_content = QWidget()
+        self.conversation_messages_layout = QVBoxLayout(self.conversation_content)
+        self.conversation_messages_layout.setContentsMargins(8, 8, 8, 8)
+        self.conversation_messages_layout.setSpacing(10)
+        self.conversation_messages_layout.addStretch(1)
+        self.conversation_scroll.setWidget(self.conversation_content)
+        layout.addWidget(self.conversation_scroll, 1)
 
         # Composer / Input Capsule
         composer_container = QVBoxLayout()
@@ -973,105 +986,7 @@ class MainWindow(QMainWindow):
     # =========================================================================
     # SECONDARY PAGES (Chat, Tasks, Memory, Settings)
     # =========================================================================
-    def _build_chat_page(self):
-        """A focused conversational workspace inspired by modern AI chat apps."""
-        page = QWidget()
-        page.setObjectName("chatPage")
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(22, 18, 22, 16)
-        layout.setSpacing(12)
-
-        header = QHBoxLayout()
-        title_box = QVBoxLayout()
-        title_box.setSpacing(3)
-        title = QLabel("KRITAM")
-        title.setObjectName("centerHeaderTitle")
-        subtitle = QLabel("Your Personal AI Assistant")
-        subtitle.setObjectName("centerHeaderSub")
-        title_box.addWidget(title)
-        title_box.addWidget(subtitle)
-        header.addLayout(title_box)
-        header.addStretch()
-        self.chat_status = QLabel("● Ready")
-        self.chat_status.setObjectName("chatStatus")
-        header.addWidget(self.chat_status)
-        layout.addLayout(header)
-
-        self.chat_scroll = QScrollArea()
-        self.chat_scroll.setWidgetResizable(True)
-        self.chat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.chat_scroll.setObjectName("chatScroll")
-        self.chat_content = QWidget()
-        self.chat_messages_layout = QVBoxLayout(self.chat_content)
-        self.chat_messages_layout.setContentsMargins(10, 20, 10, 20)
-        self.chat_messages_layout.setSpacing(14)
-        self.chat_messages_layout.addStretch(1)
-
-        self.chat_welcome = QLabel(
-            '<div style="font-size:30px;font-weight:700;color:#f4f7ff;">What can I help with?</div>'
-            '<div style="font-size:14px;color:#93a4bc;margin-top:8px;">Ask a question, start a task, or talk to Kritam.</div>'
-        )
-        self.chat_welcome.setTextFormat(Qt.RichText)
-        self.chat_welcome.setAlignment(Qt.AlignCenter)
-        self.chat_welcome.setMinimumHeight(190)
-        self.chat_messages_layout.insertWidget(0, self.chat_welcome)
-        self.chat_scroll.setWidget(self.chat_content)
-        layout.addWidget(self.chat_scroll, 1)
-
-        suggestions = QHBoxLayout()
-        suggestions.setSpacing(8)
-        for label, prompt in [
-            ("Explain a topic", "Explain a computer science topic in simple words"),
-            ("Help with code", "Help me debug a Python program"),
-            ("What can you do?", "What can you help me with?"),
-        ]:
-            button = QPushButton(label)
-            button.setObjectName("chatSuggestion")
-            button.clicked.connect(lambda checked=False, value=prompt: self._send_chat_prompt(value))
-            suggestions.addWidget(button)
-        layout.addLayout(suggestions)
-
-        composer = QFrame()
-        composer.setObjectName("chatComposer")
-        composer_layout = QHBoxLayout(composer)
-        composer_layout.setContentsMargins(12, 8, 8, 8)
-        composer_layout.setSpacing(10)
-        self.chat_input = QLineEdit()
-        self.chat_input.setObjectName("chatInput")
-        self.chat_input.setPlaceholderText("Message Kritam…")
-        self.chat_input.returnPressed.connect(self._send_text)
-        composer_layout.addWidget(self.chat_input, 1)
-        self.chat_attach_btn = QPushButton("＋")
-        self.chat_attach_btn.setObjectName("chatUtilityButton")
-        self.chat_attach_btn.setToolTip("Attach a text or code file")
-        self.chat_attach_btn.clicked.connect(self._attach_file)
-        composer_layout.addWidget(self.chat_attach_btn)
-        self.chat_mic_btn = QPushButton()
-        self.chat_mic_btn.setObjectName("chatUtilityButton")
-        self.chat_mic_btn.setIcon(QIcon(render_mic_icon(18)))
-        self.chat_mic_btn.setToolTip("Start voice conversation")
-        self.chat_mic_btn.clicked.connect(self._toggle_voice_input)
-        composer_layout.addWidget(self.chat_mic_btn)
-        self.chat_send_btn = QPushButton()
-        self.chat_send_btn.setObjectName("chatSendButton")
-        self.chat_send_btn.setIcon(QIcon(render_send_icon(18)))
-        self.chat_send_btn.setToolTip("Send message")
-        self.chat_send_btn.clicked.connect(self._send_text)
-        composer_layout.addWidget(self.chat_send_btn)
-        layout.addWidget(composer)
-
-        footnote = QLabel("Kritam can make mistakes. Check important information before acting.")
-        footnote.setObjectName("chatFootnote")
-        footnote.setAlignment(Qt.AlignCenter)
-        layout.addWidget(footnote)
-        return page
-
-    def _send_chat_prompt(self, prompt):
-        self.chat_input.setText(prompt)
-        self.chat_input.setFocus()
-        self._send_text()
-
-    def _build_settings_page(self):
+    # The Home layout is the single conversational workspace.\n\n    def _build_settings_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(16, 16, 16, 16)
@@ -1318,47 +1233,29 @@ class MainWindow(QMainWindow):
             self._send_text()
 
     def _add_message(self, text, is_user):
+        """Render each turn in the one visible conversation history."""
         if hasattr(self, "speech_bubble") and not is_user:
-            self.speech_bubble.setText(text)
+            self.speech_bubble.setText(str(text))
+        if not hasattr(self, "conversation_messages_layout"):
+            return
 
-        if hasattr(self, "chat_messages_layout"):
-            bubble = QLabel(str(text))
-            bubble.setTextFormat(Qt.PlainText)
-            bubble.setWordWrap(True)
-            bubble.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            bubble.setMaximumWidth(720)
-            bubble.setObjectName("chatUserBubble" if is_user else "chatAssistantBubble")
-            alignment = Qt.AlignRight if is_user else Qt.AlignLeft
-            insert_at = max(0, self.chat_messages_layout.count() - 1)
-            self.chat_messages_layout.insertWidget(insert_at, bubble, 0, alignment)
-            if hasattr(self, "chat_welcome"):
-                self.chat_welcome.hide()
-            QTimer.singleShot(30, lambda: self.chat_scroll.verticalScrollBar().setValue(
-                self.chat_scroll.verticalScrollBar().maximum()
-            ))
-
-        if hasattr(self, "chat_status"):
-            self.chat_status.setText(
-                "● Thinking" if self.current_state == "PROCESSING" else "● Ready"
-            )
+        bubble = QLabel(str(text))
+        bubble.setTextFormat(Qt.PlainText)
+        bubble.setWordWrap(True)
+        bubble.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        bubble.setMaximumWidth(760)
+        bubble.setObjectName("chatUserBubble" if is_user else "chatAssistantBubble")
+        alignment = Qt.AlignRight if is_user else Qt.AlignLeft
+        insert_at = max(0, self.conversation_messages_layout.count() - 1)
+        self.conversation_messages_layout.insertWidget(insert_at, bubble, 0, alignment)
+        QTimer.singleShot(30, lambda: self.conversation_scroll.verticalScrollBar().setValue(
+            self.conversation_scroll.verticalScrollBar().maximum()
+        ))
 
     def _toggle_theme(self):
         """Switch between the default dark interface and a readable light theme."""
         self._light_theme = not self._light_theme
-        if self._light_theme:
-            self.setStyleSheet(WINDOW_STYLE + LIGHT_THEME_STYLE)
-            if hasattr(self, "chat_welcome"):
-                self.chat_welcome.setText(
-                    '<div style="font-size:30px;font-weight:700;color:#172033;">What can I help with?</div>'
-                    '<div style="font-size:14px;color:#64748b;margin-top:8px;">Ask a question, start a task, or talk to Kritam.</div>'
-                )
-        else:
-            self.setStyleSheet(WINDOW_STYLE)
-            if hasattr(self, "chat_welcome"):
-                self.chat_welcome.setText(
-                    '<div style="font-size:30px;font-weight:700;color:#f4f7ff;">What can I help with?</div>'
-                    '<div style="font-size:14px;color:#93a4bc;margin-top:8px;">Ask a question, start a task, or talk to Kritam.</div>'
-                )
+        self.setStyleSheet(WINDOW_STYLE + LIGHT_THEME_STYLE if self._light_theme else WINDOW_STYLE)
         self.title_bar.update()
 
     def _attach_file(self):
@@ -1396,18 +1293,11 @@ class MainWindow(QMainWindow):
         self.speech_bubble.setText(f"Attached {os.path.basename(path)} as text context. Review the prompt before sending.")
 
     def _send_text(self):
-        # Home and Chat share the same assistant/worker pipeline.
-        active_input = (
-            self.chat_input
-            if hasattr(self, "chat_input") and self.stack.currentIndex() == 1
-            else self.command_input
-        )
-        command = active_input.text().strip()
+        """Submit text from the single, primary composer."""
+        command = self.command_input.text().strip()
         if not command or self.thread is not None:
             return
-        active_input.clear()
-        if hasattr(self, "chat_welcome"):
-            self.chat_welcome.hide()
+        self.command_input.clear()
         self._add_message(command, True)
         self._set_state("PROCESSING", "Thinking...")
         self._start_worker(command=command)
@@ -1593,21 +1483,6 @@ class MainWindow(QMainWindow):
     def _set_state(self, state: str, custom_text: str = None):
         """Transition window visual elements to match current assistant/voice state."""
         self.current_state = state
-        if hasattr(self, "chat_status"):
-            status_text = {
-                "IDLE": "● Ready",
-                "LISTENING": "● Listening",
-                "SPEECH_DETECTED": "● Hearing you",
-                "PROCESSING": "● Thinking",
-                "SPEAKING": "● Speaking",
-                "ERROR": "● Needs attention",
-            }.get(state, "● Ready")
-            self.chat_status.setText(status_text)
-        if hasattr(self, "chat_input"):
-            self.chat_input.setEnabled(state in {"IDLE", "ERROR"})
-        if hasattr(self, "chat_send_btn"):
-            self.chat_send_btn.setEnabled(state in {"IDLE", "ERROR"})
-
         if state == "IDLE":
             self._recording = False
             self.command_input.show()
