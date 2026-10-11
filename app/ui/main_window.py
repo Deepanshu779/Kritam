@@ -1483,21 +1483,6 @@ class MainWindow(QMainWindow):
     def _set_state(self, state: str, custom_text: str = None):
         """Transition window visual elements to match current assistant/voice state."""
         self.current_state = state
-        if hasattr(self, "chat_status"):
-            status_text = {
-                "IDLE": "● Ready",
-                "LISTENING": "● Listening",
-                "SPEECH_DETECTED": "● Hearing you",
-                "PROCESSING": "● Thinking",
-                "SPEAKING": "● Speaking",
-                "ERROR": "● Needs attention",
-            }.get(state, "● Ready")
-            self.chat_status.setText(status_text)
-        if hasattr(self, "chat_input"):
-            self.chat_input.setEnabled(state in {"IDLE", "ERROR"})
-        if hasattr(self, "chat_send_btn"):
-            self.chat_send_btn.setEnabled(state in {"IDLE", "ERROR"})
-
         if state == "IDLE":
             self._recording = False
             self.command_input.show()
