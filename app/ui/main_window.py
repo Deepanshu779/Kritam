@@ -986,7 +986,9 @@ class MainWindow(QMainWindow):
     # =========================================================================
     # SECONDARY PAGES (Chat, Tasks, Memory, Settings)
     # =========================================================================
-    # The Home layout is the single conversational workspace.\n\n    def _build_settings_page(self):
+    # The Home layout is the single conversational workspace.
+
+    def _build_settings_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(16, 16, 16, 16)
