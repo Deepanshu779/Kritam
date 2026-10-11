@@ -1,4 +1,4 @@
-"""Persistent, validated application settings stored on the local machine."""
+"""Persistent application settings stored on the local machine."""
 
 import json
 import os
@@ -24,6 +24,16 @@ class Settings:
         self.data = dict(self.DEFAULTS)
         self._load()
 
+    @classmethod
+    def _is_valid(cls, key, value):
+        if key not in cls.DEFAULTS:
+            return False
+        if key in {"assistant_name", "language"}:
+            return isinstance(value, str) and bool(value.strip()) and len(value) <= 80
+        if key == "voice_rate":
+            return isinstance(value, int) and not isinstance(value, bool) and 80 <= value <= 300
+        return isinstance(value, bool)
+
     def _load(self):
         try:
             if os.path.isfile(self.path):
@@ -31,7 +41,11 @@ class Settings:
                     loaded = json.load(file)
                 if isinstance(loaded, dict):
                     self.data.update(
-                        {key: value for key, value in loaded.items() if key in self.DEFAULTS}
+                        {
+                            key: value
+                            for key, value in loaded.items()
+                            if self._is_valid(key, value)
+                        }
                     )
         except (OSError, json.JSONDecodeError):
             self.data = dict(self.DEFAULTS)
@@ -69,7 +83,7 @@ class Settings:
         return self.data.get(key, default)
 
     def set(self, key, value):
-        if key not in self.DEFAULTS:
+        if not self._is_valid(key, value):
             return False
         previous = self.data[key]
         self.data[key] = value
