@@ -21,10 +21,17 @@ class FakeAudioListener:
         self.audio_data = audio_data
         self.should_raise = should_raise
         self.speech_callback_invoked = False
+        self.calls = 0
+        self.on_repeat = None
 
     def listen_until_stopped(self, stop_event, timeout=12.0, on_speech_detected=None):
         if self.should_raise:
             raise RuntimeError("Microphone device disconnected")
+        self.calls += 1
+        if self.calls > 1:
+            if self.on_repeat:
+                self.on_repeat()
+            return None
         if on_speech_detected:
             self.speech_callback_invoked = True
             on_speech_detected()
@@ -129,12 +136,15 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
     def test_single_turn_natural_conversation(self):
         assistant = FakeAssistant(audio_data=b"valid_audio", stt_text="Open Chrome")
         worker = Worker(assistant, listen=True)
+        assistant.listener.on_repeat = worker.stop
 
         states = []
         transcripts = []
+        turns = []
         finished = []
         worker.state_changed.connect(states.append)
         worker.transcript_ready.connect(transcripts.append)
+        worker.turn.connect(turns.append)
         worker.finished.connect(finished.append)
 
         worker.run()
@@ -148,11 +158,12 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
         # Transcribed user utterance posted before processing completes
         self.assertEqual(transcripts, ["Open Chrome"])
 
-        # Finished signal with results
+        # The turn result is emitted before the voice session finishes.
+        self.assertEqual(len(turns), 1)
+        self.assertEqual(turns[0]["text"], "Open Chrome")
+        self.assertEqual(turns[0]["response"], "Opening Open Chrome.")
         self.assertEqual(len(finished), 1)
-        self.assertEqual(finished[0]["kind"], "voice")
-        self.assertEqual(finished[0]["text"], "Open Chrome")
-        self.assertEqual(finished[0]["response"], "Opening Open Chrome.")
+        self.assertEqual(finished[0]["kind"], "voice_end")
 
     def test_cancellation_during_listening(self):
         assistant = FakeAssistant(audio_data=b"valid_audio", stt_text="Open Chrome")
@@ -176,6 +187,7 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
     def test_no_speech_detected(self):
         assistant = FakeAssistant(audio_data=None)
         worker = Worker(assistant, listen=True)
+        assistant.listener.on_repeat = worker.stop
 
         finished = []
         worker.finished.connect(finished.append)
@@ -183,7 +195,7 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
         worker.run()
 
         self.assertEqual(len(finished), 1)
-        self.assertEqual(finished[0]["kind"], "no_speech")
+        self.assertEqual(finished[0]["kind"], "voice_end")
 
     def test_stop_phrase_handling(self):
         assistant = FakeAssistant(audio_data=b"valid_audio", stt_text="stop listening")
@@ -204,6 +216,7 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
     def test_multilingual_input_hinglish(self):
         assistant = FakeAssistant(audio_data=b"valid_audio", stt_text="Chrome kholo")
         worker = Worker(assistant, listen=True)
+        assistant.listener.on_repeat = worker.stop
 
         transcripts = []
         finished = []
@@ -214,8 +227,7 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
 
         self.assertEqual(transcripts, ["Chrome kholo"])
         self.assertEqual(len(finished), 1)
-        self.assertEqual(finished[0]["kind"], "voice")
-        self.assertEqual(finished[0]["text"], "Chrome kholo")
+        self.assertEqual(finished[0]["kind"], "voice_end")
 
     def test_microphone_exception_handling(self):
         assistant = FakeAssistant(should_raise=True)
@@ -239,7 +251,9 @@ class TestWorkerVoiceLifecycle(unittest.TestCase):
 class TestMainWindowVoiceStateMachine(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        with patch("app.ui.main_window.BackgroundVoiceListener"):
+        with patch("app.ui.main_window.BackgroundVoiceListener"), \
+             patch("core.assistant.SpeechToText", return_value=MagicMock()), \
+             patch("core.assistant.TextToSpeech", return_value=MagicMock(engine=None)):
             cls.win = MainWindow()
 
     def test_state_machine_idle(self):
@@ -250,6 +264,11 @@ class TestMainWindowVoiceStateMachine(unittest.TestCase):
         self.assertIn("Ready", self.win.status_lbl.text())
         self.assertEqual(self.win.mic_btn.toolTip(), "Click microphone to talk")
         self.assertEqual(self.win.listen_btn.text(), "Start Listening")
+
+    def test_first_user_message_replaces_welcome_panel(self):
+        self.win.welcome_panel.show()
+        self.win._add_message("Hello", True)
+        self.assertTrue(self.win.welcome_panel.isHidden())
 
     def test_state_machine_listening(self):
         self.win._set_state("LISTENING")
@@ -319,6 +338,20 @@ class TestMainWindowVoiceStateMachine(unittest.TestCase):
             mock_msg.assert_called_with("Something went wrong. Please try again.", False)
         self.assertEqual(self.win.current_state, "ERROR")
 
+    def test_save_settings_when_tts_engine_is_unavailable(self):
+        self.win.assistant.text_to_speech.engine = None
+        self.win.settings_wake.setChecked(False)
+        self.win.settings_startup.setChecked(False)
+
+        with patch.object(self.win.assistant.settings, "update", return_value=True), \
+             patch.object(self.win, "_set_startup_setting"), \
+             patch.object(self.win, "_start_background_listener"):
+            self.win._save_settings()
+
+        self.assertEqual(self.win.speech_bubble.text(), "Your settings are saved.")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
