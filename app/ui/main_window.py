@@ -77,6 +77,14 @@ QLabel#speechBubble { background: #f1f5fb; color: #334155; border-color: #dce4ef
 QLineEdit#settingsInput, QComboBox#settingsCombo { background: #ffffff; color: #172033; border-color: #cbd5e1; }
 QPushButton#secondaryActionButton { background: #f1f5fb; color: #334155; border-color: #dce4ef; }
 QFrame#featureChip { background: #eef4fc; border-color: #dce4ef; }
+QWidget#chatPage { background: transparent; }
+QFrame#chatComposer { background: #ffffff; border-color: #c8d5e5; }
+QLineEdit#chatInput { color: #172033; }
+QPushButton#chatSuggestion { background: #ffffff; border-color: #dce4ef; color: #334155; }
+QLabel#chatAssistantBubble { background: #ffffff; color: #172033; border-color: #dce4ef; }
+QLabel#chatUserBubble { background: #dceeff; color: #17324d; border-color: #c2e1fb; }
+QLabel#chatFootnote, QLabel#chatStatus { color: #64748b; }
+
 """
 
 class CustomTitleBar(QFrame):
