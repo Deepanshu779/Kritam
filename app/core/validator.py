@@ -54,7 +54,11 @@ class ActionValidator:
             return platform is not None and platform.lower() in {"youtube", "spotify"} and bool(query)
         if action == "browser_open_result":
             number = intent.get("number")
-            return isinstance(number, int) and not isinstance(number, bool) and 1 <= number <= 5
+            if isinstance(number, bool):
+                return False
+            if isinstance(number, str) and number.isdecimal():
+                number = int(number)
+            return isinstance(number, int) and 1 <= number <= 5
         if action == "browser_open_result_by_text":
             return bool(self._text(intent, "text", max_length=500))
         if action in self.ALLOWED_MEMORY_ACTIONS:
