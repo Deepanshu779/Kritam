@@ -1565,6 +1565,8 @@ class MainWindow(QMainWindow):
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Ready to assist")
+                self.status_lbl.setAccessibleName("Kritam status")
+                self.status_lbl.setAccessibleDescription("Kritam is ready for a new request")
                 self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
             if hasattr(self, "hero_robot"):
                 self.hero_robot.set_active(False)
@@ -1581,6 +1583,8 @@ class MainWindow(QMainWindow):
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Listening...")
+                self.status_lbl.setAccessibleName("Kritam status")
+                self.status_lbl.setAccessibleDescription("Kritam is listening for voice input")
                 self.status_lbl.setStyleSheet("color: #00d2ff; font-size: 12px; font-weight: 650;")
             if hasattr(self, "hero_robot"):
                 self.hero_robot.set_active(True)
@@ -1614,6 +1618,8 @@ class MainWindow(QMainWindow):
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Thinking...")
+                self.status_lbl.setAccessibleName("Kritam status")
+                self.status_lbl.setAccessibleDescription("Kritam is processing the current request")
                 self.status_lbl.setStyleSheet("color: #ffd600; font-size: 12px; font-weight: 650;")
             if hasattr(self, "hero_robot"):
                 self.hero_robot.set_active(True)
