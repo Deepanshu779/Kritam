@@ -949,9 +949,24 @@ class MainWindow(QMainWindow):
 
     def _build_settings_page(self):
         page = QWidget()
-        layout = QVBoxLayout(page)
+        page.setObjectName("settingsPage")
+        page_layout = QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+
+        # A scroll area keeps every settings card reachable on compact windows.
+        settings_scroll = QScrollArea()
+        settings_scroll.setObjectName("settingsScroll")
+        settings_scroll.setWidgetResizable(True)
+        settings_scroll.setFrameShape(QFrame.NoFrame)
+        settings_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        settings_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        settings_content = QWidget()
+        layout = QVBoxLayout(settings_content)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
+        settings_scroll.setWidget(settings_content)
+        page_layout.addWidget(settings_scroll)
 
         t = QLabel("Settings")
         t.setObjectName("pageHeading")
