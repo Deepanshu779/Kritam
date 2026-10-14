@@ -99,7 +99,7 @@ The current prototype uses local microphone phrase detection plus multilingual F
 KRITAM_WHISPER_MODEL=small
 ```
 
-Kritam also supports continuous conversation from the main microphone button: after one spoken turn finishes, Kritam responds and automatically listens for the next turn. Say "stop listening", "that's all", or "goodbye" to end the conversation.
+The main microphone button currently performs one voice-dictation turn at a time. The recognized text is placed in the composer for review; it is not executed until you press **Send**. This helps prevent transcription mistakes from triggering desktop actions.
 
 When the application window is closed, Kritam remains in the system tray and continues listening. Use **Exit Kritam** from the tray menu to stop the background listener.
 
@@ -110,7 +110,7 @@ When the application window is closed, Kritam remains in the system tray and con
 - Microphone input
 - Local multilingual speech recognition with Faster-Whisper
 - Automatic language detection for spoken turns
-- Continuous turn-based voice conversation
+- Single-turn voice dictation with transcript review before sending
 - Text-to-speech with pyttsx3
 - Female voice selection when a compatible Windows voice is available
 
