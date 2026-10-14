@@ -656,8 +656,8 @@ class MainWindow(QMainWindow):
         page.setObjectName("homePage")
 
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(10)
 
         # Compact welcome header; it disappears when the conversation begins.
         self.center_header = QWidget()
@@ -678,8 +678,9 @@ class MainWindow(QMainWindow):
         self.welcome_panel = QWidget()
         self.welcome_panel.setObjectName("welcomePanel")
         welcome_layout = QVBoxLayout(self.welcome_panel)
-        welcome_layout.setContentsMargins(18, 14, 18, 16)
-        welcome_layout.setSpacing(10)
+        welcome_layout.setContentsMargins(22, 12, 22, 14)
+        welcome_layout.setSpacing(12)
+        welcome_layout.setAlignment(Qt.AlignHCenter)
 
         # Desktop-native assistant stage: mascot centered above its greeting.
         hero_layout = QVBoxLayout()
@@ -691,17 +692,16 @@ class MainWindow(QMainWindow):
         self.hero_robot.setAccessibleDescription(
             "Animated mascot that reflects the assistant's activity"
         )
-        hero_layout.addWidget(self.hero_robot, 0, Qt.AlignHCenter)
-
         headline = QLabel('Hello, I\'m <span style="color: #00d2ff;">Kritam</span>')
         headline.setObjectName("heroHeadline")
         headline.setAlignment(Qt.AlignCenter)
         hero_layout.addWidget(headline)
 
-        subline = QLabel("Your Intelligent Personal AI Assistant")
+        subline = QLabel("Your Personal AI Assistant")
         subline.setObjectName("heroSubline")
         subline.setAlignment(Qt.AlignCenter)
         hero_layout.addWidget(subline)
+        hero_layout.addWidget(self.hero_robot, 0, Qt.AlignHCenter)
 
         hero_body = QLabel(
             "Ask a question, speak naturally, or let me help you get something done on your PC."
@@ -740,7 +740,8 @@ class MainWindow(QMainWindow):
             card_btn.setAccessibleName(title)
             card_btn.setAccessibleDescription(subtitle)
             card_btn.setToolTip(f"Ask Kritam: {cmd}")
-            card_btn.setFixedHeight(78)
+            card_btn.setMinimumHeight(72)
+            card_btn.setMaximumHeight(82)
 
             btn_layout = QHBoxLayout(card_btn)
             btn_layout.setContentsMargins(12, 10, 12, 10)
