@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -589,7 +590,20 @@ class MainWindow(QMainWindow):
         # Top Logo + "KRITAM" + Subtitle
         self.sidebar_logo = SidebarLogoWidget()
         layout.addWidget(self.sidebar_logo)
-        layout.addSpacing(14)
+        layout.addSpacing(10)
+
+        # Primary actions follow the user's notebook layout.
+        self.new_chat_btn = QPushButton("＋  New Chat")
+        self.new_chat_btn.setObjectName("nav")
+        self.new_chat_btn.setToolTip("Start a fresh conversation")
+        self.new_chat_btn.clicked.connect(self._new_chat)
+        layout.addWidget(self.new_chat_btn)
+
+        self.search_chats_btn = QPushButton("⌕  Search")
+        self.search_chats_btn.setObjectName("nav")
+        self.search_chats_btn.setToolTip("Search messages in this session")
+        self.search_chats_btn.clicked.connect(self._search_chats)
+        layout.addWidget(self.search_chats_btn)
 
         # Navigation menu buttons
         self.nav_buttons = []
@@ -610,7 +624,23 @@ class MainWindow(QMainWindow):
             layout.addWidget(btn)
 
         self.nav_buttons[0][0].setChecked(True)
+
+        recent_heading = QLabel("RECENTS")
+        recent_heading.setObjectName("mutedText")
+        recent_heading.setStyleSheet("font-size: 10px; font-weight: 700; letter-spacing: 1px;")
+        layout.addWidget(recent_heading)
+        self.recent_prompts = []
+        self.recents_layout = QVBoxLayout()
+        self.recents_layout.setSpacing(3)
+        layout.addLayout(self.recents_layout)
         layout.addStretch()
+
+        self.account_btn = QPushButton()
+        self.account_btn.setObjectName("nav")
+        self.account_btn.setToolTip("Account, profile, and permissions")
+        self.account_btn.clicked.connect(self._show_account_menu)
+        layout.addWidget(self.account_btn)
+        self._sync_account_button()
 
         # Bottom Art: Flowing cyan waves + cursive script "More Than a Voice, A Companion"
         self.sidebar_art = SidebarFooterArtWidget()
@@ -1160,6 +1190,92 @@ class MainWindow(QMainWindow):
     # =========================================================================
     # NAVIGATION & ACTIONS
     # =========================================================================
+    def _sync_account_button(self):
+        """Show the current local or signed-in profile in the sidebar."""
+        if not hasattr(self, "account_btn"):
+            return
+        name = (self.account.get("name") or self.account.get("email") or "Your account").strip()
+        self.account_btn.setText("◉  " + (name[:18] + ("…" if len(name) > 18 else "")))
+        self.account_btn.setAccessibleName("Account: " + name)
+        self.account_btn.setToolTip(f"Account and preferences for {name}")
+
+    def _show_account_menu(self):
+        """Open the account actions from the sidebar profile."""
+        menu = QMenu(self)
+        profile = QAction("Account & permissions", self)
+        profile.triggered.connect(lambda: self._select_page(1))
+        menu.addAction(profile)
+        menu.addSeparator()
+        if self.account.get("email"):
+            sign_action = QAction("Sign out", self)
+            sign_action.triggered.connect(self._logout)
+        else:
+            sign_action = QAction("Sign in / Create account", self)
+            sign_action.triggered.connect(self._open_login)
+        menu.addAction(sign_action)
+        menu.exec(self.account_btn.mapToGlobal(self.account_btn.rect().topLeft()))
+
+    def _new_chat(self):
+        """Clear the visible conversation and return to the welcome screen."""
+        if self.thread is not None:
+            QMessageBox.information(self, "Please wait", "Kritam is finishing the current request. Try again in a moment.")
+            return
+        while self.conversation_messages_layout.count() > 1:
+            item = self.conversation_messages_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.command_input.clear()
+        self.welcome_panel.show()
+        self.center_header.show()
+        self.conversation_scroll.hide()
+        self._select_page(0)
+        self.command_input.setFocus()
+
+    def _search_chats(self):
+        """Search messages currently available in the conversation view."""
+        query, accepted = QInputDialog.getText(self, "Search Kritam", "Find text in this session:")
+        if not accepted or not query.strip():
+            return
+        needle = query.strip().casefold()
+        matches = []
+        for index in range(self.conversation_messages_layout.count()):
+            item = self.conversation_messages_layout.itemAt(index)
+            widget = item.widget() if item else None
+            if isinstance(widget, QLabel) and needle in widget.text().casefold():
+                matches.append(widget.text())
+        if matches:
+            preview = "\n\n".join(f"• {match[:220]}" for match in matches[:8])
+            QMessageBox.information(self, "Search results", f"Found {len(matches)} matching message(s):\n\n{preview}")
+        else:
+            QMessageBox.information(self, "Search results", "No matching messages were found in this session.")
+
+    def _add_recent_prompt(self, prompt):
+        """Keep a small clickable list of recent user prompts for this session."""
+        prompt = str(prompt).strip()
+        if not prompt or not hasattr(self, "recents_layout"):
+            return
+        self.recent_prompts = [item for item in self.recent_prompts if item.casefold() != prompt.casefold()]
+        self.recent_prompts.insert(0, prompt)
+        self.recent_prompts = self.recent_prompts[:5]
+        while self.recents_layout.count():
+            item = self.recents_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        for recent in self.recent_prompts:
+            button = QPushButton(recent[:22] + ("…" if len(recent) > 22 else ""))
+            button.setObjectName("nav")
+            button.setToolTip(recent)
+            button.setStyleSheet("text-align: left; padding-left: 8px;")
+            button.clicked.connect(lambda checked=False, value=recent: self._restore_recent_prompt(value))
+            self.recents_layout.addWidget(button)
+
+    def _restore_recent_prompt(self, prompt):
+        self._select_page(0)
+        self.command_input.setText(prompt)
+        self.command_input.setFocus()
+
     def _select_page(self, index):
         for i, (btn, icon_name) in enumerate(self.nav_buttons):
             is_active = (i == index)
@@ -1255,6 +1371,7 @@ class MainWindow(QMainWindow):
     def _logout(self):
         self._stop_background_listener()
         self.account = {}
+        self._sync_account_button()
         self.hide()
         if self.on_logout:
             self.on_logout()
@@ -1275,6 +1392,7 @@ class MainWindow(QMainWindow):
     def _add_message(self, text, is_user):
         """Render each turn in the one visible conversation history."""
         if is_user:
+            self._add_recent_prompt(str(text))
             # Once the first user turn arrives, let the conversation own the
             # workspace: remove the welcome hero, prompt cards, and intro header.
             if hasattr(self, "welcome_panel"):
