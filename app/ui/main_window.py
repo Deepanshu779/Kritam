@@ -142,6 +142,7 @@ class CustomTitleBar(QFrame):
         self.max_btn.setAccessibleName("Maximize or restore window")
         self.max_btn.setFixedSize(28, 26)
         self.max_btn.clicked.connect(self._toggle_maximize)
+        self._sync_maximize_button()
         layout.addWidget(self.max_btn)
 
         close_btn = QPushButton("✕")
@@ -154,13 +155,20 @@ class CustomTitleBar(QFrame):
         close_btn.clicked.connect(self.parent_window.close)
         layout.addWidget(close_btn)
 
+    def _sync_maximize_button(self):
+        maximized = self.parent_window.isMaximized()
+        self.max_btn.setText("❐" if maximized else "□")
+        self.max_btn.setToolTip("Restore window" if maximized else "Maximize window")
+        self.max_btn.setAccessibleDescription(
+            "Restore Kritam to a window" if maximized else "Maximize Kritam"
+        )
+
     def _toggle_maximize(self):
         if self.parent_window.isMaximized():
             self.parent_window.showNormal()
-            self.max_btn.setText("□")
         else:
             self.parent_window.showMaximized()
-            self.max_btn.setText("❐")
+        self._sync_maximize_button()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
