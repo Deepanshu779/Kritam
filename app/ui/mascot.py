@@ -26,7 +26,7 @@ class KritamRobotWidget(QWidget):
         if compact:
             self.setFixedSize(56, 56)
         else:
-            self.setFixedSize(300, 250)
+            self.setFixedSize(220, 178)
 
         # Floating / breathing animation timer
         self._anim_timer = QTimer(self)
