@@ -679,14 +679,14 @@ class MainWindow(QMainWindow):
         self.welcome_panel = QWidget()
         self.welcome_panel.setObjectName("welcomePanel")
         welcome_layout = QVBoxLayout(self.welcome_panel)
-        welcome_layout.setContentsMargins(22, 12, 22, 14)
-        welcome_layout.setSpacing(12)
+        welcome_layout.setContentsMargins(22, 10, 22, 12)
+        welcome_layout.setSpacing(9)
         welcome_layout.setAlignment(Qt.AlignHCenter)
 
         # Desktop-native assistant stage: mascot centered above its greeting.
         hero_layout = QVBoxLayout()
-        hero_layout.setContentsMargins(6, 2, 6, 2)
-        hero_layout.setSpacing(4)
+        hero_layout.setContentsMargins(6, 0, 6, 0)
+        hero_layout.setSpacing(3)
 
         self.hero_robot = KritamRobotWidget(compact=False)
         self.hero_robot.setAccessibleName("Kritam animated assistant")
@@ -702,6 +702,9 @@ class MainWindow(QMainWindow):
         subline.setObjectName("heroSubline")
         subline.setAlignment(Qt.AlignCenter)
         hero_layout.addWidget(subline)
+        # Keep the mascot stage compact enough that the body text and prompt
+        # cards never collide on shorter desktop windows.
+        self.hero_robot.setFixedSize(220, 178)
         hero_layout.addWidget(self.hero_robot, 0, Qt.AlignHCenter)
 
         hero_body = QLabel(
@@ -966,15 +969,18 @@ class MainWindow(QMainWindow):
         voice_sel.setObjectName("voiceSelector")
         vs_layout = QHBoxLayout(voice_sel)
         vs_layout.setContentsMargins(10, 6, 10, 6)
-        vs_layout.setSpacing(8)
+        vs_layout.setSpacing(7)
+        voice_sel.setMinimumHeight(48)
 
         mic_ic = QLabel()
         mic_ic.setPixmap(render_mic_icon(16, "#829ebf"))
         vs_layout.addWidget(mic_ic)
 
-        vs_text = QLabel("System default voice")
+        vs_text = QLabel("System voice")
         vs_text.setObjectName("voiceSelectorText")
-        vs_layout.addWidget(vs_text)
+        vs_text.setToolTip("Kritam currently uses your operating system's default text-to-speech voice.")
+        vs_text.setMinimumWidth(0)
+        vs_layout.addWidget(vs_text, 1)
         vs_layout.addStretch()
         v_layout.addWidget(voice_sel)
 
