@@ -49,8 +49,8 @@ QPushButton#titleBarBtn:hover {
 /* Left Sidebar */
 QFrame#sidebar {
     background: #050d1a;
-    border: 1px solid #0d1e33;
-    border-radius: 16px;
+    border: 1px solid #10243a;
+    border-radius: 18px;
 }
 
 QPushButton#nav {
@@ -83,15 +83,40 @@ QWidget#homePage {
 }
 
 QLabel#centerHeaderTitle {
-    color: #ffffff;
-    font-size: 22px;
+    color: #eaf5ff;
+    font-size: 11px;
     font-weight: 800;
-    letter-spacing: 1.2px;
+    letter-spacing: 2.2px;
 }
 
 QLabel#centerHeaderSub {
-    color: #7285a0;
-    font-size: 12px;
+    color: #849ab5;
+    font-size: 13px;
+}
+
+/* Welcome state: spacious hero with a quiet, cinematic surface. */
+QWidget#welcomePanel {
+    background: #071321;
+    border: 1px solid #142b45;
+    border-radius: 20px;
+}
+
+QLabel#heroHeadline {
+    color: #ffffff;
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+}
+
+QLabel#heroSubline {
+    color: #c9dbf2;
+    font-size: 17px;
+    font-weight: 600;
+}
+
+QLabel#heroBody {
+    color: #8da1bc;
+    font-size: 13px;
 }
 
 QLabel#heroHeadline {
@@ -119,18 +144,18 @@ QLabel#sectionTitle {
     font-weight: 700;
 }
 
-/* 2x3 Grid Prompt Cards */
+/* 2x2 Prompt Cards */
 QPushButton#promptCard {
     text-align: left;
-    background: #071322;
-    border: 1px solid #132740;
+    background: #091827;
+    border: 1px solid #1a3049;
     border-radius: 14px;
-    padding: 10px 14px;
+    padding: 12px 14px;
 }
 
 QPushButton#promptCard:hover {
-    background: #0d1e34;
-    border: 1px solid #236db5;
+    background: #0d2239;
+    border: 1px solid #2b82c9;
 }
 
 QLabel#promptCardTitle {
@@ -304,8 +329,8 @@ QLabel#chipLabel {
 
 /* Right Sidebar Cards */
 QFrame#sideCard {
-    background: #06111f;
-    border: 1px solid #122842;
+    background: #071321;
+    border: 1px solid #172e47;
     border-radius: 16px;
 }
 
