@@ -970,6 +970,8 @@ class MainWindow(QMainWindow):
 
         t = QLabel("Settings")
         t.setObjectName("pageHeading")
+        t.setAccessibleName("Settings page heading")
+        self.page_heading = t
         layout.addWidget(t)
 
         sub = QLabel("Personalize how Kritam looks, sounds and works on your PC.")
@@ -1146,6 +1148,10 @@ class MainWindow(QMainWindow):
             btn.setIcon(QIcon(render_nav_icon(icon_name, active=is_active, size=20)))
 
         self.stack.setCurrentIndex(index)
+        if hasattr(self, "page_heading"):
+            page_name = "Chat" if index == 0 else "Settings"
+            self.page_heading.setText(page_name)
+            self.page_heading.setAccessibleDescription(f"{page_name} page selected")
 
     def _save_settings(self):
         name = self.settings_name.text().strip() or "Kritam"
