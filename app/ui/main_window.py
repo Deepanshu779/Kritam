@@ -724,7 +724,8 @@ class MainWindow(QMainWindow):
 
         self.composer_frame = QFrame()
         self.composer_frame.setObjectName("composerFrame")
-        self.composer_frame.setFixedHeight(54)
+        self.composer_frame.setMinimumHeight(54)
+        self.composer_frame.setMaximumHeight(72)
 
         c_layout = QHBoxLayout(self.composer_frame)
         c_layout.setContentsMargins(8, 6, 8, 6)
@@ -751,6 +752,8 @@ class MainWindow(QMainWindow):
         self.voice_bar = VoiceRecordingBar()
         self.voice_bar.cancel_requested.connect(self._cancel_voice_input)
         self.voice_bar.finish_requested.connect(self._finish_voice_input)
+        self.voice_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.voice_bar.setMinimumWidth(0)
         self.voice_bar.hide()
         c_layout.addWidget(self.voice_bar, 1)
 
