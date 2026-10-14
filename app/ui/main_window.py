@@ -1029,6 +1029,11 @@ class MainWindow(QMainWindow):
         save.clicked.connect(self._save_settings)
         pref_layout.addWidget(save, 0, Qt.AlignLeft)
 
+        save_hint = QLabel("Changes apply when you select Save Changes.")
+        save_hint.setObjectName("mutedText")
+        save_hint.setWordWrap(True)
+        pref_layout.addWidget(save_hint)
+
         layout.addWidget(pref_card)
 
         # Privacy
@@ -1053,6 +1058,10 @@ class MainWindow(QMainWindow):
         clear_memory.setFixedHeight(36)
         clear_memory.clicked.connect(self._clear_saved_memory)
         privacy_layout.addWidget(clear_memory, 0, Qt.AlignLeft)
+        privacy_note = QLabel("Clearing saved memory cannot be undone. Your other preferences are kept.")
+        privacy_note.setObjectName("mutedText")
+        privacy_note.setWordWrap(True)
+        privacy_layout.addWidget(privacy_note)
         layout.addWidget(privacy_card)
 
         layout.addStretch()
