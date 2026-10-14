@@ -410,6 +410,38 @@ QPushButton#voiceFinish {
     font-size: 18px;
 }
 
+/* Settings scrolling: retain the dark desktop palette and a quiet scrollbar. */
+QWidget#settingsPage {
+    background: transparent;
+}
+QScrollArea#settingsScroll,
+QScrollArea#settingsScroll > QWidget,
+QScrollArea#settingsScroll > QWidget > QWidget {
+    background: transparent;
+    border: none;
+}
+QScrollArea#settingsScroll QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 6px 1px 6px 0;
+}
+QScrollArea#settingsScroll QScrollBar::handle:vertical {
+    background: #29435f;
+    border-radius: 4px;
+    min-height: 28px;
+}
+QScrollArea#settingsScroll QScrollBar::handle:vertical:hover {
+    background: #3b638a;
+}
+QScrollArea#settingsScroll QScrollBar::add-line:vertical,
+QScrollArea#settingsScroll QScrollBar::sub-line:vertical {
+    height: 0;
+}
+QScrollArea#settingsScroll QScrollBar::add-page:vertical,
+QScrollArea#settingsScroll QScrollBar::sub-page:vertical {
+    background: transparent;
+}
+
 /* Secondary Pages (Tasks, Memory, Settings) */
 QFrame#detailCard {
     background: #071322;
