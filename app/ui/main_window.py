@@ -637,8 +637,8 @@ class MainWindow(QMainWindow):
         self.welcome_panel = QWidget()
         self.welcome_panel.setObjectName("welcomePanel")
         welcome_layout = QVBoxLayout(self.welcome_panel)
-        welcome_layout.setContentsMargins(20, 18, 20, 20)
-        welcome_layout.setSpacing(12)
+        welcome_layout.setContentsMargins(18, 14, 18, 16)
+        welcome_layout.setSpacing(10)
 
         # Desktop-native assistant stage: mascot centered above its greeting.
         hero_layout = QVBoxLayout()
