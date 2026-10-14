@@ -650,10 +650,14 @@ class MainWindow(QMainWindow):
 
         # Desktop-native assistant stage: mascot centered above its greeting.
         hero_layout = QVBoxLayout()
-        hero_layout.setContentsMargins(8, 4, 8, 4)
-        hero_layout.setSpacing(2)
+        hero_layout.setContentsMargins(6, 2, 6, 2)
+        hero_layout.setSpacing(4)
 
         self.hero_robot = KritamRobotWidget(compact=False)
+        self.hero_robot.setAccessibleName("Kritam animated assistant")
+        self.hero_robot.setAccessibleDescription(
+            "Animated mascot that reflects the assistant's activity"
+        )
         hero_layout.addWidget(self.hero_robot, 0, Qt.AlignHCenter)
 
         headline = QLabel('Hello, I\'m <span style="color: #00d2ff;">Kritam</span>')
