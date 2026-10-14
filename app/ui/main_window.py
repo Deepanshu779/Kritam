@@ -926,6 +926,7 @@ class MainWindow(QMainWindow):
         self.listen_btn.setToolTip("Start voice dictation")
         self.listen_btn.setFixedHeight(42)
         self.listen_btn.clicked.connect(self._toggle_voice_input)
+        self._sync_listen_button()
         v_layout.addWidget(self.listen_btn)
 
         layout.addWidget(voice_card)
@@ -1489,6 +1490,24 @@ class MainWindow(QMainWindow):
                 # still alive. It will be cleaned up when the thread exits.
                 return
 
+    def _sync_listen_button(self):
+        """Keep the right-panel voice action clear and consistent with current state."""
+        if not hasattr(self, "listen_btn"):
+            return
+        state = getattr(self, "current_state", "IDLE")
+        if state in ("LISTENING", "SPEECH_DETECTED"):
+            self.listen_btn.setText("Cancel Listening")
+            self.listen_btn.setToolTip("Cancel the current voice dictation")
+        elif state == "PROCESSING":
+            self.listen_btn.setText("Thinking...")
+            self.listen_btn.setToolTip("Kritam is processing your request")
+        elif state == "SPEAKING":
+            self.listen_btn.setText("Speaking...")
+            self.listen_btn.setToolTip("Kritam is speaking")
+        else:
+            self.listen_btn.setText("Start Listening")
+            self.listen_btn.setToolTip("Start voice dictation")
+
     def _set_state(self, state: str, custom_text: str = None):
         """Transition window visual elements to match current assistant/voice state."""
         self.current_state = state
@@ -1502,8 +1521,7 @@ class MainWindow(QMainWindow):
             self.voice_bar.stop_animation()
             self.mic_btn.show()
             self.mic_btn.setToolTip("Click microphone to talk")
-            if hasattr(self, "listen_btn"):
-                self.listen_btn.setText("Start Listening")
+            self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Ready to assist")
                 self.status_lbl.setStyleSheet("color: #00e676; font-size: 12px; font-weight: 650;")
@@ -1519,8 +1537,7 @@ class MainWindow(QMainWindow):
             self.voice_bar.set_state("LISTENING", custom_text or "Listening...")
             self.mic_btn.show()
             self.mic_btn.setToolTip("Listening... Click to cancel")
-            if hasattr(self, "listen_btn"):
-                self.listen_btn.setText("Cancel Listening")
+            self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Listening...")
                 self.status_lbl.setStyleSheet("color: #00d2ff; font-size: 12px; font-weight: 650;")
@@ -1553,8 +1570,7 @@ class MainWindow(QMainWindow):
             self.voice_bar.set_state("PROCESSING", custom_text or "Thinking...")
             self.mic_btn.show()
             self.mic_btn.setToolTip("Thinking...")
-            if hasattr(self, "listen_btn"):
-                self.listen_btn.setText("Thinking...")
+            self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Thinking...")
                 self.status_lbl.setStyleSheet("color: #ffd600; font-size: 12px; font-weight: 650;")
@@ -1572,8 +1588,7 @@ class MainWindow(QMainWindow):
             self.voice_bar.set_state("SPEAKING", custom_text or "Speaking...")
             self.mic_btn.show()
             self.mic_btn.setToolTip("Speaking...")
-            if hasattr(self, "listen_btn"):
-                self.listen_btn.setText("Speaking...")
+            self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Speaking...")
                 self.status_lbl.setStyleSheet("color: #b388ff; font-size: 12px; font-weight: 650;")
@@ -1594,8 +1609,7 @@ class MainWindow(QMainWindow):
             self.voice_bar.set_state("ERROR", custom_text or "Something went wrong")
             self.mic_btn.show()
             self.mic_btn.setToolTip("Something went wrong")
-            if hasattr(self, "listen_btn"):
-                self.listen_btn.setText("Start Listening")
+            self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Something went wrong")
                 self.status_lbl.setStyleSheet("color: #ff5252; font-size: 12px; font-weight: 650;")
