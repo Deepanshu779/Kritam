@@ -345,120 +345,72 @@ class Worker(QObject):
                 return
 
             if self.listen:
-                # Persistent conversation mode:
-                # LISTENING -> capture -> PROCESSING -> SPEAKING -> LISTENING ...
-                while not self.cancelled:
-                    self.stop_event.clear()
-                    self.state_changed.emit("LISTENING")
+                # Single-turn dictation: capture speech, transcribe it, and
+                # return the text to the composer for user review. Voice input
+                # must never submit or execute a command automatically.
+                self.state_changed.emit("LISTENING")
 
-                    def _on_speech_started():
-                        if not self.cancelled:
-                            self.state_changed.emit("SPEECH_DETECTED")
+                def _on_speech_started():
+                    if not self.cancelled:
+                        self.state_changed.emit("SPEECH_DETECTED")
 
-                    audio = self.assistant.listener.listen_until_stopped(
-                        self.stop_event,
-                        timeout=12.0,
-                        on_speech_detected=_on_speech_started,
+                audio = self.assistant.listener.listen_until_stopped(
+                    self.stop_event,
+                    timeout=12.0,
+                    on_speech_detected=_on_speech_started,
+                )
+
+                if self.cancelled:
+                    self.finished.emit({"kind": "cancelled"})
+                    return
+
+                if audio is None:
+                    metadata = getattr(
+                        self.assistant.speech_to_text,
+                        "last_metadata",
+                        {},
                     )
-
-                    if self.cancelled:
-                        self.finished.emit({"kind": "cancelled"})
-                        return
-
-                    # The user pressed the end button while waiting for speech.
-                    if self._finish_after_turn and audio is None:
-                        self.finished.emit({
-                            "kind": "voice_end",
-                            "response": "Okay, I'll stop listening.",
-                            "success": True,
-                        })
-                        return
-
-                    if audio is None:
-                        # A timeout/no-speech turn should not kill the whole
-                        # conversation. Return to listening automatically.
-                        self.state_changed.emit("LISTENING")
-                        continue
-
-                    self.state_changed.emit("PROCESSING")
-                    text = self.assistant.speech_to_text.convert(audio)
-
-                    if self.cancelled:
-                        self.finished.emit({"kind": "cancelled"})
-                        return
-
-                    if not text or not text.strip():
-                        metadata = getattr(
-                            self.assistant.speech_to_text,
-                            "last_metadata",
-                            {},
+                    if (metadata or {}).get("error") == "model_unavailable":
+                        self.state_changed.emit("ERROR")
+                        self.error.emit(
+                            "Local speech recognition is unavailable. Check the model setup and try again."
                         )
-                        if (metadata or {}).get("error") == "model_unavailable":
-                            self.state_changed.emit("ERROR")
-                            self.error.emit(
-                                "Local speech recognition is unavailable. Check the model setup and try again."
-                            )
-                            return
-                        # Ignore an unusable transcription and keep listening.
-                        self.state_changed.emit("LISTENING")
-                        continue
-
-                    text = text.strip()
-                    normalized = text.lower().strip(" ,.!?")
-
-                    self.transcript_ready.emit(text)
-
-                    if normalized in self.STOP_PHRASES:
-                        self.state_changed.emit("SPEAKING")
-                        self.assistant._speak("Okay, I'll stop listening.")
+                    else:
                         self.finished.emit({
-                            "kind": "voice_end",
-                            "text": text,
-                            "response": "Okay, I'll stop listening.",
-                            "success": True,
+                            "kind": "no_speech",
+                            "response": "No speech detected. Try again.",
                         })
-                        return
+                    return
 
-                    # Let TTS state drive the UI into SPEAKING, then return
-                    # automatically to LISTENING when the response finishes.
-                    def _tts_started(_text):
-                        if not self.cancelled:
-                            self.state_changed.emit("SPEAKING")
+                self.state_changed.emit("PROCESSING")
+                text = self.assistant.speech_to_text.convert(audio)
 
-                    prev_tts_start = getattr(
-                        self.assistant.text_to_speech, "on_start", None
+                if self.cancelled:
+                    self.finished.emit({"kind": "cancelled"})
+                    return
+
+                if not text or not text.strip():
+                    metadata = getattr(
+                        self.assistant.speech_to_text,
+                        "last_metadata",
+                        {},
                     )
-                    self.assistant.text_to_speech.on_start = _tts_started
-                    try:
-                        result = self.assistant.process_text(text, speak=True)
-                    finally:
-                        self.assistant.text_to_speech.on_start = prev_tts_start
-
-                    self.turn.emit({
-                        "text": text,
-                        **result,
-                    })
-
-                    if self.cancelled:
-                        self.finished.emit({"kind": "cancelled"})
-                        return
-
-                    if self._finish_after_turn:
+                    if (metadata or {}).get("error") == "model_unavailable":
+                        self.state_changed.emit("ERROR")
+                        self.error.emit(
+                            "Local speech recognition is unavailable. Check the model setup and try again."
+                        )
+                    else:
                         self.finished.emit({
-                            "kind": "voice_end",
-                            "text": text,
-                            "response": "Okay, I'll stop listening.",
-                            "success": True,
+                            "kind": "no_speech",
+                            "response": "I couldn't recognize that. Please try again.",
                         })
-                        return
+                    return
 
-                    # This is the key conversational loop: after Kritam
-                    # finishes speaking, immediately open the microphone again.
-                    self.state_changed.emit("LISTENING")
-
+                self.transcript_ready.emit(text.strip())
                 self.finished.emit({
-                    "kind": "voice_end",
-                    "response": "Okay, I'll stop listening.",
+                    "kind": "transcript",
+                    "text": text.strip(),
                     "success": True,
                 })
                 return
@@ -1355,7 +1307,9 @@ class MainWindow(QMainWindow):
 
     @Slot(str)
     def _on_transcript_ready(self, text):
-        self._add_message(text, True)
+        # Voice dictation is a draft until the user presses Send.
+        self.command_input.setText(text)
+        self.command_input.setCursorPosition(len(text))
 
     @Slot(dict)
     def _worker_turn(self, result):
