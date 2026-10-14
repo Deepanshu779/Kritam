@@ -242,11 +242,12 @@ class VoiceRecordingBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(46)
+        self.setFixedHeight(50)
         self.setObjectName("voiceRecordingBar")
+        self.setAccessibleName("Voice recording controls")
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 4, 10, 4)
-        layout.setSpacing(10)
+        layout.setContentsMargins(12, 5, 12, 5)
+        layout.setSpacing(12)
 
         self.cancel_button = QPushButton("✕")
         self.cancel_button.setObjectName("voiceCancel")
@@ -819,6 +820,7 @@ class MainWindow(QMainWindow):
 
         # Voice recording wave bar (hidden unless listening)
         self.voice_bar = VoiceRecordingBar()
+        self.voice_bar.setToolTip("Voice input is active. Cancel or finish when ready.")
         self.voice_bar.cancel_requested.connect(self._cancel_voice_input)
         self.voice_bar.finish_requested.connect(self._finish_voice_input)
         self.voice_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -1081,6 +1083,8 @@ class MainWindow(QMainWindow):
         name_label.setObjectName("settingLabel")
         self.settings_name = QLineEdit(self.assistant.settings.get("assistant_name", "Kritam"))
         self.settings_name.setObjectName("settingsInput")
+        self.settings_name.setFixedHeight(38)
+        self.settings_name.setPlaceholderText("Kritam")
         self.settings_name.setMinimumWidth(120)
         self.settings_name.setMaximumWidth(230)
         self.settings_name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -1094,6 +1098,8 @@ class MainWindow(QMainWindow):
         language_label.setObjectName("settingLabel")
         self.settings_language = QComboBox()
         self.settings_language.setObjectName("settingsCombo")
+        self.settings_language.setFixedHeight(38)
+        self.settings_language.setToolTip("Choose the language Kritam should use for responses")
         self.settings_language.addItem("English", "en")
         self.settings_language.addItem("Hindi / Hinglish", "hi")
         current_language = self.assistant.settings.get("language", "en")
@@ -1205,6 +1211,13 @@ class MainWindow(QMainWindow):
     def _show_account_menu(self):
         """Open the account actions from the sidebar profile."""
         menu = QMenu(self)
+        menu.setObjectName("accountMenu")
+        menu.setStyleSheet("""
+            QMenu#accountMenu { background: #171b29; color: #edf2ff; border: 1px solid #343b50; padding: 6px; }
+            QMenu#accountMenu::item { padding: 9px 22px; border-radius: 6px; }
+            QMenu#accountMenu::item:selected { background: #29334a; color: #ffffff; }
+            QMenu#accountMenu::separator { height: 1px; background: #343b50; margin: 5px 8px; }
+        """)
         profile = QAction("Account & permissions", self)
         profile.triggered.connect(lambda: self._select_page(1))
         menu.addAction(profile)
