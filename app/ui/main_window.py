@@ -629,8 +629,11 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(6, 4, 6, 4)
         layout.setSpacing(14)
 
-        # Top Center Header
-        header_layout = QVBoxLayout()
+        # Compact welcome header; it disappears when the conversation begins.
+        self.center_header = QWidget()
+        self.center_header.setObjectName("centerHeader")
+        header_layout = QVBoxLayout(self.center_header)
+        header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(2)
         top_title = QLabel("YOUR AI COMPANION")
         top_title.setObjectName("centerHeaderTitle")
@@ -639,7 +642,7 @@ class MainWindow(QMainWindow):
         top_sub = QLabel("A little help with whatever is on your mind.")
         top_sub.setObjectName("centerHeaderSub")
         header_layout.addWidget(top_sub)
-        layout.addLayout(header_layout)
+        layout.addWidget(self.center_header)
         layout.addSpacing(6)
 
         self.welcome_panel = QWidget()
@@ -1267,9 +1270,15 @@ class MainWindow(QMainWindow):
 
     def _add_message(self, text, is_user):
         """Render each turn in the one visible conversation history."""
-        if is_user and hasattr(self, "welcome_panel"):
-            self.welcome_panel.hide()
-            self.conversation_scroll.show()
+        if is_user:
+            # Once the first user turn arrives, let the conversation own the
+            # workspace: remove the welcome hero, prompt cards, and intro header.
+            if hasattr(self, "welcome_panel"):
+                self.welcome_panel.hide()
+            if hasattr(self, "center_header"):
+                self.center_header.hide()
+            if hasattr(self, "conversation_scroll"):
+                self.conversation_scroll.show()
         if hasattr(self, "speech_bubble") and not is_user:
             self.speech_bubble.setText(str(text))
         if not hasattr(self, "conversation_messages_layout"):
