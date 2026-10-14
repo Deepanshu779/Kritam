@@ -76,6 +76,12 @@ QPushButton#nav:checked {
     color: #ffffff;
     font-weight: 700;
 }
+QPushButton#nav:focus {
+    border: 1px solid #54b8ff;
+}
+QPushButton#nav:checked:focus {
+    border: 1px solid #8bd2ff;
+}
 
 /* Main Center Page */
 QWidget#homePage {
@@ -137,6 +143,10 @@ QPushButton#promptCard {
 QPushButton#promptCard:hover {
     background: #0d2239;
     border: 1px solid #2b82c9;
+}
+QPushButton#promptCard:focus {
+    border: 1px solid #54b8ff;
+    background: #0d2239;
 }
 
 QLabel#promptCardTitle {
