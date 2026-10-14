@@ -256,30 +256,38 @@ class VoiceRecordingBar(QWidget):
         layout.addWidget(self.finish_button)
 
     def set_state(self, state: str, text: str = None):
-        """Update visual indicators and labels based on the voice state."""
-        if state == "LISTENING":
-            self.status_label.setText(text or "Listening...")
-            self.status_label.setStyleSheet("color: #00d2ff; font-size: 13px; font-weight: 600;")
+        """Keep the voice bar label, animation, and available actions in sync."""
+        styles = {
+            "LISTENING": ("Listening...", "#00d2ff", True),
+            "SPEECH_DETECTED": ("I can hear you...", "#00e676", True),
+            "PROCESSING": ("Thinking...", "#ffd600", False),
+            "SPEAKING": ("Speaking...", "#b388ff", False),
+            "ERROR": ("Something went wrong", "#ff5252", False),
+            "IDLE": ("Click microphone to talk", "#7b8ea8", False),
+        }
+        default_text, color, animate = styles.get(
+            state, ("Ready", "#7b8ea8", False)
+        )
+        self.status_label.setText(text or default_text)
+        self.status_label.setStyleSheet(
+            f"color: {color}; font-size: 13px; font-weight: 600;"
+        )
+        self.status_label.setAccessibleName("Voice status")
+        self.status_label.setAccessibleDescription(text or default_text)
+
+        is_listening = state in ("LISTENING", "SPEECH_DETECTED")
+        self.cancel_button.setEnabled(is_listening)
+        self.cancel_button.setToolTip(
+            "Cancel voice input" if is_listening else "No active recording to cancel"
+        )
+        self.finish_button.setEnabled(is_listening)
+        self.finish_button.setToolTip(
+            "Finish voice dictation" if is_listening else "Available while listening"
+        )
+
+        if animate:
             self.wave.start()
-        elif state == "SPEECH_DETECTED":
-            self.status_label.setText(text or "Listening...")
-            self.status_label.setStyleSheet("color: #00e676; font-size: 13px; font-weight: 600;")
-            self.wave.start()
-        elif state == "PROCESSING":
-            self.status_label.setText(text or "Thinking...")
-            self.status_label.setStyleSheet("color: #ffd600; font-size: 13px; font-weight: 600;")
-            self.wave.stop()
-        elif state == "SPEAKING":
-            self.status_label.setText(text or "Speaking...")
-            self.status_label.setStyleSheet("color: #b388ff; font-size: 13px; font-weight: 600;")
-            self.wave.start()
-        elif state == "ERROR":
-            self.status_label.setText(text or "Something went wrong")
-            self.status_label.setStyleSheet("color: #ff5252; font-size: 13px; font-weight: 600;")
-            self.wave.stop()
-        elif state == "IDLE":
-            self.status_label.setText("Click microphone to talk")
-            self.status_label.setStyleSheet("color: #7b8ea8; font-size: 13px; font-weight: 600;")
+        else:
             self.wave.stop()
 
     def start_animation(self):
