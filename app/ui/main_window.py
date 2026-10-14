@@ -491,7 +491,9 @@ class MainWindow(QMainWindow):
         self.assistant = Kritam()
         self.setWindowTitle("KRITAM - Your Personal AI Assistant")
         self.resize(1260, 800)
-        self.setMinimumSize(1040, 680)
+        # Keep the assistant usable on smaller laptop displays while allowing
+        # the central workspace to shrink before either sidebar clips.
+        self.setMinimumSize(900, 600)
 
         # Frameless window styling
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Window)
@@ -528,8 +530,8 @@ class MainWindow(QMainWindow):
         # 2. Main content row: Left Sidebar + Center Area + Right Sidebar
         body_widget = QWidget()
         body_layout = QHBoxLayout(body_widget)
-        body_layout.setContentsMargins(18, 12, 18, 18)
-        body_layout.setSpacing(16)
+        body_layout.setContentsMargins(12, 10, 12, 12)
+        body_layout.setSpacing(10)
 
         # Left Sidebar
         body_layout.addWidget(self._build_sidebar())
@@ -553,7 +555,8 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(172)
+        frame.setMinimumWidth(142)
+        frame.setMaximumWidth(172)
 
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 14, 12, 10)
@@ -817,7 +820,8 @@ class MainWindow(QMainWindow):
     def _build_right_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(238)
+        frame.setMinimumWidth(200)
+        frame.setMaximumWidth(238)
 
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 12, 12, 12)
