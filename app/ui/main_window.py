@@ -805,15 +805,19 @@ class MainWindow(QMainWindow):
         self.mic_btn.clicked.connect(self._toggle_voice_input)
         c_layout.addWidget(self.mic_btn)
 
-        # Circular Send Button
+        # Send replaces the microphone whenever the composer contains a draft.
         self.send_btn = QPushButton()
         self.send_btn.setObjectName("sendCircleButton")
         self.send_btn.setFocusPolicy(Qt.NoFocus)
         self.send_btn.setFixedSize(40, 40)
         self.send_btn.setIcon(QIcon(render_send_icon(18)))
-        self.send_btn.setToolTip("Send Message")
+        self.send_btn.setToolTip("Send message")
+        self.send_btn.setAccessibleName("Send message")
         self.send_btn.clicked.connect(self._send_text)
         c_layout.addWidget(self.send_btn)
+
+        self.command_input.textChanged.connect(self._sync_composer_actions)
+        self._sync_composer_actions()
 
         composer_container.addWidget(self.composer_frame)
 
@@ -1337,6 +1341,18 @@ class MainWindow(QMainWindow):
                 f"Attached {os.path.basename(path)} as text context. Review the prompt before sending."
             )
 
+    def _sync_composer_actions(self, *_):
+        """Show the microphone for an empty composer and Send for a draft."""
+        if not hasattr(self, "command_input") or not hasattr(self, "mic_btn") or not hasattr(self, "send_btn"):
+            return
+        has_draft = bool(self.command_input.text().strip())
+        is_busy = getattr(self, "current_state", "IDLE") in ("PROCESSING", "SPEAKING")
+        self.mic_btn.setVisible(not has_draft and not is_busy)
+        self.send_btn.setVisible(has_draft and not is_busy)
+        self.send_btn.setEnabled(has_draft and not is_busy)
+        self.mic_btn.setEnabled(not is_busy)
+        self.send_btn.setToolTip("Send message" if has_draft else "Enter a message first")
+
     def _send_text(self):
         """Submit text from the single, primary composer."""
         command = self.command_input.text().strip()
@@ -1561,6 +1577,7 @@ class MainWindow(QMainWindow):
     def _set_state(self, state: str, custom_text: str = None):
         """Transition window visual elements to match current assistant/voice state."""
         self.current_state = state
+        self._sync_composer_actions()
         if state == "IDLE":
             self._recording = False
             self.command_input.show()
