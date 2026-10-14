@@ -608,8 +608,8 @@ class MainWindow(QMainWindow):
         self.welcome_panel = QWidget()
         self.welcome_panel.setObjectName("welcomePanel")
         welcome_layout = QVBoxLayout(self.welcome_panel)
-        welcome_layout.setContentsMargins(0, 0, 0, 0)
-        welcome_layout.setSpacing(8)
+        welcome_layout.setContentsMargins(20, 18, 20, 20)
+        welcome_layout.setSpacing(12)
 
         # Hero Section: Left Headline + Right 3D Mascot Robot
         hero_layout = QHBoxLayout()
@@ -773,8 +773,7 @@ class MainWindow(QMainWindow):
         # 3 Tags / Chips below composer:
         # [ ılı Talk naturally ] [ 文A In English or Hindi ] [ 💻 Control your PC ]
         chips_layout = QHBoxLayout()
-        chips_layout.setSpacing(14)
-        chips_layout.addStretch()
+        chips_layout.setSpacing(10)
 
         chip_items = [
             (render_soundwave_icon(14, "#00e5ff"), "Voice input"),
