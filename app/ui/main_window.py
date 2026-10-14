@@ -611,36 +611,31 @@ class MainWindow(QMainWindow):
         welcome_layout.setContentsMargins(20, 18, 20, 20)
         welcome_layout.setSpacing(12)
 
-        # Hero Section: Left Headline + Right 3D Mascot Robot
-        hero_layout = QHBoxLayout()
-        hero_layout.setSpacing(22)
+        # Desktop-native assistant stage: mascot centered above its greeting.
+        hero_layout = QVBoxLayout()
+        hero_layout.setContentsMargins(8, 4, 8, 4)
+        hero_layout.setSpacing(2)
 
-        # Left Hero Text
-        hero_text_box = QVBoxLayout()
-        hero_text_box.setSpacing(8)
-        hero_text_box.addStretch()
+        self.hero_robot = KritamRobotWidget(compact=False)
+        hero_layout.addWidget(self.hero_robot, 0, Qt.AlignHCenter)
 
         headline = QLabel('Hello, I\'m <span style="color: #00d2ff;">Kritam</span>')
         headline.setObjectName("heroHeadline")
-        hero_text_box.addWidget(headline)
+        headline.setAlignment(Qt.AlignCenter)
+        hero_layout.addWidget(headline)
 
         subline = QLabel("Your Intelligent Personal AI Assistant")
         subline.setObjectName("heroSubline")
-        hero_text_box.addWidget(subline)
+        subline.setAlignment(Qt.AlignCenter)
+        hero_layout.addWidget(subline)
 
         hero_body = QLabel(
-            "Ask a question, speak naturally, or let me help\n"
-            "you get something done on your PC."
+            "Ask a question, speak naturally, or let me help you get something done on your PC."
         )
         hero_body.setObjectName("heroBody")
-        hero_text_box.addWidget(hero_body)
-        hero_text_box.addStretch()
-
-        hero_layout.addLayout(hero_text_box, 1)
-
-        # Right Hero Robot Mascot
-        self.hero_robot = KritamRobotWidget(compact=False)
-        hero_layout.addWidget(self.hero_robot, 0, Qt.AlignCenter)
+        hero_body.setAlignment(Qt.AlignCenter)
+        hero_body.setWordWrap(True)
+        hero_layout.addWidget(hero_body)
 
         welcome_layout.addLayout(hero_layout)
 
