@@ -1013,8 +1013,8 @@ class MainWindow(QMainWindow):
         settings_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         settings_content = QWidget()
         layout = QVBoxLayout(settings_content)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(10)
+        layout.setContentsMargins(20, 18, 20, 20)
+        layout.setSpacing(16)
         settings_scroll.setWidget(settings_content)
         page_layout.addWidget(settings_scroll)
 
@@ -1032,8 +1032,9 @@ class MainWindow(QMainWindow):
         account_card = QFrame()
         account_card.setObjectName("detailCard")
         account_layout = QVBoxLayout(account_card)
-        account_layout.setContentsMargins(14, 12, 14, 12)
-        account_title = QLabel("Account")
+        account_layout.setContentsMargins(18, 16, 18, 16)
+        account_layout.setSpacing(10)
+        account_title = QLabel("Account & Profile")
         account_title.setObjectName("cardTitle")
         account_layout.addWidget(account_title)
 
@@ -1068,8 +1069,8 @@ class MainWindow(QMainWindow):
         pref_card = QFrame()
         pref_card.setObjectName("detailCard")
         pref_layout = QVBoxLayout(pref_card)
-        pref_layout.setContentsMargins(14, 12, 14, 12)
-        pref_layout.setSpacing(10)
+        pref_layout.setContentsMargins(18, 16, 18, 16)
+        pref_layout.setSpacing(14)
 
         pref_title = QLabel("Assistant")
         pref_title.setObjectName("cardTitle")
@@ -1161,7 +1162,8 @@ class MainWindow(QMainWindow):
         privacy_card = QFrame()
         privacy_card.setObjectName("detailCard")
         privacy_layout = QVBoxLayout(privacy_card)
-        privacy_layout.setContentsMargins(14, 12, 14, 12)
+        privacy_layout.setContentsMargins(18, 16, 18, 16)
+        privacy_layout.setSpacing(10)
         privacy_title = QLabel("Privacy & Data")
         privacy_title.setObjectName("cardTitle")
         privacy_layout.addWidget(privacy_title)
@@ -1328,6 +1330,7 @@ class MainWindow(QMainWindow):
 
         self._set_startup_setting(startup_enabled)
         self.speech_bubble.setText("Your settings are saved.")
+        self._sync_account_button()
         self._set_busy(False, "Ready")
 
     def _set_startup_setting(self, enabled):
@@ -1424,6 +1427,8 @@ class MainWindow(QMainWindow):
         """Switch between the default dark interface and a readable light theme."""
         self._light_theme = not self._light_theme
         self.setStyleSheet(WINDOW_STYLE + LIGHT_THEME_STYLE if self._light_theme else WINDOW_STYLE)
+        if hasattr(self, "speech_bubble"):
+            self.speech_bubble.setText("Light theme enabled." if self._light_theme else "Dark theme enabled.")
         self.title_bar.update()
 
     def _attach_file(self):
