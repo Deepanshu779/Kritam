@@ -250,7 +250,7 @@ class VoiceRecordingBar(QWidget):
 
         self.finish_button = QPushButton("✓")
         self.finish_button.setObjectName("voiceFinish")
-        self.finish_button.setToolTip("End conversation")
+        self.finish_button.setToolTip("Finish voice dictation")
         self.finish_button.setFixedSize(34, 34)
         self.finish_button.clicked.connect(self.finish_requested.emit)
         layout.addWidget(self.finish_button)
@@ -290,7 +290,7 @@ class VoiceRecordingBar(QWidget):
 
 
 class Worker(QObject):
-    """Background worker for text commands and persistent natural voice conversation."""
+    """Background worker for text commands and single-turn voice dictation."""
 
     state_changed = Signal(str)
     transcript_ready = Signal(str)
@@ -1259,7 +1259,7 @@ class MainWindow(QMainWindow):
             self._start_voice_input()
 
     def _start_voice_input(self):
-        """Start a persistent natural voice conversation session."""
+        """Start one voice-dictation turn and place the transcript in the composer."""
         if self.thread is not None:
             if self._recording and self.worker is not None:
                 self._cancel_voice_input()
@@ -1275,7 +1275,7 @@ class MainWindow(QMainWindow):
         self._start_worker(listen=True)
 
     def _finish_voice_input(self):
-        """End the persistent voice conversation after the current turn."""
+        """Stop the current voice-dictation capture."""
         if not self._recording or self.worker is None:
             return
         self.worker.stop()
