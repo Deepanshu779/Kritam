@@ -282,13 +282,21 @@ class VoiceRecordingBar(QWidget):
         )
         self.status_label.setAccessibleName("Voice status")
         self.status_label.setAccessibleDescription(text or default_text)
+        self.setAccessibleName("Voice interaction controls")
+        self.setAccessibleDescription(text or default_text)
 
         is_listening = state in ("LISTENING", "SPEECH_DETECTED")
         self.cancel_button.setEnabled(is_listening)
+        self.cancel_button.setAccessibleDescription(
+            "Cancel the active recording" if is_listening else "No recording is active"
+        )
         self.cancel_button.setToolTip(
             "Cancel voice input" if is_listening else "No active recording to cancel"
         )
         self.finish_button.setEnabled(is_listening)
+        self.finish_button.setAccessibleDescription(
+            "Finish recording and transcribe speech" if is_listening else "Start listening before finishing dictation"
+        )
         self.finish_button.setToolTip(
             "Finish voice dictation" if is_listening else "Available while listening"
         )
