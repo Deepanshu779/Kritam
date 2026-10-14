@@ -1465,11 +1465,13 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "command_input") or not hasattr(self, "mic_btn") or not hasattr(self, "send_btn"):
             return
         has_draft = bool(self.command_input.text().strip())
-        is_busy = getattr(self, "current_state", "IDLE") in ("PROCESSING", "SPEAKING")
-        self.mic_btn.setVisible(not has_draft and not is_busy)
-        self.send_btn.setVisible(has_draft and not is_busy)
-        self.send_btn.setEnabled(has_draft and not is_busy)
-        self.mic_btn.setEnabled(not is_busy)
+        state = getattr(self, "current_state", "IDLE")
+        is_busy = state in ("PROCESSING", "SPEAKING")
+        is_listening = state in ("LISTENING", "SPEECH_DETECTED")
+        self.mic_btn.setVisible(not has_draft and not is_busy and not is_listening)
+        self.send_btn.setVisible(has_draft and not is_busy and not is_listening)
+        self.send_btn.setEnabled(has_draft and not is_busy and not is_listening)
+        self.mic_btn.setEnabled(not is_busy and not is_listening)
         self.send_btn.setToolTip("Send message" if has_draft else "Enter a message first")
 
     def _send_text(self):
@@ -1696,8 +1698,8 @@ class MainWindow(QMainWindow):
     def _set_state(self, state: str, custom_text: str = None):
         """Transition window visual elements to match current assistant/voice state."""
         self.current_state = state
-        self._sync_composer_actions()
         if state == "IDLE":
+            self._sync_composer_actions()
             self._recording = False
             self.command_input.show()
             self.command_input.setEnabled(True)
@@ -1723,7 +1725,8 @@ class MainWindow(QMainWindow):
             self.command_input.hide()
             self.voice_bar.show()
             self.voice_bar.set_state("LISTENING", custom_text or "Listening...")
-            self.mic_btn.show()
+            self.mic_btn.hide()
+            self.send_btn.hide()
             self.mic_btn.setToolTip("Listening... Click to cancel")
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
@@ -1739,7 +1742,9 @@ class MainWindow(QMainWindow):
         elif state == "SPEECH_DETECTED":
             self._recording = True
             self.voice_bar.set_state("SPEECH_DETECTED", custom_text or "Listening...")
-            self.mic_btn.show()
+            self.mic_btn.hide()
+            self.send_btn.hide()
+            self.voice_bar.status_label.setText("Speech detected — keep talking or finish")
             self.mic_btn.setToolTip("Listening... Click to cancel")
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Listening...")
@@ -1758,7 +1763,8 @@ class MainWindow(QMainWindow):
             self.command_input.hide()
             self.voice_bar.show()
             self.voice_bar.set_state("PROCESSING", custom_text or "Thinking...")
-            self.mic_btn.show()
+            self.mic_btn.hide()
+            self.send_btn.hide()
             self.mic_btn.setToolTip("Thinking...")
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
@@ -1778,7 +1784,8 @@ class MainWindow(QMainWindow):
             self.attach_btn.setEnabled(False)
             self.voice_bar.show()
             self.voice_bar.set_state("SPEAKING", custom_text or "Speaking...")
-            self.mic_btn.show()
+            self.mic_btn.hide()
+            self.send_btn.hide()
             self.mic_btn.setToolTip("Speaking...")
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
@@ -1797,10 +1804,11 @@ class MainWindow(QMainWindow):
             self.command_input.setEnabled(True)
             self.send_btn.setEnabled(True)
             self.attach_btn.setEnabled(True)
-            self.voice_bar.show()
-            self.voice_bar.set_state("ERROR", custom_text or "Something went wrong")
+            self.voice_bar.hide()
+            self.voice_bar.stop_animation()
             self.mic_btn.show()
             self.mic_btn.setToolTip("Something went wrong")
+            self._sync_composer_actions()
             self._sync_listen_button()
             if hasattr(self, "status_lbl"):
                 self.status_lbl.setText("● Something went wrong")
