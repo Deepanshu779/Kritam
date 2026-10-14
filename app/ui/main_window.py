@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSlider,
     QStackedWidget,
+    QSizePolicy,
     QSystemTrayIcon,
     QStyle,
     QMenu,
