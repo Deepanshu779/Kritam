@@ -1280,10 +1280,13 @@ class MainWindow(QMainWindow):
         self.worker.stop()
 
     def _cancel_voice_input(self):
-        """Safely cancel the active voice session without running STT or actions."""
-        if self.worker is not None and self._recording:
-            self.worker.cancel()
-        self._set_state("IDLE")
+        """Cancel dictation and wait for worker cleanup before restoring controls."""
+        if self.worker is None or not self._recording:
+            return
+        self.worker.cancel()
+        # Keep the composer locked while the worker unwinds. Its cancelled
+        # result will move the UI to IDLE after the thread finishes its turn.
+        self._set_state("PROCESSING", "Cancelling voice input...")
 
     def _start_worker(self, command=None, listen=False):
         self.thread = QThread()
