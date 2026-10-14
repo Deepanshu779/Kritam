@@ -122,21 +122,24 @@ class CustomTitleBar(QFrame):
         # Right buttons: theme toggle, minimize, maximize, close
         theme_btn = QPushButton("☼")
         theme_btn.setObjectName("titleBarBtn")
-        theme_btn.setToolTip("Toggle Theme")
+        theme_btn.setToolTip("Toggle between dark and light themes")
+        theme_btn.setAccessibleName("Toggle theme")
         theme_btn.setFixedSize(28, 26)
         theme_btn.clicked.connect(self.parent_window._toggle_theme)
         layout.addWidget(theme_btn)
 
         min_btn = QPushButton("—")
         min_btn.setObjectName("titleBarBtn")
-        min_btn.setToolTip("Minimize")
+        min_btn.setToolTip("Minimize Kritam")
+        min_btn.setAccessibleName("Minimize window")
         min_btn.setFixedSize(28, 26)
         min_btn.clicked.connect(self.parent_window.showMinimized)
         layout.addWidget(min_btn)
 
         self.max_btn = QPushButton("□")
         self.max_btn.setObjectName("titleBarBtn")
-        self.max_btn.setToolTip("Maximize")
+        self.max_btn.setToolTip("Maximize or restore Kritam")
+        self.max_btn.setAccessibleName("Maximize or restore window")
         self.max_btn.setFixedSize(28, 26)
         self.max_btn.clicked.connect(self._toggle_maximize)
         layout.addWidget(self.max_btn)
@@ -145,7 +148,8 @@ class CustomTitleBar(QFrame):
         close_btn.setObjectName("titleBarBtn")
         close_btn.setProperty("isClose", True)
         close_btn.setStyleSheet("QPushButton:hover { background: #e81123; color: white; }")
-        close_btn.setToolTip("Close")
+        close_btn.setToolTip("Close window to the system tray")
+        close_btn.setAccessibleName("Close Kritam")
         close_btn.setFixedSize(28, 26)
         close_btn.clicked.connect(self.parent_window.close)
         layout.addWidget(close_btn)
@@ -185,7 +189,8 @@ class VoiceWaveWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._phase = 0
-        self.setMinimumWidth(120)
+        # Allow the waveform to compress in compact desktop layouts.
+        self.setMinimumWidth(60)
 
     def start(self):
         self._timer.start(70)
@@ -580,6 +585,8 @@ class MainWindow(QMainWindow):
         for label, icon_name, index in nav_items:
             btn = QPushButton(f"    {label}")
             btn.setObjectName("nav")
+            btn.setAccessibleName(label)
+            btn.setToolTip(f"Open {label}")
             btn.setCheckable(True)
             btn.setIcon(QIcon(render_nav_icon(icon_name, active=(index == 0), size=20)))
             btn.clicked.connect(lambda checked, idx=index: self._select_page(idx))
@@ -649,7 +656,9 @@ class MainWindow(QMainWindow):
         hero_body.setObjectName("heroBody")
         hero_body.setAlignment(Qt.AlignCenter)
         hero_body.setWordWrap(True)
-        hero_layout.addWidget(hero_body)
+        hero_body.setMaximumWidth(620)
+        hero_body.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        hero_layout.addWidget(hero_body, 0, Qt.AlignHCenter)
 
         welcome_layout.addLayout(hero_layout)
 
@@ -913,6 +922,8 @@ class MainWindow(QMainWindow):
         self.listen_btn = QPushButton("Start Listening")
         self.listen_btn.setObjectName("startListeningButton")
         self.listen_btn.setIcon(QIcon(render_mic_icon(18, "#ffffff")))
+        self.listen_btn.setAccessibleName("Start or cancel voice dictation")
+        self.listen_btn.setToolTip("Start voice dictation")
         self.listen_btn.setFixedHeight(42)
         self.listen_btn.clicked.connect(self._toggle_voice_input)
         v_layout.addWidget(self.listen_btn)
