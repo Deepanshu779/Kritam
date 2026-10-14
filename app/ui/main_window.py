@@ -1511,6 +1511,9 @@ class MainWindow(QMainWindow):
 
         elif state == "SPEAKING":
             self.command_input.hide()
+            self.command_input.setEnabled(False)
+            self.send_btn.setEnabled(False)
+            self.attach_btn.setEnabled(False)
             self.voice_bar.show()
             self.voice_bar.set_state("SPEAKING", custom_text or "Speaking...")
             self.mic_btn.show()
@@ -1526,6 +1529,14 @@ class MainWindow(QMainWindow):
                 self.avatar_robot.set_active(True)
 
         elif state == "ERROR":
+            # Errors should be recoverable: restore the composer and make
+            # the failed operation clear without leaving controls disabled.
+            self._recording = False
+            self.command_input.show()
+            self.command_input.setEnabled(True)
+            self.send_btn.setEnabled(True)
+            self.attach_btn.setEnabled(True)
+            self.voice_bar.show()
             self.voice_bar.set_state("ERROR", custom_text or "Something went wrong")
             self.mic_btn.show()
             self.mic_btn.setToolTip("Something went wrong")
