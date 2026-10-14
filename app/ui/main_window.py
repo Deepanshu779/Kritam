@@ -706,7 +706,6 @@ class MainWindow(QMainWindow):
         self.conversation_scroll.setWidgetResizable(True)
         self.conversation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.conversation_scroll.setMinimumHeight(150)
-        self.conversation_scroll.setObjectName("conversationScroll")
         self.conversation_content = QWidget()
         self.conversation_content.setObjectName("conversationContent")
         self.conversation_messages_layout = QVBoxLayout(self.conversation_content)
@@ -1231,15 +1230,15 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Could not read file", f"Kritam could not read this file: {exc}")
             return
         prompt = f"Please help me with the attached file {os.path.basename(path)}:\n\n{content}"
-        target_input = (
-            self.chat_input
-            if hasattr(self, "chat_input") and self.stack.currentIndex() == 1
-            else self.command_input
-        )
-        target_input.setText(prompt)
-        target_input.setCursorPosition(0)
-        target_input.setFocus()
-        self.speech_bubble.setText(f"Attached {os.path.basename(path)} as text context. Review the prompt before sending.")
+        # Kritam has one authoritative composer across the application.
+        # Keep attachments in that composer instead of targeting a legacy chat page.
+        self.command_input.setText(prompt)
+        self.command_input.setCursorPosition(0)
+        self.command_input.setFocus()
+        if hasattr(self, "speech_bubble"):
+            self.speech_bubble.setText(
+                f"Attached {os.path.basename(path)} as text context. Review the prompt before sending."
+            )
 
     def _send_text(self):
         """Submit text from the single, primary composer."""
