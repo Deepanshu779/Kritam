@@ -1447,6 +1447,8 @@ class MainWindow(QMainWindow):
             self._recording = False
             self.command_input.show()
             self.command_input.setEnabled(True)
+            self.send_btn.setEnabled(True)
+            self.attach_btn.setEnabled(True)
             self.voice_bar.hide()
             self.voice_bar.stop_animation()
             self.mic_btn.show()
@@ -1492,6 +1494,11 @@ class MainWindow(QMainWindow):
                 self.avatar_robot.set_active(True)
 
         elif state == "PROCESSING":
+            # Prevent duplicate submissions and attachment changes while a
+            # request is in flight; controls are restored in the IDLE state.
+            self.command_input.setEnabled(False)
+            self.send_btn.setEnabled(False)
+            self.attach_btn.setEnabled(False)
             self.command_input.hide()
             self.voice_bar.show()
             self.voice_bar.set_state("PROCESSING", custom_text or "Thinking...")
