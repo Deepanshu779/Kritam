@@ -520,8 +520,8 @@ class MainWindow(QMainWindow):
         # 2. Main content row: Left Sidebar + Center Area + Right Sidebar
         body_widget = QWidget()
         body_layout = QHBoxLayout(body_widget)
-        body_layout.setContentsMargins(14, 10, 14, 14)
-        body_layout.setSpacing(14)
+        body_layout.setContentsMargins(18, 12, 18, 18)
+        body_layout.setSpacing(16)
 
         # Left Sidebar
         body_layout.addWidget(self._build_sidebar())
@@ -545,7 +545,7 @@ class MainWindow(QMainWindow):
     def _build_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(210)
+        frame.setFixedWidth(172)
 
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 14, 12, 10)
@@ -590,16 +590,16 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(page)
         layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(12)
+        layout.setSpacing(14)
 
         # Top Center Header
         header_layout = QVBoxLayout()
         header_layout.setSpacing(2)
-        top_title = QLabel("KRITAM")
+        top_title = QLabel("YOUR AI COMPANION")
         top_title.setObjectName("centerHeaderTitle")
         header_layout.addWidget(top_title)
 
-        top_sub = QLabel("Your Personal AI Assistant")
+        top_sub = QLabel("A little help with whatever is on your mind.")
         top_sub.setObjectName("centerHeaderSub")
         header_layout.addWidget(top_sub)
         layout.addLayout(header_layout)
@@ -613,7 +613,7 @@ class MainWindow(QMainWindow):
 
         # Hero Section: Left Headline + Right 3D Mascot Robot
         hero_layout = QHBoxLayout()
-        hero_layout.setSpacing(16)
+        hero_layout.setSpacing(22)
 
         # Left Hero Text
         hero_text_box = QVBoxLayout()
@@ -629,8 +629,8 @@ class MainWindow(QMainWindow):
         hero_text_box.addWidget(subline)
 
         hero_body = QLabel(
-            "I can help you with daily tasks, answer your questions,\n"
-            "open applications, search the web and much more."
+            "Ask a question, speak naturally, or let me help\n"
+            "you get something done on your PC."
         )
         hero_body.setObjectName("heroBody")
         hero_text_box.addWidget(hero_body)
@@ -654,23 +654,19 @@ class MainWindow(QMainWindow):
         grid.setSpacing(12)
 
         cards_data = [
-            # Row 0
-            (render_chrome_icon(32), "Open Chrome", '"Open Google Chrome"', "Open Chrome"),
-            (render_folder_icon(32), "Open Downloads", '"Open my Downloads folder"', "Open Downloads"),
-            (render_camera_icon(32), "Take Screenshot", '"Take a screenshot"', "Take a screenshot"),
-            # Row 1
-            (render_youtube_icon(32), "Play a Video", '"Open YouTube"', "Open YouTube"),
-            (render_search_icon(32), "Search the Web", '"Search for AI news"', "Search Google for AI news"),
-            (render_note_icon(32), "Create a Note", '"Write a note for me"', "Remember that meeting at 4pm"),
+            (render_chrome_icon(32), "Open Chrome", "Launch your browser", "Open Chrome"),
+            (render_folder_icon(32), "Open Downloads", "Find your downloaded files", "Open Downloads"),
+            (render_camera_icon(32), "Take Screenshot", "Capture your screen", "Take a screenshot"),
+            (render_search_icon(32), "Search the Web", "Look something up online", "Search Google for AI news"),
         ]
 
         for i, (icon_pixmap, title, subtitle, cmd) in enumerate(cards_data):
-            row = i // 3
-            col = i % 3
+            row = i // 2
+            col = i % 2
 
             card_btn = QPushButton()
             card_btn.setObjectName("promptCard")
-            card_btn.setFixedHeight(72)
+            card_btn.setFixedHeight(78)
 
             btn_layout = QHBoxLayout(card_btn)
             btn_layout.setContentsMargins(12, 10, 12, 10)
@@ -706,6 +702,7 @@ class MainWindow(QMainWindow):
         self.conversation_scroll.setWidgetResizable(True)
         self.conversation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.conversation_scroll.setMinimumHeight(150)
+        self.conversation_scroll.hide()
         self.conversation_content = QWidget()
         self.conversation_content.setObjectName("conversationContent")
         self.conversation_messages_layout = QVBoxLayout(self.conversation_content)
@@ -780,9 +777,9 @@ class MainWindow(QMainWindow):
         chips_layout.addStretch()
 
         chip_items = [
-            (render_soundwave_icon(14, "#00e5ff"), "Talk naturally"),
-            (None, "In English or Hindi", "文A"),
-            (None, "Control your PC", "💻"),
+            (render_soundwave_icon(14, "#00e5ff"), "Voice input"),
+            (None, "English & Hindi", "文A"),
+            (None, "PC controls", "⌘"),
         ]
 
         for item in chip_items:
@@ -818,7 +815,7 @@ class MainWindow(QMainWindow):
     def _build_right_sidebar(self):
         frame = QFrame()
         frame.setObjectName("sidebar")
-        frame.setFixedWidth(270)
+        frame.setFixedWidth(238)
 
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -1182,6 +1179,7 @@ class MainWindow(QMainWindow):
         """Render each turn in the one visible conversation history."""
         if is_user and hasattr(self, "welcome_panel"):
             self.welcome_panel.hide()
+            self.conversation_scroll.show()
         if hasattr(self, "speech_bubble") and not is_user:
             self.speech_bubble.setText(str(text))
         if not hasattr(self, "conversation_messages_layout"):
