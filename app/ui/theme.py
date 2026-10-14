@@ -119,25 +119,6 @@ QLabel#heroBody {
     font-size: 13px;
 }
 
-QLabel#heroHeadline {
-    color: #ffffff;
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: 0.3px;
-}
-
-QLabel#heroSubline {
-    color: #c9dbf2;
-    font-size: 18px;
-    font-weight: 600;
-}
-
-QLabel#heroBody {
-    color: #7e91ad;
-    font-size: 13px;
-    line-height: 1.45;
-}
-
 QLabel#sectionTitle {
     color: #f1f6ff;
     font-size: 15.5px;
