@@ -804,3 +804,102 @@ body {
   background-color: var(--bg-hover);
   color: var(--text-primary);
 }
+
+
+/* Demo polish: balanced reading width, calmer spacing, and responsive composer. */
+.messages-container {
+  padding: 28px clamp(20px, 5vw, 72px) 30px;
+  gap: 26px;
+  scroll-behavior: smooth;
+}
+
+.message-row {
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.message-content {
+  max-width: min(820px, calc(100% - 46px));
+  min-width: 0;
+  font-size: 0.94rem;
+  line-height: 1.72;
+}
+
+.message-bubble.user {
+  padding: 11px 15px;
+  border-radius: 17px 17px 5px 17px;
+  background: var(--bg-surface);
+  border-color: var(--border-subtle);
+}
+
+.message-bubble.assistant {
+  overflow-wrap: anywhere;
+}
+
+.message-bubble.assistant p,
+.message-bubble.assistant ul,
+.message-bubble.assistant ol {
+  margin-bottom: 10px;
+}
+
+.message-bubble.assistant h1,
+.message-bubble.assistant h2,
+.message-bubble.assistant h3 {
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+}
+
+.action-card {
+  margin-top: 14px;
+  padding: 12px 14px;
+  gap: 12px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.composer-wrapper {
+  padding: 0 clamp(20px, 5vw, 72px) 22px;
+}
+
+.composer-box {
+  max-width: 100%;
+  border-radius: 17px;
+  padding: 12px 14px;
+  box-shadow: 0 5px 22px rgba(15, 23, 42, 0.055);
+}
+
+.composer-input {
+  padding: 3px 2px;
+  line-height: 1.6;
+}
+
+.btn-icon:focus-visible,
+.btn-primary:focus-visible,
+.icon-btn-subtle:focus-visible,
+.conv-item:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.conv-item {
+  min-height: 42px;
+}
+
+@media (max-width: 900px) {
+  .messages-container {
+    padding: 20px 16px 24px;
+    gap: 20px;
+  }
+  .message-content {
+    max-width: calc(100% - 42px);
+  }
+  .composer-wrapper {
+    padding: 0 16px 14px;
+  }
+  .action-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
