@@ -16,6 +16,14 @@ export const App: React.FC = () => {
   const speech = useSpeechService();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  // Keep a synchronous source of truth for async sends and conversation switching.
+  const activeConvIdRef = useRef<string | null>(null);
+  const generationInFlightRef = useRef(false);
+  const selectionRequestRef = useRef(0);
+  const setActiveConversation = (id: string | null) => {
+    activeConvIdRef.current = id;
+    setActiveConvId(id);
+  };
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -97,7 +105,7 @@ export const App: React.FC = () => {
     try {
       const list = await apiClient.getConversations();
       setConversations(list);
-      if (list.length > 0 && !activeConvId) {
+      if (list.length > 0 && !activeConvIdRef.current) {
         selectConversation(list[0].id);
       }
     } catch (e) {
@@ -106,13 +114,19 @@ export const App: React.FC = () => {
   };
 
   const selectConversation = async (id: string) => {
-    setActiveConvId(id);
+    const requestId = ++selectionRequestRef.current;
+    setActiveConversation(id);
+    setMessages([]);
     try {
       const fullConv = await apiClient.getConversation(id);
+      // Ignore stale responses if the user selected another conversation meanwhile.
+      if (requestId !== selectionRequestRef.current || activeConvIdRef.current !== id) return;
       setMessages(fullConv.messages || []);
       scrollToBottom();
     } catch (e) {
-      console.error('[App] Failed to load conversation:', e);
+      if (requestId === selectionRequestRef.current) {
+        console.error('[App] Failed to load conversation:', e);
+      }
     }
   };
 
@@ -120,7 +134,8 @@ export const App: React.FC = () => {
     try {
       const created = await apiClient.createConversation('New Conversation', settings.default_provider);
       setConversations((prev) => [created, ...prev]);
-      setActiveConvId(created.id);
+      ++selectionRequestRef.current;
+      setActiveConversation(created.id);
       setMessages([]);
     } catch (e) {
       console.error('[App] Failed to create new conversation:', e);
@@ -139,7 +154,8 @@ export const App: React.FC = () => {
           await apiClient.deleteConversation(id);
           setConversations((prev) => prev.filter((c) => c.id !== id));
           if (activeConvId === id) {
-            setActiveConvId(null);
+            ++selectionRequestRef.current;
+            setActiveConversation(null);
             setMessages([]);
           }
         } catch (e) {
@@ -168,88 +184,98 @@ export const App: React.FC = () => {
   };
 
   const handleSendMessage = async (text: string) => {
-    // Interruption: Cancel active TTS speech immediately
+    const cleanText = text.trim();
+    if (!cleanText || generationInFlightRef.current) return;
+    generationInFlightRef.current = true;
+
     speechService.stopSpeaking();
 
-    let targetConvId = activeConvId;
-    if (!targetConvId) {
-      const created = await apiClient.createConversation(text.slice(0, 30), settings.default_provider);
-      setConversations((prev) => [created, ...prev]);
-      setActiveConvId(created.id);
-      targetConvId = created.id;
-    }
-
-    const tempUserMsg: Message = {
-      id: `user-${Date.now()}`,
-      conversation_id: targetConvId,
-      role: 'user',
-      content: text,
-      created_at: new Date().toISOString()
-    };
-
-    const tempAssistantMsg: Message = {
-      id: `asst-${Date.now()}`,
-      conversation_id: targetConvId,
-      role: 'assistant',
-      content: '',
-      status: 'generating',
-      created_at: new Date().toISOString()
-    };
-
-    setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
-    setIsGenerating(true);
-    setCompanionState('thinking');
-    scrollToBottom();
-
-    const stopFn = await apiClient.streamChat(
-      targetConvId,
-      text,
-      settings.default_provider,
-      settings.default_provider === 'ollama' ? settings.ollama_model : undefined,
-      (token) => {
-        setCompanionState('speaking');
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === 'assistant') {
-            return [...prev.slice(0, -1), { ...last, content: last.content + token }];
-          }
-          return prev;
-        });
-        scrollToBottom();
-      },
-      (fullContent) => {
-        setIsGenerating(false);
-        setCompanionState('idle');
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === 'assistant') {
-            return [...prev.slice(0, -1), { ...last, content: fullContent, status: 'completed' }];
-          }
-          return prev;
-        });
-        // Auto-TTS if enabled
-        if (settings.enable_tts_auto && fullContent) {
-          speechService.speak(fullContent, { voiceName: settings.tts_voice, rate: settings.tts_rate });
-        }
-        loadConversations();
-      },
-      (err) => {
-        setIsGenerating(false);
-        setCompanionState('idle');
-        setMessages((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.role === 'assistant') {
-            return [
-              ...prev.slice(0, -1),
-              { ...last, content: last.content + `\n\n[Error: ${err.message}]`, status: 'failed' }
-            ];
-          }
-          return prev;
-        });
+    let targetConvId = activeConvIdRef.current;
+    try {
+      if (!targetConvId) {
+        const created = await apiClient.createConversation(cleanText.slice(0, 30), settings.default_provider);
+        setConversations((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+        targetConvId = created.id;
+        setActiveConversation(created.id);
+        setMessages([]);
       }
-    );
 
-    stopStreamRef.current = stopFn;
+      const userMsgId = `user-${Date.now()}`;
+      const assistantMsgId = `asst-${Date.now()}`;
+      const tempUserMsg: Message = {
+        id: userMsgId,
+        conversation_id: targetConvId,
+        role: 'user',
+        content: cleanText,
+        created_at: new Date().toISOString()
+      };
+      const tempAssistantMsg: Message = {
+        id: assistantMsgId,
+        conversation_id: targetConvId,
+        role: 'assistant',
+        content: '',
+        status: 'generating',
+        created_at: new Date().toISOString()
+      };
+
+      setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
+      setIsGenerating(true);
+      setCompanionState('thinking');
+      scrollToBottom();
+
+      const stopFn = await apiClient.streamChat(
+        targetConvId,
+        cleanText,
+        settings.default_provider,
+        settings.default_provider === 'ollama' ? settings.ollama_model : undefined,
+        (token) => {
+          setCompanionState('speaking');
+          setMessages((prev) => prev.map((msg) =>
+            msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
+          ));
+          if (activeConvIdRef.current === targetConvId) scrollToBottom();
+        },
+        (fullContent) => {
+          generationInFlightRef.current = false;
+          setIsGenerating(false);
+          setCompanionState('idle');
+          setMessages((prev) => prev.map((msg) =>
+            msg.id === assistantMsgId ? { ...msg, content: fullContent, status: 'completed' } : msg
+          ));
+          if (settings.enable_tts_auto && fullContent && activeConvIdRef.current === targetConvId) {
+            speechService.speak(fullContent, { voiceName: settings.tts_voice, rate: settings.tts_rate });
+          }
+          // Refresh sidebar metadata only; do not implicitly change the selected chat.
+          apiClient.getConversations().then(setConversations).catch((e) =>
+            console.warn('[App] Conversation refresh failed:', e)
+          );
+        },
+        (err) => {
+          generationInFlightRef.current = false;
+          setIsGenerating(false);
+          setCompanionState('idle');
+          setMessages((prev) => prev.map((msg) =>
+            msg.id === assistantMsgId
+              ? { ...msg, content: msg.content + `\n\n[Error: ${err.message}]`, status: 'failed' }
+              : msg
+          ));
+        }
+      );
+
+      stopStreamRef.current = stopFn;
+    } catch (e: any) {
+      generationInFlightRef.current = false;
+      setIsGenerating(false);
+      setCompanionState('idle');
+      console.error('[App] Failed to send message:', e);
+      setMessages((prev) => [...prev, {
+        id: `send-error-${Date.now()}`,
+        conversation_id: targetConvId || '',
+        role: 'system',
+        content: `Message could not be sent: ${e?.message || 'Unknown error'}`,
+        created_at: new Date().toISOString()
+      }]);
+    }
   };
 
   const handleStopGeneration = () => {
@@ -259,6 +285,7 @@ export const App: React.FC = () => {
       stopStreamRef.current();
       stopStreamRef.current = null;
     }
+    generationInFlightRef.current = false;
     setIsGenerating(false);
     setCompanionState('idle');
   };
