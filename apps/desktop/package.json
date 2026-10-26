@@ -1,0 +1,34 @@
+{
+  "name": "kritam-desktop",
+  "version": "1.0.0",
+  "description": "KRITAM - Personal AI Companion for Windows",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "vite",
+    "build:renderer": "vite build",
+    "build:main": "tsc -p tsconfig.node.json",
+    "build": "npm run build:renderer && npm run build:main",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:127.0.0.1:5173 && npm run electron:start\"",
+    "electron:start": "tsc -p tsconfig.node.json && electron dist/main/index.js",
+    "start": "electron dist/main/index.js"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.453.0",
+    "marked": "^14.1.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/marked": "^5.0.2",
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "electron": "^31.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.3",
+    "wait-on": "^7.2.0"
+  }
+}

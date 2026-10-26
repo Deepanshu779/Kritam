@@ -1,0 +1,70 @@
+import json
+import httpx
+from typing import AsyncGenerator
+from app.services.ai.base import BaseAIProvider
+from app.core.config import settings
+
+class OllamaAdapter(BaseAIProvider):
+    """Local inference adapter for Ollama."""
+
+    def __init__(self, base_url: str | None = None, model: str | None = None):
+        self.base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+        self.default_model = model or settings.OLLAMA_MODEL
+
+    async def is_available(self) -> bool:
+        """Check if local Ollama server is running and responding."""
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                res = await client.get(f"{self.base_url}/api/tags")
+                return res.status_code == 200
+        except Exception:
+            return False
+
+    async def get_installed_models(self) -> list[str]:
+        """Fetch list of locally installed models."""
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                res = await client.get(f"{self.base_url}/api/tags")
+                if res.status_code == 200:
+                    data = res.json()
+                    return [m["name"] for m in data.get("models", [])]
+        except Exception:
+            pass
+        return []
+
+    async def generate_stream(
+        self,
+        messages: list[dict],
+        model: str | None = None,
+        **kwargs
+    ) -> AsyncGenerator[str, None]:
+        target_model = model or self.default_model
+        payload = {
+            "model": target_model,
+            "messages": messages,
+            "stream": True
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=3.0)) as client:
+                async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
+                    if response.status_code != 200:
+                        yield f"Ollama returned error status {response.status_code}. Is model '{target_model}' downloaded?"
+                        return
+
+                    async for line in response.aiter_lines():
+                        if not line:
+                            continue
+                        try:
+                            data = json.loads(line)
+                            delta = data.get("message", {}).get("content", "")
+                            if delta:
+                                yield delta
+                            if data.get("done", False):
+                                break
+                        except json.JSONDecodeError:
+                            continue
+        except httpx.ConnectError:
+            yield f"Could not connect to Ollama at {self.base_url}. Please ensure Ollama is installed and running (`ollama serve`)."
+        except Exception as e:
+            yield f"Error communicating with local model: {str(e)}"
