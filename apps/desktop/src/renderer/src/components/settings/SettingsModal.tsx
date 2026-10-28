@@ -54,47 +54,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Sparkles size={20} style={{ color: 'var(--accent-primary)' }} />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Settings</h2>
+        <div className="modal-header settings-header">
+          <div className="settings-heading">
+            <span className="settings-heading-icon"><Sparkles size={19} /></span>
+            <div>
+              <h2>Settings</h2>
+              <p>Personalize your KRITAM experience</p>
+            </div>
           </div>
-          <button className="icon-btn-subtle" onClick={onClose}>
-            <X size={18} />
+          <button className="icon-btn-subtle settings-close" aria-label="Close settings" title="Close settings" onClick={onClose}>
+            <X size={19} />
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', padding: '0 20px', gap: 16 }}>
+        <nav className="settings-tabs" aria-label="Settings sections">
           {[
-            { id: 'ai', label: 'AI Intelligence', icon: <Cpu size={15} /> },
-            { id: 'general', label: 'General & Appearance', icon: <Sparkles size={15} /> },
-            { id: 'voice', label: 'Voice & Audio', icon: <Volume2 size={15} /> },
-            { id: 'privacy', label: 'Desktop Security', icon: <Shield size={15} /> }
+            { id: 'ai', label: 'AI Provider', icon: <Cpu size={17} /> },
+            { id: 'general', label: 'Appearance', icon: <Sparkles size={17} /> },
+            { id: 'voice', label: 'Voice & Audio', icon: <Volume2 size={17} /> },
+            { id: 'privacy', label: 'Security', icon: <Shield size={17} /> }
           ].map((tab) => (
             <button
               key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              className={`settings-tab ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => setActiveTab(tab.id as any)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '12px 4px',
-                border: 'none',
-                background: 'transparent',
-                color: activeTab === tab.id ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                borderBottom: activeTab === tab.id ? '2px solid var(--accent-primary)' : '2px solid transparent',
-                fontWeight: activeTab === tab.id ? 600 : 500,
-                fontSize: '0.86rem',
-                cursor: 'pointer'
-              }}
             >
-              {tab.icon} {tab.label}
+              {tab.icon}<span>{tab.label}</span>
             </button>
           ))}
-        </div>
+        </nav>
 
-        <div className="modal-body">
+        <div className="modal-body settings-body">
           {activeTab === 'ai' && (
             <>
               <div className="form-group">
@@ -415,7 +408,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           )}
         </div>
 
-        <div className="modal-footer">
+        <div className="modal-footer settings-footer">
           <button className="btn-secondary" onClick={onClose}>
             Cancel
           </button>

@@ -9,16 +9,27 @@ async def transcribe_audio(
     audio: UploadFile = File(...),
     _: bool = Depends(verify_auth_token),
 ):
-    allowed = {"audio/webm", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "application/octet-stream"}
-    if audio.content_type and audio.content_type not in allowed:
-        raise HTTPException(status_code=415, detail="Unsupported audio format.")
+    # MediaRecorder may send parameters (e.g. audio/webm;codecs=opus),
+    # and Electron builds can expose WebM with a video/* MIME despite an audio track.
+    raw_type = (audio.content_type or "application/octet-stream").lower().strip()
+    mime = raw_type.split(";", 1)[0].strip()
+    suffix_by_type = {
+        "audio/webm": ".webm", "video/webm": ".webm",
+        "audio/wav": ".wav", "audio/x-wav": ".wav",
+        "audio/ogg": ".ogg", "application/ogg": ".ogg",
+        "audio/mp4": ".mp4", "video/mp4": ".mp4",
+        "audio/x-m4a": ".m4a", "audio/mpeg": ".mp3",
+        "audio/mp3": ".mp3", "application/octet-stream": ".webm",
+    }
+    suffix = suffix_by_type.get(mime)
+    if suffix is None:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported audio format: {raw_type}. Supported: WebM, WAV, OGG, MP4/M4A, MP3.",
+        )
     payload = await audio.read(40 * 1024 * 1024 + 1)
     if len(payload) > 40 * 1024 * 1024:
         raise HTTPException(status_code=413, detail="Recording exceeds the 40 MB limit.")
-    suffix = {
-        "audio/webm": ".webm", "audio/wav": ".wav",
-        "audio/ogg": ".ogg", "audio/mp4": ".mp4", "audio/x-m4a": ".m4a"
-    }.get(audio.content_type, ".webm")
     try:
         result = transcribe_bytes(payload, suffix)
         return result
