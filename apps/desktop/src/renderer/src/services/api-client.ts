@@ -44,6 +44,24 @@ class ApiClient {
     return res.json();
   }
 
+  public async transcribeAudio(audio: Blob): Promise<{ text: string; language?: string }> {
+    await this.init();
+    const headers = new Headers();
+    if (this.authToken) headers.set('X-Kritam-Auth-Token', this.authToken);
+    const form = new FormData();
+    form.append('audio', audio, audio.type.includes('mp4') ? 'recording.mp4' : 'recording.webm');
+    const response = await fetch(`${this.baseUrl}/api/speech/transcribe`, {
+      method: 'POST',
+      headers,
+      body: form,
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => 'Unknown transcription error');
+      throw new Error(`Local transcription failed [${response.status}]: ${message}`);
+    }
+    return response.json();
+  }
+
   public async getHealth(): Promise<HealthStatus> {
     return this.request<HealthStatus>('/api/health');
   }
