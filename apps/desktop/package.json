@@ -8,9 +8,27 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.node.json",
     "build": "npm run build:renderer && npm run build:main",
+    "package": "npm run build && electron-builder --dir",
+    "dist:portable": "npm run build && electron-builder --win portable",
     "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:127.0.0.1:5173 && npm run electron:start\"",
     "electron:start": "tsc -p tsconfig.node.json && electron dist/main/index.js",
     "start": "electron dist/main/index.js"
+  },
+  "build": {
+    "appId": "com.kritam.desktop",
+    "productName": "KRITAM",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ]
+    }
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -27,6 +45,7 @@
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^8.2.2",
     "electron": "^31.3.1",
+    "electron-builder": "^26.18.0",
     "typescript": "^5.5.3",
     "vite": "^5.3.3",
     "wait-on": "^7.2.0"

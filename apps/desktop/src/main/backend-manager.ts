@@ -1,7 +1,9 @@
 import { ChildProcess, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import http from 'http';
+import { app } from 'electron';
 
 export class BackendManager {
   private process: ChildProcess | null = null;
@@ -43,9 +45,25 @@ export class BackendManager {
       return;
     }
 
-    const projectRoot = path.resolve(__dirname, '../../../..');
-    const venvPython = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
-    const backendDir = path.join(projectRoot, 'backend');
+    let projectRoot = path.resolve(__dirname, '../../../..');
+    let venvPython = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
+    let backendDir = path.join(projectRoot, 'backend');
+
+    if (app && app.isPackaged) {
+      const resourcesDir = process.resourcesPath;
+      if (fs.existsSync(path.join(resourcesDir, 'backend'))) {
+        projectRoot = resourcesDir;
+        backendDir = path.join(resourcesDir, 'backend');
+        const packagedVenv = path.join(resourcesDir, '.venv', 'Scripts', 'python.exe');
+        if (fs.existsSync(packagedVenv)) {
+          venvPython = packagedVenv;
+        }
+      }
+    }
+
+    if (!fs.existsSync(venvPython)) {
+      venvPython = 'python';
+    }
 
     console.log('[BackendManager] Spawning backend server with Python:', venvPython);
 
