@@ -34,6 +34,24 @@ class OfflineRouter(BaseAIProvider):
         cleaned = self.clean_command_text(prompt)
         lower = cleaned.lower()
 
+        # Parse composite platform + playback requests before generic app launch.
+        # Examples: open YouTube and play Arijit Singh; common STT slip: ply.
+        media_open = re.match(r"^(?:open|launch|start)\s+(youtube|youtube music|spotify)(?:\s+(?:and|then)\s+(?:play|ply|search(?:\s+for)?)\s+(.+))$", lower, re.IGNORECASE)
+        if media_open:
+            platform, query = media_open.group(1).strip(), (media_open.group(2) or "").strip()
+            if query:
+                provider = "spotify" if "spotify" in platform else "youtube"
+                return {"type": "play_music", "target": f"{query} on {provider}"}
+            if "spotify" in platform:
+                return {"type": "play_music", "target": "spotify"}
+            return {"type": "open_url", "target": "https://www.youtube.com"}
+
+        media_direct = re.match(r"^(?:play|ply|listen\s+to)\s+(.+?)\s+on\s+(youtube(?:\s+music)?|spotify)$", lower)
+        if media_direct:
+            query, platform = media_direct.group(1).strip(), media_direct.group(2).strip()
+            provider = "spotify" if "spotify" in platform else "youtube"
+            return {"type": "play_music", "target": f"{query} on {provider}"}
+
         # 1. Cancellation / Stop speech
         if re.search(r"^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$", lower):
             return {"type": "cancel_speech", "target": "stop"}
