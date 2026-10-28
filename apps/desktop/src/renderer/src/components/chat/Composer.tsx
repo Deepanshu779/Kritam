@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Square, Mic, MicOff, AlertCircle, X, Loader2, VolumeX, Radio } from 'lucide-react';
 import { speechService, useSpeechService } from '../../services/speech-service';
+import { apiClient } from '../../services/api-client';
 
 interface ComposerProps {
   onSend: (text: string) => void;
@@ -12,6 +13,12 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const speech = useSpeechService();
+  const [isLocalRecording, setIsLocalRecording] = useState(false);
+  const [isLocalTranscribing, setIsLocalTranscribing] = useState(false);
+  const [localMicError, setLocalMicError] = useState('');
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
 
   // Auto-resize textarea height
   useEffect(() => {
@@ -49,36 +56,84 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
     }
   };
 
-  const toggleMic = () => {
-    if (speech.voiceState === 'listening' && !speech.isBackgroundListening) {
-      speechService.stopListening();
-    } else if (speech.voiceState === 'processing') {
-      speechService.abortListening();
-    } else {
-      speechService.clearError();
-      speechService.startListening(
-        (transcript) => {
-          setText((prev) => {
-            const cleanPrev = prev.trim();
-            return cleanPrev ? `${cleanPrev} ${transcript}` : transcript;
-          });
-          setTimeout(() => {
+  const toggleMic = async () => {
+    setLocalMicError('');
+    if (isLocalRecording) {
+      recorderRef.current?.stop();
+      setIsLocalRecording(false);
+      return;
+    }
+    if (isLocalTranscribing) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setLocalMicError('Audio recording is unavailable in this runtime.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        setLocalMicError('Audio recording failed. Check microphone permission and try again.');
+        setIsLocalRecording(false);
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      };
+      recorder.onstop = async () => {
+        setIsLocalRecording(false);
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        const audio = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        chunksRef.current = [];
+        if (audio.size < 1200) {
+          setLocalMicError('Recording was too short. Please speak for a moment and try again.');
+          return;
+        }
+        setIsLocalTranscribing(true);
+        try {
+          const result = await apiClient.transcribeAudio(audio);
+          const transcript = result.text?.trim();
+          if (!transcript) {
+            setLocalMicError('No speech detected. Please try again a little closer to the microphone.');
+            return;
+          }
+          setText(prev => prev.trim() ? `${prev.trim()} ${transcript}` : transcript);
+          requestAnimationFrame(() => {
             if (textareaRef.current) {
               textareaRef.current.focus();
               textareaRef.current.selectionStart = textareaRef.current.value.length;
               textareaRef.current.selectionEnd = textareaRef.current.value.length;
             }
-          }, 50);
-        },
-        (error) => {
-          console.warn('[Composer] Push-to-talk error:', error);
-        },
-        () => {
-          // On normal completion
+          });
+        } catch (error: any) {
+          console.error('[Composer] Local transcription failed:', error);
+          setLocalMicError(error?.message || 'Local transcription failed. Check the KRITAM backend.');
+        } finally {
+          setIsLocalTranscribing(false);
         }
-      );
+      };
+      recorder.start(700);
+      setIsLocalRecording(true);
+    } catch (error: any) {
+      setLocalMicError(error?.name === 'NotAllowedError'
+        ? 'Microphone permission denied. Allow microphone access for KRITAM.'
+        : error?.message || 'Unable to access the microphone.');
     }
   };
+
+  useEffect(() => () => {
+    try { recorderRef.current?.state !== 'inactive' && recorderRef.current?.stop(); } catch {}
+    streamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
 
   const toggleBackgroundVoice = () => {
     if (speech.isBackgroundListening) {
@@ -99,22 +154,22 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
     }
   };
 
-  const isMicActive = speech.voiceState === 'listening';
-  const isMicProcessing = speech.voiceState === 'processing';
+  const isMicActive = isLocalRecording;
+  const isMicProcessing = isLocalTranscribing;
 
   return (
     <div className="composer-wrapper">
-      {speech.error && (
+      {(localMicError || speech.error) && (
         <div className="composer-voice-error" role="alert">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertCircle size={15} style={{ flexShrink: 0 }} />
-            <span>{speech.error}</span>
+            <span>{localMicError || speech.error}</span>
           </div>
           <button
             type="button"
             className="icon-btn-subtle"
             style={{ color: 'inherit', padding: 2 }}
-            onClick={() => speechService.clearError()}
+            onClick={() => { speechService.clearError(); setLocalMicError(''); }}
             title="Dismiss error"
           >
             <X size={14} />
@@ -157,16 +212,8 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               type="button"
               className={`btn-icon btn-mic ${isMicActive && !speech.isBackgroundListening ? 'listening' : ''} ${isMicProcessing ? 'processing' : ''}`}
               onClick={toggleMic}
-              disabled={!speech.isSTTSupported}
-              title={
-                !speech.isSTTSupported
-                  ? 'Speech recognition not supported in this environment'
-                  : isMicActive && !speech.isBackgroundListening
-                  ? 'Listening... Click to stop recording'
-                  : isMicProcessing
-                  ? 'Processing audio... Click to cancel'
-                  : 'Voice input (Push to talk)'
-              }
+              disabled={isMicProcessing}
+              title={isMicActive ? 'Recording locally. Click to finish and transcribe' : isMicProcessing ? 'Transcribing locally...' : 'Record voice locally (no browser recognition service)'}
             >
               {isMicProcessing ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -181,20 +228,14 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               type="button"
               className={`btn-handsfree ${speech.isBackgroundListening ? 'active' : ''}`}
               onClick={toggleBackgroundVoice}
-              disabled={!speech.isSTTSupported}
-              title={
-                !speech.isSTTSupported
-                  ? 'Hands-free voice recognition requires microphone access'
-                  : speech.isBackgroundListening
-                  ? 'Hands-free voice mode active. Click to pause listening.'
-                  : 'Turn ON Hands-free Voice Command Mode'
-              }
+              disabled
+              title="Hands-free browser recognition is temporarily disabled while local speech mode is being introduced"
             >
               <Radio size={14} className={speech.isBackgroundListening ? 'animate-pulse' : ''} />
-              <span>{speech.isBackgroundListening ? 'Hands-Free ON' : 'Hands-Free'}</span>
+              <span>Hands-Free (coming soon)</span>
             </button>
 
-            {isMicActive && !speech.isBackgroundListening && (
+            {isMicActive && (
               <div className="composer-voice-status listening">
                 <span className="model-dot" style={{ backgroundColor: 'var(--danger)', width: 6, height: 6 }} />
                 <span>Listening...</span>
@@ -207,13 +248,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
                 <span>Transcribing...</span>
               </div>
             )}
-            {speech.isBackgroundListening && (
+            {false && speech.isBackgroundListening && (
               <div className="composer-voice-status listening" role="status" aria-live="polite">
                 <span className="model-dot" style={{ backgroundColor: 'var(--success)', width: 6, height: 6 }} />
                 <span>Hands-free active · speak naturally; pause when finished</span>
               </div>
             )}
-            {isMicActive && !speech.isBackgroundListening && (
+            {isMicActive && (
               <span className="composer-mic-hint">Recording · tap mic to finish</span>
             )}
 
