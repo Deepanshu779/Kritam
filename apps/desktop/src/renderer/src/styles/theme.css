@@ -1214,3 +1214,16 @@ body {
 .kritam-agent--speaking .kritam-agent__status { background: #60c8f5; animation: kritam-agent-pulse 1s ease-in-out infinite; }
 @keyframes kritam-agent-pulse { 50% { box-shadow: 0 0 0 6px rgba(167,139,250,.05); transform: scale(.88); } }
 @media (prefers-reduced-motion: reduce) { .kritam-agent, .kritam-agent__status { animation: none !important; transition: none; } }
+
+/* Ensure companion remains visible above the chat layout and generic button resets. */
+.app-container > .kritam-agent {
+  position: fixed !important; right: 22px !important; bottom: 22px !important;
+  z-index: 999 !important; display: grid !important;
+  width: 62px !important; height: 62px !important;
+  min-width: 62px; min-height: 62px; opacity: 1 !important; visibility: visible !important;
+  overflow: visible !important; background: transparent !important;
+  border: 0 !important; border-radius: 50% !important; padding: 0 !important;
+}
+.app-container > .kritam-agent .kritam-agent__portrait {
+  width: 100% !important; height: 100% !important; display: block !important;
+}
