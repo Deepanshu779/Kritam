@@ -207,6 +207,15 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
                 <span>Transcribing...</span>
               </div>
             )}
+            {speech.isBackgroundListening && (
+              <div className="composer-voice-status listening" role="status" aria-live="polite">
+                <span className="model-dot" style={{ backgroundColor: 'var(--success)', width: 6, height: 6 }} />
+                <span>Hands-free active · speak naturally; pause when finished</span>
+              </div>
+            )}
+            {isMicActive && !speech.isBackgroundListening && (
+              <span className="composer-mic-hint">Recording · tap mic to finish</span>
+            )}
 
             {speech.ttsState === 'speaking' && (
               <button

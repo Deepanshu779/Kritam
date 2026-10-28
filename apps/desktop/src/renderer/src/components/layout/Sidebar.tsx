@@ -8,7 +8,6 @@ import {
   Sun, 
   Moon, 
   Monitor, 
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   MessageSquare
@@ -97,10 +96,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="sidebar-header">
         {!collapsed && (
           <div className="brand-badge">
-            <div className="brand-icon">
-              <Sparkles size={18} />
-            </div>
-            <span>KRITAM</span>
+            <div className="brand-icon" aria-hidden="true"><span className="brand-mark">K</span></div>
+            <div className="brand-wordmark"><span>KRITAM</span><small>PERSONAL AI</small></div>
           </div>
         )}
         <button
