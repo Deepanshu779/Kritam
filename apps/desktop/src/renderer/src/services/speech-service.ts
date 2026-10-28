@@ -10,6 +10,10 @@ export interface SpeechServiceState {
   availableVoices: SpeechSynthesisVoice[];
   isSTTSupported: boolean;
   isTTSSupported: boolean;
+  isBackgroundListening: boolean;
+  voiceLanguage: string;
+  interimTranscript: string;
+  autoDispatch: boolean;
 }
 
 export function sanitizeTextForSpeech(text: string): string {
@@ -37,6 +41,20 @@ class SpeechService {
   private listeners: Set<StateListener> = new Set();
   private ttsWatchdogTimer: any = null;
   private sessionHasError: boolean = false;
+
+  // Background listening & natural voice state
+  private isBackgroundListening: boolean = false;
+  private voiceLanguage: string = 'en-US';
+  private autoDispatch: boolean = true;
+  private interimTranscript: string = '';
+  private backgroundCallback: ((text: string) => void) | null = null;
+  private backgroundErrorCallback: ((err: string) => void) | null = null;
+  private lastDispatchedTranscript: string = '';
+  private lastDispatchedTime: number = 0;
+  private consecutiveErrors: number = 0;
+  private errorWindowStart: number = 0;
+  private restartTimeoutId: any = null;
+  private acousticPause: boolean = false;
 
   constructor() {
     this.initSTT();
@@ -90,8 +108,25 @@ class SpeechService {
       error: this.currentError,
       availableVoices: this.voices,
       isSTTSupported: this.isSTTSupported,
-      isTTSSupported: this.isTTSSupported
+      isTTSSupported: this.isTTSSupported,
+      isBackgroundListening: this.isBackgroundListening,
+      voiceLanguage: this.voiceLanguage,
+      interimTranscript: this.interimTranscript,
+      autoDispatch: this.autoDispatch
     };
+  }
+
+  public setLanguage(lang: string): void {
+    this.voiceLanguage = lang;
+    if (this.isBackgroundListening && this.recognition) {
+      this.recognition.lang = lang;
+    }
+    this.notifyListeners();
+  }
+
+  public setAutoDispatch(enabled: boolean): void {
+    this.autoDispatch = enabled;
+    this.notifyListeners();
   }
 
   public subscribe(listener: StateListener): () => void {
@@ -145,31 +180,30 @@ class SpeechService {
     switch (errCode) {
       case 'not-allowed':
       case 'permission-denied':
-        return 'Microphone access denied. Please grant microphone permission in Windows settings.';
+        return 'Microphone access denied. Please grant microphone permissions in Windows settings.';
       case 'no-speech':
-        return 'No speech detected. Please try speaking again.';
+        return 'No speech detected. Listening continued.';
       case 'audio-capture':
         return 'No microphone found or audio capture device is unavailable.';
       case 'network':
-        return 'Network connection required for browser speech recognition.';
+        return 'Network connection required for browser speech recognition services.';
       case 'aborted':
-        return 'Voice recognition cancelled.';
+        return 'Voice recognition aborted.';
       case 'service-not-allowed':
-        return 'Speech recognition service is disabled or blocked.';
+        return 'Speech recognition service is disabled or blocked by host environment.';
       default:
-        return `Speech recognition error (${errCode || 'unknown'}).`;
+        return `Speech recognition issue (${errCode || 'unknown'}).`;
     }
   }
 
   /**
-   * Start listening with safe session management, preventing duplicate sessions and stale callbacks.
+   * Start Single-shot Push-to-Talk listening.
    */
   public startListening(
     onResult: (text: string) => void,
     onError: (err: string) => void,
     onEnd: () => void
   ): void {
-    // 1. Check support
     if (!this.isSTTSupported) {
       const err = 'Speech recognition is not supported in this browser environment.';
       this.setVoiceState('error', err);
@@ -177,22 +211,25 @@ class SpeechService {
       return;
     }
 
-    // 2. Cancel active TTS immediately (Interruption)
+    // Cancel active TTS immediately (Interruption)
     this.stopSpeaking();
+    this.clearError();
 
-    // 3. Clear existing error
-    this.currentError = null;
+    // Pause background listener if active
+    const wasBackground = this.isBackgroundListening;
+    if (wasBackground) {
+      this.isBackgroundListening = false;
+    }
 
-    // 4. Invalidate prior session
     const sessionId = ++this.currentSessionId;
     this.sessionHasError = false;
+    this.interimTranscript = '';
 
-    // 5. Cleanly tear down existing instance to prevent InvalidStateError
     if (this.recognition) {
       try {
         this.recognition.abort();
       } catch (e) {
-        // Ignore abort error
+        // Ignore abort
       }
     }
 
@@ -202,8 +239,8 @@ class SpeechService {
     try {
       this.recognition = new SpeechRecognition();
       this.recognition.continuous = false;
-      this.recognition.interimResults = false;
-      this.recognition.lang = 'en-US';
+      this.recognition.interimResults = true;
+      this.recognition.lang = this.voiceLanguage || 'en-US';
       this.recognition.maxAlternatives = 1;
     } catch (e: any) {
       const msg = 'Failed to initialize speech recognition engine.';
@@ -229,16 +266,24 @@ class SpeechService {
 
     this.recognition.onresult = (event: any) => {
       if (this.currentSessionId !== sessionId) return;
-      let transcript = '';
-      if (event.results && event.results.length > 0) {
-        const first = event.results[0];
-        if (first && first.length > 0) {
-          transcript = (first[0].transcript || '').trim();
+      let finalTranscript = '';
+      let interim = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          finalTranscript += (item[0]?.transcript || '').trim();
+        } else {
+          interim += (item[0]?.transcript || '');
         }
       }
 
-      if (transcript) {
-        onResult(transcript);
+      this.interimTranscript = interim;
+      this.notifyListeners();
+
+      if (finalTranscript) {
+        this.interimTranscript = '';
+        onResult(finalTranscript);
       }
     };
 
@@ -252,9 +297,16 @@ class SpeechService {
 
     this.recognition.onend = () => {
       if (this.currentSessionId !== sessionId) return;
+      this.interimTranscript = '';
       this.setVoiceState('idle');
       if (!this.sessionHasError) {
         onEnd();
+      }
+      // Resume background mode if it was previously active
+      if (wasBackground) {
+        setTimeout(() => {
+          this.startBackgroundListening(this.backgroundCallback || onResult, this.backgroundErrorCallback || onError);
+        }, 300);
       }
     };
 
@@ -271,7 +323,206 @@ class SpeechService {
   }
 
   /**
-   * Stop recognition safely, allowing any buffered audio to finish processing.
+   * Start hands-free Background / Continuous Voice Command Mode.
+   * Auto-restarts on silence, performs duplicate suppression, and suppresses echo during speech playback.
+   */
+  public startBackgroundListening(
+    onCommand: (text: string) => void,
+    onError?: (err: string) => void
+  ): void {
+    if (!this.isSTTSupported) {
+      const err = 'Speech recognition is not supported in this environment.';
+      this.setVoiceState('error', err);
+      onError?.(err);
+      return;
+    }
+
+    this.isBackgroundListening = true;
+    this.backgroundCallback = onCommand;
+    this.backgroundErrorCallback = onError || null;
+    this.clearError();
+    this.notifyListeners();
+
+    this.launchContinuousSession();
+  }
+
+  private launchContinuousSession(): void {
+    if (!this.isBackgroundListening) return;
+
+    // Echo suppression check: If assistant is speaking, hold listening until TTS completes
+    if (this.acousticPause || this.ttsState === 'speaking') {
+      return;
+    }
+
+    const sessionId = ++this.currentSessionId;
+    this.interimTranscript = '';
+
+    if (this.recognition) {
+      try {
+        this.recognition.abort();
+      } catch (e) {
+        // Ignore
+      }
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    try {
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = true;
+      this.recognition.interimResults = true;
+      this.recognition.lang = this.voiceLanguage || 'en-US';
+      this.recognition.maxAlternatives = 1;
+    } catch (e: any) {
+      this.setVoiceState('error', 'Failed to initialize speech recognition engine.');
+      this.isBackgroundListening = false;
+      this.backgroundErrorCallback?.('Failed to initialize speech recognition engine.');
+      return;
+    }
+
+    this.recognition.onstart = () => {
+      if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
+      this.setVoiceState('listening');
+    };
+
+    this.recognition.onresult = (event: any) => {
+      if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
+
+      // Echo suppression: Ignore any audio picked up while speaking
+      if (this.acousticPause || this.ttsState === 'speaking') return;
+
+      let finalUtterance = '';
+      let interim = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const item = event.results[i];
+        if (item.isFinal) {
+          finalUtterance += (item[0]?.transcript || '').trim() + ' ';
+        } else {
+          interim += (item[0]?.transcript || '');
+        }
+      }
+
+      this.interimTranscript = interim;
+      this.notifyListeners();
+
+      const cleanFinal = finalUtterance.trim();
+      if (cleanFinal.length > 1) {
+        this.interimTranscript = '';
+        this.notifyListeners();
+
+        // Duplicate suppression: ignore identical utterances received within 2500ms
+        const now = Date.now();
+        if (
+          cleanFinal.toLowerCase() === this.lastDispatchedTranscript.toLowerCase() &&
+          now - this.lastDispatchedTime < 2500
+        ) {
+          return;
+        }
+
+        this.lastDispatchedTranscript = cleanFinal;
+        this.lastDispatchedTime = now;
+
+        // Immediate stop/cancellation interception
+        const lower = cleanFinal.toLowerCase();
+        if (/^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$/.test(lower)) {
+          this.stopSpeaking();
+          return;
+        }
+
+        if (this.backgroundCallback) {
+          this.setVoiceState('processing');
+          this.backgroundCallback(cleanFinal);
+        }
+      }
+    };
+
+    this.recognition.onerror = (event: any) => {
+      if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
+
+      const err = event.error;
+
+      // Benign silence timeouts: normal in continuous listening, do not display error banner
+      if (err === 'no-speech') {
+        return;
+      }
+
+      if (err === 'aborted') {
+        return;
+      }
+
+      // Fatal permission or hardware denials
+      if (err === 'not-allowed' || err === 'permission-denied') {
+        this.isBackgroundListening = false;
+        const msg = this.mapSpeechError(err);
+        this.setVoiceState('error', msg);
+        this.backgroundErrorCallback?.(msg);
+        return;
+      }
+
+      // Rate limit / consecutive errors protection
+      const now = Date.now();
+      if (now - this.errorWindowStart > 3000) {
+        this.consecutiveErrors = 0;
+        this.errorWindowStart = now;
+      }
+      this.consecutiveErrors++;
+
+      if (this.consecutiveErrors >= 3) {
+        console.warn('[SpeechService] Consecutive recognition errors, backing off 3s');
+        this.setVoiceState('error', this.mapSpeechError(err));
+        return;
+      }
+    };
+
+    this.recognition.onend = () => {
+      if (this.currentSessionId !== sessionId) return;
+
+      this.interimTranscript = '';
+      if (!this.isBackgroundListening) {
+        this.setVoiceState('idle');
+        return;
+      }
+
+      // Check if paused for acoustic echo suppression during TTS
+      if (this.acousticPause || this.ttsState === 'speaking') {
+        this.setVoiceState('idle');
+        return;
+      }
+
+      // Safe continuous restart
+      clearTimeout(this.restartTimeoutId);
+      this.restartTimeoutId = setTimeout(() => {
+        if (this.isBackgroundListening) {
+          this.launchContinuousSession();
+        }
+      }, 250);
+    };
+
+    try {
+      this.setVoiceState('listening');
+      this.recognition.start();
+    } catch (e: any) {
+      if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
+      this.setVoiceState('error', e.message || 'Microphone error.');
+    }
+  }
+
+  /**
+   * Stop background continuous listening mode.
+   */
+  public stopBackgroundListening(): void {
+    this.isBackgroundListening = false;
+    this.backgroundCallback = null;
+    this.backgroundErrorCallback = null;
+    clearTimeout(this.restartTimeoutId);
+    this.abortListening();
+    this.setVoiceState('idle');
+  }
+
+  /**
+   * Stop recognition safely.
    */
   public stopListening(): void {
     if (this.recognition && this.voiceState === 'listening') {
@@ -291,6 +542,7 @@ class SpeechService {
    */
   public abortListening(): void {
     this.currentSessionId++;
+    clearTimeout(this.restartTimeoutId);
     if (this.recognition) {
       try {
         this.recognition.abort();
@@ -298,11 +550,12 @@ class SpeechService {
         // Ignore
       }
     }
+    this.interimTranscript = '';
     this.setVoiceState('idle');
   }
 
   /**
-   * Speak response using browser/Windows speech synthesis.
+   * Speak response using browser/Windows speech synthesis with acoustic echo prevention.
    */
   public speak(
     text: string,
@@ -325,7 +578,16 @@ class SpeechService {
     const cleanText = sanitizeTextForSpeech(text);
     if (!cleanText) return;
 
-    // Small delay ensures previous cancellation completes cleanly in Chromium
+    // Acoustic Echo Suppression: Mute/pause continuous listening while speaking
+    this.acousticPause = true;
+    if (this.recognition && this.isBackgroundListening) {
+      try {
+        this.recognition.abort();
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     setTimeout(() => {
       try {
         const utterance = new SpeechSynthesisUtterance(cleanText);
@@ -339,7 +601,6 @@ class SpeechService {
         }
 
         if (!utterance.voice && voices.length > 0) {
-          // Graceful fallback to natural or preferred Windows voice
           const fallback =
             voices.find(
               (v) =>
@@ -348,6 +609,7 @@ class SpeechService {
                 v.name.includes('David') ||
                 v.name.includes('Zira')
             ) ||
+            voices.find((v) => v.lang.startsWith(this.voiceLanguage.slice(0, 2))) ||
             voices.find((v) => v.lang.startsWith('en')) ||
             voices[0];
           if (fallback) utterance.voice = fallback;
@@ -359,28 +621,34 @@ class SpeechService {
           options.onStart?.();
         };
 
-        utterance.onend = () => {
+        const handleSpeechDone = () => {
           this.stopTTSWatchdog();
           this.setTTSState('idle');
           options.onEnd?.();
+
+          // Wait 350ms acoustic settling window before resuming background listening
+          setTimeout(() => {
+            this.acousticPause = false;
+            if (this.isBackgroundListening) {
+              this.launchContinuousSession();
+            }
+          }, 350);
         };
 
-        utterance.onerror = (e) => {
-          this.stopTTSWatchdog();
-          this.setTTSState('idle');
-          options.onEnd?.();
-        };
+        utterance.onend = handleSpeechDone;
+        utterance.onerror = handleSpeechDone;
 
         window.speechSynthesis.speak(utterance);
       } catch (err) {
         console.warn('[SpeechService] Speak error:', err);
         this.setTTSState('idle');
+        this.acousticPause = false;
       }
     }, 15);
   }
 
   /**
-   * Stop current speech playback immediately.
+   * Stop current speech playback immediately and resume background listening.
    */
   public stopSpeaking(): void {
     this.stopTTSWatchdog();
@@ -392,6 +660,15 @@ class SpeechService {
       }
     }
     this.setTTSState('idle');
+    this.acousticPause = false;
+
+    if (this.isBackgroundListening && this.voiceState !== 'listening') {
+      setTimeout(() => {
+        if (this.isBackgroundListening) {
+          this.launchContinuousSession();
+        }
+      }, 150);
+    }
   }
 
   public get currentlySpeaking(): boolean {
@@ -407,9 +684,6 @@ class SpeechService {
     return this.voiceState === 'listening';
   }
 
-  /**
-   * Chromium bug workaround: Keep long utterances alive by toggling pause/resume every 10s.
-   */
   private startTTSWatchdog(): void {
     this.stopTTSWatchdog();
     this.ttsWatchdogTimer = setInterval(() => {

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Square, Mic, MicOff, AlertCircle, X, Loader2, VolumeX } from 'lucide-react';
+import { ArrowUp, Square, Mic, MicOff, AlertCircle, X, Loader2, VolumeX, Radio } from 'lucide-react';
 import { speechService, useSpeechService } from '../../services/speech-service';
 
 interface ComposerProps {
@@ -37,8 +37,8 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       speechService.stopSpeaking();
     }
 
-    // Stop active listening if sending
-    if (speech.voiceState === 'listening') {
+    // Stop single-shot push-to-talk listening if active
+    if (speech.voiceState === 'listening' && !speech.isBackgroundListening) {
       speechService.stopListening();
     }
 
@@ -50,22 +50,18 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
   };
 
   const toggleMic = () => {
-    if (speech.voiceState === 'listening') {
+    if (speech.voiceState === 'listening' && !speech.isBackgroundListening) {
       speechService.stopListening();
     } else if (speech.voiceState === 'processing') {
       speechService.abortListening();
     } else {
-      // Clear any prior speech error
       speechService.clearError();
-
       speechService.startListening(
         (transcript) => {
-          // Preserve existing text and append cleanly
           setText((prev) => {
             const cleanPrev = prev.trim();
             return cleanPrev ? `${cleanPrev} ${transcript}` : transcript;
           });
-          // Focus textarea so user can review or immediately press Enter
           setTimeout(() => {
             if (textareaRef.current) {
               textareaRef.current.focus();
@@ -75,10 +71,29 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
           }, 50);
         },
         (error) => {
-          console.warn('[Composer] Speech error:', error);
+          console.warn('[Composer] Push-to-talk error:', error);
         },
         () => {
-          // On normal end
+          // On normal completion
+        }
+      );
+    }
+  };
+
+  const toggleBackgroundVoice = () => {
+    if (speech.isBackgroundListening) {
+      speechService.stopBackgroundListening();
+    } else {
+      speechService.clearError();
+      speechService.startBackgroundListening(
+        (transcript) => {
+          // Auto-dispatch voice command directly to agent
+          if (transcript.trim()) {
+            onSend(transcript.trim());
+          }
+        },
+        (error) => {
+          console.warn('[Composer] Background voice error:', error);
         }
       );
     }
@@ -107,6 +122,24 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
         </div>
       )}
 
+      {speech.interimTranscript && (
+        <div className="voice-live-banner">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+            <div className="voice-wave-animation">
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+            </div>
+            <span style={{ fontStyle: 'italic', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+              "{speech.interimTranscript}"
+            </span>
+          </div>
+          <span style={{ fontSize: '0.72rem', color: 'var(--accent-primary)', flexShrink: 0, fontWeight: 500 }}>
+            Hearing speech...
+          </span>
+        </div>
+      )}
+
       <div className="composer-box">
         <textarea
           ref={textareaRef}
@@ -122,13 +155,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
           <div className="composer-actions-left">
             <button
               type="button"
-              className={`btn-icon btn-mic ${isMicActive ? 'listening' : ''} ${isMicProcessing ? 'processing' : ''}`}
+              className={`btn-icon btn-mic ${isMicActive && !speech.isBackgroundListening ? 'listening' : ''} ${isMicProcessing ? 'processing' : ''}`}
               onClick={toggleMic}
               disabled={!speech.isSTTSupported}
               title={
                 !speech.isSTTSupported
                   ? 'Speech recognition not supported in this environment'
-                  : isMicActive
+                  : isMicActive && !speech.isBackgroundListening
                   ? 'Listening... Click to stop recording'
                   : isMicProcessing
                   ? 'Processing audio... Click to cancel'
@@ -137,14 +170,31 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
             >
               {isMicProcessing ? (
                 <Loader2 size={18} className="animate-spin" />
-              ) : isMicActive ? (
+              ) : isMicActive && !speech.isBackgroundListening ? (
                 <MicOff size={18} />
               ) : (
                 <Mic size={18} />
               )}
             </button>
 
-            {isMicActive && (
+            <button
+              type="button"
+              className={`btn-handsfree ${speech.isBackgroundListening ? 'active' : ''}`}
+              onClick={toggleBackgroundVoice}
+              disabled={!speech.isSTTSupported}
+              title={
+                !speech.isSTTSupported
+                  ? 'Hands-free voice recognition requires microphone access'
+                  : speech.isBackgroundListening
+                  ? 'Hands-free voice mode active. Click to pause listening.'
+                  : 'Turn ON Hands-free Voice Command Mode'
+              }
+            >
+              <Radio size={14} className={speech.isBackgroundListening ? 'animate-pulse' : ''} />
+              <span>{speech.isBackgroundListening ? 'Hands-Free ON' : 'Hands-Free'}</span>
+            </button>
+
+            {isMicActive && !speech.isBackgroundListening && (
               <div className="composer-voice-status listening">
                 <span className="model-dot" style={{ backgroundColor: 'var(--danger)', width: 6, height: 6 }} />
                 <span>Listening...</span>

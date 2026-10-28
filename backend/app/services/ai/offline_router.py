@@ -1,4 +1,6 @@
 import re
+import uuid
+import json
 import datetime
 from typing import AsyncGenerator
 import asyncio
@@ -10,32 +12,73 @@ class OfflineRouter(BaseAIProvider):
     """
     Offline deterministic router for Kritam.
     Provides instant, zero-network conversational capabilities, local commands,
-    math, time, system status, and desktop action execution.
+    math, time, system status, music, search, and desktop action execution.
     """
 
     async def is_available(self) -> bool:
         return True
 
+    def clean_command_text(self, prompt: str) -> str:
+        """Strip conversational prefixes (e.g. 'Hey Kritam, can you please...') and suffixes."""
+        text = prompt.strip()
+        # Remove wake-word prefixes
+        text = re.sub(r"^(?:(?:hey|hi|hello|ok|okay)\s+)?kritam[,.]?\s*", "", text, flags=re.IGNORECASE)
+        # Remove polite request prefixes
+        text = re.sub(r"^(?:please\s+|can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|would\s+you\s+(?:please\s+)?|help\s+me\s+to\s+)", "", text, flags=re.IGNORECASE)
+        # Remove polite suffixes
+        text = re.sub(r"(?:\s+for\s+me|\s+please|\s+now)[.!?]*$", "", text, flags=re.IGNORECASE)
+        return text.strip()
+
     def extract_desktop_intent(self, prompt: str) -> dict | None:
-        """Analyze if prompt is an action command (app launch, URL, folder, etc.)."""
-        lower = prompt.lower().strip()
-        
-        # App launch pattern
-        app_match = re.search(r"^(?:hey\s+kritam[,.]?\s*)?(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s._-]+)$", lower)
+        """Analyze if prompt is an action command (app launch, URL, music, search, folder, etc.)."""
+        cleaned = self.clean_command_text(prompt)
+        lower = cleaned.lower()
+
+        # 1. Cancellation / Stop speech
+        if re.search(r"^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$", lower):
+            return {"type": "cancel_speech", "target": "stop"}
+
+        # 2. Music & media playback (e.g., "play some lo-fi music", "play Bohemian Rhapsody on YouTube", "play songs on Spotify")
+        play_match = re.search(r"^(?:play|listen\s+to)\s+(?:some\s+)?(.+)$", lower)
+        if play_match:
+            raw_target = play_match.group(1).strip()
+            if raw_target in ["music", "a song", "some music", "songs", "tracks"]:
+                raw_target = "lo-fi chill beats"
+            return {"type": "play_music", "target": raw_target}
+
+        # 3. Web Search (e.g., "search for C++ DSA tutorials", "google Python decorators")
+        search_match = re.search(r"^(?:search(?:\s+for|\s+on\s+google)?|google)\s+(.+)$", lower)
+        if search_match:
+            query = search_match.group(1).strip()
+            import urllib.parse
+            url = f"https://www.google.com/search?q={urllib.parse.quote_plus(query)}"
+            return {"type": "open_url", "target": url, "label": f"Google search for '{query}'"}
+
+        # 4. App launch pattern (e.g., "open Chrome", "launch vs code", "start calculator")
+        app_match = re.search(r"^(?:open|launch|start|run)\s+(?:the\s+)?([a-zA-Z0-9\s._-]+)$", lower)
         if app_match:
             raw_target = app_match.group(1).strip()
             # Check if target is a known URL / domain
-            if raw_target.endswith((".com", ".org", ".net", ".io", ".dev", ".ai", ".in")) or raw_target in ["youtube", "github", "google", "reddit", "stackoverflow"]:
+            if raw_target.endswith((".com", ".org", ".net", ".io", ".dev", ".ai", ".in")) or raw_target in [
+                "youtube", "github", "google", "reddit", "stackoverflow", "gmail", "chatgpt", "twitter", "x.com", "linkedin", "wikipedia"
+            ]:
                 return {"type": "open_url", "target": raw_target}
             elif "folder" in raw_target or "directory" in raw_target:
                 return {"type": "open_folder", "target": raw_target.replace("folder", "").replace("directory", "").strip()}
+            elif raw_target in ["music", "spotify"]:
+                return {"type": "play_music", "target": "spotify" if raw_target == "spotify" else "lo-fi music"}
             else:
                 return {"type": "launch_app", "target": raw_target}
-        
-        # URL pattern
-        url_match = re.search(r"^(?:hey\s+kritam[,.]?\s*)?(?:go\s+to|navigate\s+to|visit)\s+([^\s]+)$", lower)
+
+        # 5. URL navigation pattern (e.g., "go to github.com", "visit reddit.com")
+        url_match = re.search(r"^(?:go\s+to|navigate\s+to|visit)\s+([^\s]+)$", lower)
         if url_match:
             return {"type": "open_url", "target": url_match.group(1)}
+
+        # 6. Folder navigation pattern (e.g., "open my downloads folder", "show desktop directory")
+        folder_match = re.search(r"^(?:open|show|explore)\s+(?:my\s+)?(downloads|documents|desktop|pictures|music|videos|home)\s*(?:folder|directory)?$", lower)
+        if folder_match:
+            return {"type": "open_folder", "target": folder_match.group(1)}
 
         return None
 
@@ -71,56 +114,109 @@ class OfflineRouter(BaseAIProvider):
 
         lower = user_message.lower().strip()
         
-        # 1. Action intents (e.g. "open vs code", "open chrome")
+        # 1. Action intents (e.g. "open vs code", "play music", "open chrome")
         intent = self.extract_desktop_intent(user_message)
         if intent:
-            if intent["type"] == "launch_app":
+            if intent["type"] == "cancel_speech":
+                chunks = ["I've stopped speaking. Let me know if you need anything else!"]
+                for c in chunks:
+                    yield c
+                    await asyncio.sleep(0.02)
+                return
+
+            if intent["type"] == "play_music":
+                target = intent["target"]
+                action_res = policy_engine.execute_action(ActionRequest(action_type="play_music", target=target))
+                action_payload = {
+                    "action_id": str(uuid.uuid4()),
+                    "action_type": "play_music",
+                    "target": target,
+                    "status": "succeeded" if action_res.success else "failed",
+                    "executed": True,
+                    "message": action_res.message
+                }
+                chunks = [
+                    f"{action_res.message}\n\n",
+                    f"```action\n{json.dumps(action_payload)}\n```\n",
+                    f"Status: {action_res.message}"
+                ]
+                for c in chunks:
+                    yield c
+                    await asyncio.sleep(0.02)
+                return
+
+            elif intent["type"] == "launch_app":
                 target_app = intent["target"]
                 app_name = target_app.title()
                 # Execute genuine desktop launch via policy engine
                 action_res = policy_engine.execute_action(ActionRequest(action_type="launch_app", target=target_app))
+                action_payload = {
+                    "action_id": str(uuid.uuid4()),
+                    "action_type": "launch_app",
+                    "target": target_app,
+                    "status": "succeeded" if action_res.success else "failed",
+                    "executed": True,
+                    "message": action_res.message
+                }
                 if action_res.success:
                     chunks = [
                         f"I have opened **{app_name}** for you.\n\n",
-                        f"```action\n{{\"action_type\": \"launch_app\", \"target\": \"{target_app}\"}}\n```\n",
+                        f"```action\n{json.dumps(action_payload)}\n```\n",
                         f"Status: {action_res.message}"
                     ]
                 else:
                     chunks = [
-                        f"Attempted to open **{app_name}**:\n\n",
-                        f"{action_res.message}\n\n",
-                        f"```action\n{{\"action_type\": \"launch_app\", \"target\": \"{target_app}\"}}\n```"
+                        f"Attempted to open **{app_name}**:\n\n{action_res.message}\n\n",
+                        f"```action\n{json.dumps(action_payload)}\n```\n",
+                        f"Status: {action_res.message}"
                     ]
                 for c in chunks:
                     yield c
-                    await asyncio.sleep(0.03)
+                    await asyncio.sleep(0.02)
                 return
 
             elif intent["type"] == "open_url":
                 target = intent["target"]
                 url = target if target.startswith("http") else f"https://www.{target}.com" if "." not in target else f"https://{target}"
                 action_res = policy_engine.execute_action(ActionRequest(action_type="open_url", target=url))
+                action_payload = {
+                    "action_id": str(uuid.uuid4()),
+                    "action_type": "open_url",
+                    "target": url,
+                    "status": "succeeded" if action_res.success else "failed",
+                    "executed": True,
+                    "message": action_res.message
+                }
+                label = intent.get("label", f"Opening **{url}** in your default browser.")
                 chunks = [
-                    f"Opening **{url}** in your default browser.\n\n",
-                    f"```action\n{{\"action_type\": \"open_url\", \"target\": \"{url}\"}}\n```\n",
+                    f"{label}\n\n",
+                    f"```action\n{json.dumps(action_payload)}\n```\n",
                     action_res.message if action_res.success else f"Error: {action_res.message}"
                 ]
                 for c in chunks:
                     yield c
-                    await asyncio.sleep(0.03)
+                    await asyncio.sleep(0.02)
                 return
 
             elif intent["type"] == "open_folder":
                 folder = intent["target"]
                 action_res = policy_engine.execute_action(ActionRequest(action_type="open_folder", target=folder))
+                action_payload = {
+                    "action_id": str(uuid.uuid4()),
+                    "action_type": "open_folder",
+                    "target": folder,
+                    "status": "succeeded" if action_res.success else "failed",
+                    "executed": True,
+                    "message": action_res.message
+                }
                 chunks = [
                     f"Opening your **{folder.title()}** folder.\n\n",
-                    f"```action\n{{\"action_type\": \"open_folder\", \"target\": \"{folder}\"}}\n```\n",
+                    f"```action\n{json.dumps(action_payload)}\n```\n",
                     action_res.message if action_res.success else f"Error: {action_res.message}"
                 ]
                 for c in chunks:
                     yield c
-                    await asyncio.sleep(0.03)
+                    await asyncio.sleep(0.02)
                 return
 
         # 2. Date and Time queries

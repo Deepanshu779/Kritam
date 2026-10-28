@@ -22,7 +22,7 @@ class PolicyEngine:
     @staticmethod
     def evaluate_risk(action_type: str, target: str) -> tuple[RiskLevel, bool, str]:
         """Determine risk tier and whether affirmative user confirmation is required."""
-        if action_type in ["launch_app", "open_url", "open_folder", "inspect_file"]:
+        if action_type in ["launch_app", "open_url", "open_folder", "inspect_file", "play_music"]:
             return RiskLevel.LOW, False, f"Read-only or approved application action: {action_type}"
         
         if action_type in ["create_file", "modify_file", "schedule_reminder"]:
@@ -167,6 +167,49 @@ class PolicyEngine:
                 )
             except Exception as e:
                 return ActionResponse(success=False, action_type=request.action_type, target=str(file_path), message=str(e))
+
+        # 5. Play Music (Spotify app or YouTube Music / Spotify Web)
+        elif request.action_type == "play_music":
+            import re
+            import urllib.parse
+            raw_target = request.target.strip()
+            clean_query = re.sub(r"^(?:play|listen\s+to|some)\s+", "", raw_target, flags=re.IGNORECASE).strip()
+            if not clean_query:
+                clean_query = "lo-fi music"
+
+            lower_query = clean_query.lower()
+            if "spotify" in lower_query:
+                ok, msg = AppLauncher.launch("spotify")
+                if ok:
+                    return ActionResponse(
+                        success=True,
+                        action_type=request.action_type,
+                        target=clean_query,
+                        message=f"Launched Spotify desktop application."
+                    )
+                # Fallback to web search
+                search_term = re.sub(r"(?:\s+on\s+spotify|spotify)", "", clean_query, flags=re.IGNORECASE).strip() or "music"
+                url = f"https://open.spotify.com/search/{urllib.parse.quote_plus(search_term)}"
+                webbrowser.open(url)
+                return ActionResponse(
+                    success=True,
+                    action_type=request.action_type,
+                    target=url,
+                    message=f"Opened Spotify Web for '{search_term}'."
+                )
+            else:
+                search_term = re.sub(r"(?:\s+on\s+youtube|youtube)", "", clean_query, flags=re.IGNORECASE).strip() or "lo-fi music"
+                url = f"https://music.youtube.com/search?q={urllib.parse.quote_plus(search_term)}"
+                try:
+                    webbrowser.open(url)
+                    return ActionResponse(
+                        success=True,
+                        action_type=request.action_type,
+                        target=url,
+                        message=f"Playing '{search_term}' on YouTube Music."
+                    )
+                except Exception as e:
+                    return ActionResponse(success=False, action_type=request.action_type, target=url, message=str(e))
 
         return ActionResponse(
             success=False,

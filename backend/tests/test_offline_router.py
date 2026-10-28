@@ -41,3 +41,49 @@ async def test_offline_router_intents():
     assert router.is_deterministic_query("Open YouTube") is True
     assert router.is_deterministic_query("What date and time is it?") is True
     assert router.is_deterministic_query("Explain Python decorators") is False
+
+@pytest.mark.asyncio
+async def test_natural_variations_and_music():
+    router = OfflineRouter()
+
+    # 1. Natural phrasing with wake-word and politeness
+    intent1 = router.extract_desktop_intent("Kritam, can you open YouTube for me?")
+    assert intent1 is not None
+    assert intent1["type"] == "open_url"
+    assert "youtube" in intent1["target"]
+
+    intent2 = router.extract_desktop_intent("Hey Kritam, please launch VS Code.")
+    assert intent2 is not None
+    assert intent2["type"] == "launch_app"
+    assert "vs code" in intent2["target"].lower()
+
+    # 2. Music command
+    intent_music = router.extract_desktop_intent("Play some lo-fi music")
+    assert intent_music is not None
+    assert intent_music["type"] == "play_music"
+    assert "lo-fi" in intent_music["target"]
+
+    # 3. Search command
+    intent_search = router.extract_desktop_intent("Search for C++ DSA tutorials")
+    assert intent_search is not None
+    assert intent_search["type"] == "open_url"
+    assert "google.com" in intent_search["target"]
+
+    # 4. Cancellation / stop speech
+    intent_stop = router.extract_desktop_intent("Stop speaking")
+    assert intent_stop is not None
+    assert intent_stop["type"] == "cancel_speech"
+
+    intent_cancel = router.extract_desktop_intent("Cancel that")
+    assert intent_cancel is not None
+    assert intent_cancel["type"] == "cancel_speech"
+
+    # 5. Verify action payload format in streaming response
+    chunks = []
+    async for chunk in router.generate_stream([{"role": "user", "content": "open calculator"}]):
+        chunks.append(chunk)
+    stream_out = "".join(chunks)
+    assert "```action" in stream_out
+    assert '"executed": true' in stream_out.lower()
+    assert '"status": "succeeded"' in stream_out.lower() or '"status": "failed"' in stream_out.lower()
+

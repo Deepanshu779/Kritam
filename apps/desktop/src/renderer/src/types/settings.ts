@@ -15,4 +15,7 @@ export interface UserSettings {
   tts_voice?: string;
   enable_companion?: boolean;
   enable_developer_mode?: boolean;
+  voice_language?: 'en-IN' | 'en-US' | 'en-GB';
+  enable_background_voice?: boolean;
+  auto_dispatch_voice?: boolean;
 }
