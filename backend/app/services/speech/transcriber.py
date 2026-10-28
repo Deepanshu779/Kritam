@@ -18,7 +18,7 @@ def _get_model():
                 from faster_whisper import WhisperModel
                 # CPU int8 is the dependable baseline on Windows and avoids
                 # consuming the user's limited 4 GB GPU VRAM.
-                model_name = os.getenv("KRITAM_STT_MODEL", "small")
+                model_name = os.getenv("KRITAM_STT_MODEL", "base")
                 _model = WhisperModel(
                     model_name,
                     device="cpu",
@@ -42,9 +42,10 @@ def transcribe_bytes(audio: bytes, suffix: str = ".webm") -> dict:
         model = _get_model()
         segments, info = model.transcribe(
             temp_path,
-            beam_size=3,
+            beam_size=1,
             vad_filter=True,
             condition_on_previous_text=False,
+            # Favor responsive interactive dictation over slower beam search.
         )
         text = " ".join(segment.text.strip() for segment in segments).strip()
         return {"text": text, "language": info.language,
