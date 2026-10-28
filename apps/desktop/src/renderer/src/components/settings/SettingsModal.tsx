@@ -288,13 +288,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {activeTab === 'voice' && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
+              <div className="form-group">
+                <label className="form-label">Speech Recognition Language & Accent</label>
+                <select
+                  className="form-input"
+                  value={formData.voice_language || 'en-US'}
+                  onChange={(e) => setFormData({ ...formData, voice_language: e.target.value as any })}
+                >
+                  <option value="en-IN">English (India) — en-IN</option>
+                  <option value="en-US">English (United States) — en-US</option>
+                  <option value="en-GB">English (United Kingdom) — en-GB</option>
+                </select>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Optimizes speech recognition accuracy for Indian English and regional accents.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
                 <div>
                   <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                    Auto-play voice responses
+                    Auto-dispatch voice commands
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Automatically read assistant messages using Text-to-Speech
+                    Automatically submit recognized commands to the agent without pressing Enter
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.auto_dispatch_voice !== false}
+                  onChange={(e) => setFormData({ ...formData, auto_dispatch_voice: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    Auto-play voice responses (Text-to-Speech)
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Automatically read assistant replies aloud using local speech synthesis
                   </div>
                 </div>
                 <input
@@ -305,7 +338,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 />
               </div>
 
-              <div className="form-group">
+              <div className="form-group" style={{ marginTop: 6 }}>
                 <label className="form-label">Preferred Voice</label>
                 <select
                   className="form-input"
@@ -354,9 +387,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Voice Architecture & Status
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  <div>● <strong>Speech Recognition:</strong> Chromium Web Speech API (Push-to-talk). Uses Google speech recognition services.</div>
+                  <div>● <strong>Speech Recognition:</strong> Chromium Web Speech API (Push-to-talk & Hands-Free Voice Mode).</div>
+                  <div>● <strong>Acoustic Echo Suppression:</strong> Automatically pauses microphone while assistant speaks to prevent feedback loops.</div>
                   <div>● <strong>Speech Synthesis:</strong> Local Windows Speech Engine (Zero cloud latency, offline capable).</div>
-                  <div style={{ color: 'var(--text-muted)' }}>● <strong>Wake-word Detection:</strong> <em>Disabled</em> (Requires verified local wake-word model).</div>
                 </div>
               </div>
             </>

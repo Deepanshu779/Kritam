@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Copy, Check, Volume2, Square, Sparkles, User, Play, AlertCircle } from 'lucide-react';
+import { Copy, Check, Volume2, Square, Sparkles, User, Play, AlertCircle, CheckCircle2, RotateCcw } from 'lucide-react';
 import { marked } from 'marked';
 import { Message } from '../../types/chat';
 import { speechService, useSpeechService } from '../../services/speech-service';
@@ -41,7 +41,15 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteActi
   };
 
   // Check if content has an embedded action command like ```action\n{...}\n```
-  let actionData: { action_type: string; target: string } | null = null;
+  let actionData: {
+    action_id?: string;
+    action_type: string;
+    target: string;
+    status?: 'succeeded' | 'failed' | 'pending' | 'running';
+    executed?: boolean;
+    message?: string;
+  } | null = null;
+
   const actionMatch = message.content.match(/```action\s*\n([\s\S]*?)\n```/);
   if (actionMatch) {
     try {
@@ -54,6 +62,9 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteActi
   // Sanitize and render markdown
   const cleanMarkdown = message.content.replace(/```action[\s\S]*?```/g, '');
   const htmlContent = marked.parse(cleanMarkdown, { breaks: true }) as string;
+
+  const isExecuted = actionData?.executed === true || actionData?.status === 'succeeded';
+  const isFailed = actionData?.status === 'failed';
 
   return (
     <div className={`message-row ${message.role}`}>
@@ -73,22 +84,76 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteActi
               />
 
               {actionData && (
-                <div className="action-card">
-                  <div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Desktop Action
+                <div
+                  className={`action-card ${isExecuted ? 'executed' : isFailed ? 'failed' : ''}`}
+                  style={{
+                    borderLeft: isExecuted
+                      ? '3px solid var(--success)'
+                      : isFailed
+                      ? '3px solid var(--danger)'
+                      : '3px solid var(--accent-primary)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 1 }}>
+                    <div style={{ marginTop: 2 }}>
+                      {isExecuted ? (
+                        <CheckCircle2 size={18} style={{ color: 'var(--success)' }} />
+                      ) : isFailed ? (
+                        <AlertCircle size={18} style={{ color: 'var(--danger)' }} />
+                      ) : (
+                        <Play size={18} style={{ color: 'var(--accent-primary)' }} />
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)', marginTop: 2 }}>
-                      <strong>{actionData.action_type.replace('_', ' ').toUpperCase()}</strong>: {actionData.target}
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          color: isExecuted ? 'var(--success)' : isFailed ? 'var(--danger)' : 'var(--accent-primary)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em'
+                        }}
+                      >
+                        {isExecuted ? 'Action Executed' : isFailed ? 'Action Failed' : 'Desktop Action'}
+                      </div>
+                      <div style={{ fontSize: '0.88rem', color: 'var(--text-primary)', marginTop: 2 }}>
+                        <strong>{actionData.action_type.replace('_', ' ').toUpperCase()}</strong>: {actionData.target}
+                      </div>
+                      {actionData.message && (
+                        <div style={{ fontSize: '0.78rem', color: isFailed ? 'var(--danger)' : 'var(--text-muted)', marginTop: 2 }}>
+                          {actionData.message}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <button
-                    className="btn-primary"
-                    style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
-                    onClick={() => onExecuteAction?.(actionData!.action_type, actionData!.target)}
-                  >
-                    <Play size={13} /> Run Action
-                  </button>
+
+                  {isExecuted ? (
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }}
+                      onClick={() => onExecuteAction?.(actionData!.action_type, actionData!.target)}
+                      title="Re-run this action if needed"
+                    >
+                      <RotateCcw size={12} /> Re-run
+                    </button>
+                  ) : isFailed ? (
+                    <button
+                      className="btn-secondary"
+                      style={{ fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5, color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                      onClick={() => onExecuteAction?.(actionData!.action_type, actionData!.target)}
+                      title="Retry this action"
+                    >
+                      <RotateCcw size={12} /> Retry
+                    </button>
+                  ) : (
+                    <button
+                      className="btn-primary"
+                      style={{ fontSize: '0.8rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6 }}
+                      onClick={() => onExecuteAction?.(actionData!.action_type, actionData!.target)}
+                    >
+                      <Play size={13} /> Run Action
+                    </button>
+                  )}
                 </div>
               )}
             </>

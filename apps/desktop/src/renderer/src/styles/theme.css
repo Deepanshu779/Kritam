@@ -903,3 +903,124 @@ body {
     flex-direction: column;
   }
 }
+
+/* Agent State Indicators */
+.agent-state-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  background-color: var(--bg-surface);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.agent-state-pill.listening {
+  border-color: rgba(239, 68, 68, 0.4);
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+.agent-state-pill.understanding {
+  border-color: rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
+}
+
+.agent-state-pill.working {
+  border-color: rgba(99, 102, 241, 0.4);
+  background-color: rgba(99, 102, 241, 0.08);
+  color: var(--accent-primary);
+}
+
+.agent-state-pill.completed {
+  border-color: rgba(16, 185, 129, 0.3);
+  background-color: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+}
+
+.agent-state-pill.needs-attention {
+  border-color: rgba(239, 68, 68, 0.4);
+  background-color: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+/* Hands-free Voice Button */
+.btn-handsfree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-handsfree:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-handsfree.active {
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+/* Live Voice Transcript Banner in Composer */
+.voice-live-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  margin-bottom: 6px;
+  background-color: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.voice-wave-animation {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.voice-wave-bar {
+  width: 3px;
+  height: 12px;
+  background-color: var(--accent-primary);
+  border-radius: 2px;
+  animation: soundWave 1s ease-in-out infinite;
+}
+
+.voice-wave-bar:nth-child(2) {
+  animation-delay: 0.2s;
+  height: 16px;
+}
+
+.voice-wave-bar:nth-child(3) {
+  animation-delay: 0.4s;
+  height: 10px;
+}
+
+@keyframes soundWave {
+  0%, 100% {
+    transform: scaleY(0.5);
+  }
+  50% {
+    transform: scaleY(1.3);
+  }
+}
+

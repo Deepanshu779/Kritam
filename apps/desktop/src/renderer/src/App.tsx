@@ -10,7 +10,7 @@ import { apiClient } from './services/api-client';
 import { speechService, useSpeechService } from './services/speech-service';
 import { Conversation, HealthStatus, Message } from './types/chat';
 import { UserSettings, ThemeMode } from './types/settings';
-import { Sparkles, StopCircle, RefreshCw } from 'lucide-react';
+import { Sparkles, StopCircle, RefreshCw, Radio, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const speech = useSpeechService();
@@ -26,13 +26,16 @@ export const App: React.FC = () => {
   };
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isExecutingAction, setIsExecutingAction] = useState(false);
+  const [lastTaskStatus, setLastTaskStatus] = useState<'completed' | 'needs_attention' | null>(null);
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [settings, setSettings] = useState<UserSettings>({
     theme: 'dark',
     default_provider: 'kritam',
     enable_tts_auto: false,
     tts_rate: 1.0,
-    enable_companion: true
+    enable_companion: true,
+    voice_language: 'en-US'
   });
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -95,6 +98,8 @@ export const App: React.FC = () => {
       if (s) {
         setSettings((prev) => ({ ...prev, ...s }));
         if (s.theme) applyTheme(s.theme);
+        if (s.voice_language) speechService.setLanguage(s.voice_language);
+        if (s.auto_dispatch_voice !== undefined) speechService.setAutoDispatch(s.auto_dispatch_voice);
       }
     } catch (e) {
       console.warn('[App] Load settings error:', e);
@@ -220,6 +225,7 @@ export const App: React.FC = () => {
 
       setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
       setIsGenerating(true);
+      setLastTaskStatus(null);
       setCompanionState('thinking');
       scrollToBottom();
 
@@ -238,6 +244,7 @@ export const App: React.FC = () => {
         (fullContent) => {
           generationInFlightRef.current = false;
           setIsGenerating(false);
+          setLastTaskStatus('completed');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId ? { ...msg, content: fullContent, status: 'completed' } : msg
@@ -253,6 +260,7 @@ export const App: React.FC = () => {
         (err) => {
           generationInFlightRef.current = false;
           setIsGenerating(false);
+          setLastTaskStatus('needs_attention');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId
@@ -266,6 +274,7 @@ export const App: React.FC = () => {
     } catch (e: any) {
       generationInFlightRef.current = false;
       setIsGenerating(false);
+      setLastTaskStatus('needs_attention');
       setCompanionState('idle');
       console.error('[App] Failed to send message:', e);
       setMessages((prev) => [...prev, {
@@ -287,13 +296,17 @@ export const App: React.FC = () => {
     }
     generationInFlightRef.current = false;
     setIsGenerating(false);
+    setLastTaskStatus(null);
     setCompanionState('idle');
   };
 
   const handleExecuteAction = async (actionType: string, target: string, confirmed: boolean = false) => {
+    setIsExecutingAction(true);
+    setLastTaskStatus(null);
     try {
       const res = await apiClient.executeAction(actionType, target, confirmed);
       if (res.requires_confirmation) {
+        setLastTaskStatus('needs_attention');
         setConfirmModal({
           isOpen: true,
           title: `Confirm ${actionType.toUpperCase()}`,
@@ -306,6 +319,7 @@ export const App: React.FC = () => {
           }
         });
       } else {
+        setLastTaskStatus(res.success ? 'completed' : 'needs_attention');
         const resultMsg: Message = {
           id: `tool-${Date.now()}`,
           conversation_id: activeConvId || '',
@@ -317,7 +331,10 @@ export const App: React.FC = () => {
         scrollToBottom();
       }
     } catch (e: any) {
+      setLastTaskStatus('needs_attention');
       alert(`Action failed: ${e.message}`);
+    } finally {
+      setIsExecutingAction(false);
     }
   };
 
@@ -339,6 +356,22 @@ export const App: React.FC = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
+  // Compute live agent activity state: Listening -> Understanding -> Working -> Completed / Needs Attention
+  let agentStatus: 'idle' | 'listening' | 'understanding' | 'working' | 'completed' | 'needs_attention' = 'idle';
+  if (confirmModal.isOpen || speech.error) {
+    agentStatus = 'needs_attention';
+  } else if (speech.voiceState === 'listening') {
+    agentStatus = 'listening';
+  } else if (speech.voiceState === 'processing') {
+    agentStatus = 'understanding';
+  } else if (isGenerating || isExecutingAction) {
+    agentStatus = 'working';
+  } else if (lastTaskStatus === 'completed') {
+    agentStatus = 'completed';
+  } else if (lastTaskStatus === 'needs_attention') {
+    agentStatus = 'needs_attention';
+  }
+
   return (
     <div className="app-container">
       <Sidebar
@@ -356,13 +389,52 @@ export const App: React.FC = () => {
 
       <main className="main-chat-area">
         <header className="chat-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontWeight: 600, fontSize: '0.96rem', color: 'var(--text-primary)' }}>
               {activeConv?.title || 'Kritam Assistant'}
             </span>
+
+            {/* Real-time Agent State Stepper Pill */}
+            <div className={`agent-state-pill ${agentStatus}`}>
+              <span
+                className="model-dot"
+                style={{
+                  backgroundColor:
+                    agentStatus === 'listening' ? '#ef4444' :
+                    agentStatus === 'understanding' ? '#f59e0b' :
+                    agentStatus === 'working' ? 'var(--accent-primary)' :
+                    agentStatus === 'completed' ? '#10b981' :
+                    agentStatus === 'needs_attention' ? '#ef4444' :
+                    'var(--text-muted)',
+                  width: 7,
+                  height: 7
+                }}
+              />
+              <span style={{ textTransform: 'capitalize' }}>
+                {agentStatus === 'listening' ? 'Listening...' :
+                 agentStatus === 'understanding' ? 'Understanding...' :
+                 agentStatus === 'working' ? 'Working...' :
+                 agentStatus === 'completed' ? 'Completed' :
+                 agentStatus === 'needs_attention' ? 'Needs Attention' :
+                 'Ready'}
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {speech.isBackgroundListening && (
+              <button
+                type="button"
+                className="btn-handsfree active"
+                style={{ fontSize: '0.74rem', padding: '3px 9px' }}
+                onClick={() => speechService.stopBackgroundListening()}
+                title="Hands-free listening is active. Click to pause."
+              >
+                <Radio size={12} className="animate-pulse" />
+                <span>Hands-Free ({settings.voice_language || 'en-US'})</span>
+              </button>
+            )}
+
             <div className="model-pill">
               <span className={`model-dot ${settings.default_provider === 'offline' ? 'offline' : ''}`} />
               <span style={{ textTransform: 'capitalize' }}>{settings.default_provider}</span>
