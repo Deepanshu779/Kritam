@@ -28,8 +28,48 @@ class AppLauncher:
     """Safe Windows application launcher."""
 
     @staticmethod
+    def _resolve_chrome() -> str | None:
+        """Resolve Chrome from PATH, standard Windows locations, or App Paths."""
+        found = shutil.which("chrome.exe") or shutil.which("chrome")
+        if found:
+            return found
+        if os.name != "nt":
+            return None
+
+        roots = [os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)"),
+                 os.environ.get("LOCALAPPDATA")]
+        relative = [
+            ("Google", "Chrome", "Application", "chrome.exe"),
+        ]
+        for root in filter(None, roots):
+            for parts in relative:
+                candidate = Path(root).joinpath(*parts)
+                if candidate.is_file():
+                    return str(candidate)
+
+        try:
+            import winreg
+            for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+                for subkey in (
+                    r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                    r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe",
+                ):
+                    try:
+                        with winreg.OpenKey(hive, subkey) as key:
+                            candidate, _ = winreg.QueryValueEx(key, None)
+                            if candidate and Path(candidate).is_file():
+                                return candidate
+                    except OSError:
+                        continue
+        except (ImportError, OSError):
+            pass
+        return None
+
+    @staticmethod
     def resolve_app(target: str) -> str | None:
         target_clean = target.lower().strip()
+        if target_clean in ("chrome", "google chrome"):
+            return AppLauncher._resolve_chrome()
         candidates = KNOWN_APPS.get(target_clean)
         if candidates:
             for cmd in candidates:
@@ -52,6 +92,15 @@ class AppLauncher:
         """Launch application safely without shell=True execution."""
         resolved = cls.resolve_app(target)
         if not resolved:
+            # If Chrome is absent, still satisfy the user's browser intent using
+            # the configured default browser rather than launching a bad alias.
+            if target.strip().lower() in ("chrome", "google chrome"):
+                try:
+                    opened = webbrowser.open("https://www.google.com")
+                    if opened:
+                        return True, "Chrome was not found; opened Google in your default browser."
+                except Exception:
+                    pass
             return False, f"Could not find or resolve application '{target}'. Ensure it is installed and registered on Windows."
 
         try:
