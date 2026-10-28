@@ -1192,3 +1192,25 @@ body {
   .settings-body { padding: 18px 16px; gap: 18px; }
   .settings-footer { padding: 12px 16px; }
 }
+
+/* KRITAM agent portrait */
+.kritam-agent {
+  position: fixed; right: 24px; bottom: 24px; z-index: 40;
+  width: 58px; height: 58px; padding: 0; border: 0; border-radius: 50%;
+  display: grid; place-items: center; cursor: pointer; background: transparent;
+  box-shadow: 0 6px 22px rgba(107, 85, 255, .24);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.kritam-agent:hover { transform: translateY(-2px) scale(1.035); box-shadow: 0 9px 26px rgba(107,85,255,.34); }
+.kritam-agent:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 4px; }
+.kritam-agent__portrait { display: block; width: 100%; height: 100%; filter: drop-shadow(0 2px 4px rgba(0,0,0,.24)); }
+.kritam-agent__status {
+  position: absolute; width: 11px; height: 11px; right: 0; bottom: 2px;
+  border: 2px solid var(--bg-surface); border-radius: 50%; background: #a78bfa;
+  box-shadow: 0 0 0 3px rgba(167,139,250,.16);
+}
+.kritam-agent--listening .kritam-agent__status { background: #35cf9a; animation: kritam-agent-pulse 1.25s ease-in-out infinite; }
+.kritam-agent--thinking .kritam-agent__status { background: #a78bfa; animation: kritam-agent-pulse .8s ease-in-out infinite; }
+.kritam-agent--speaking .kritam-agent__status { background: #60c8f5; animation: kritam-agent-pulse 1s ease-in-out infinite; }
+@keyframes kritam-agent-pulse { 50% { box-shadow: 0 0 0 6px rgba(167,139,250,.05); transform: scale(.88); } }
+@media (prefers-reduced-motion: reduce) { .kritam-agent, .kritam-agent__status { animation: none !important; transition: none; } }
