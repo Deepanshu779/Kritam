@@ -55,6 +55,8 @@ class SpeechService {
   private errorWindowStart: number = 0;
   private restartTimeoutId: any = null;
   private acousticPause: boolean = false;
+  private restartAttempts: number = 0;
+  private userStoppedRecognition: boolean = false;
 
   constructor() {
     this.initSTT();
@@ -238,7 +240,7 @@ class SpeechService {
 
     try {
       this.recognition = new SpeechRecognition();
-      this.recognition.continuous = false;
+      this.recognition.continuous = true;
       this.recognition.interimResults = true;
       this.recognition.lang = this.voiceLanguage || 'en-US';
       this.recognition.maxAlternatives = 1;
@@ -259,9 +261,10 @@ class SpeechService {
       this.setVoiceState('listening');
     };
 
+    // A brief pause between words/sentences is normal. Keep recording until
+    // the user explicitly stops or the recognition engine ends the session.
     this.recognition.onspeechend = () => {
       if (this.currentSessionId !== sessionId) return;
-      this.setVoiceState('processing');
     };
 
     this.recognition.onresult = (event: any) => {
@@ -298,15 +301,17 @@ class SpeechService {
     this.recognition.onend = () => {
       if (this.currentSessionId !== sessionId) return;
       this.interimTranscript = '';
+      this.notifyListeners();
       this.setVoiceState('idle');
-      if (!this.sessionHasError) {
-        onEnd();
-      }
-      // Resume background mode if it was previously active
-      if (wasBackground) {
-        setTimeout(() => {
-          this.startBackgroundListening(this.backgroundCallback || onResult, this.backgroundErrorCallback || onError);
-        }, 300);
+      if (!this.sessionHasError) onEnd();
+      // Restore prior hands-free mode only if it is still desired.
+      if (wasBackground && this.isBackgroundListening) {
+        clearTimeout(this.restartTimeoutId);
+        this.restartTimeoutId = setTimeout(() => {
+          if (this.isBackgroundListening) {
+            this.launchContinuousSession();
+          }
+        }, 350);
       }
     };
 
@@ -355,6 +360,7 @@ class SpeechService {
     }
 
     const sessionId = ++this.currentSessionId;
+    this.userStoppedRecognition = false;
     this.interimTranscript = '';
 
     if (this.recognition) {
@@ -383,6 +389,8 @@ class SpeechService {
 
     this.recognition.onstart = () => {
       if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
+      this.restartAttempts = 0;
+      this.consecutiveErrors = 0;
       this.setVoiceState('listening');
     };
 
@@ -470,9 +478,8 @@ class SpeechService {
       this.consecutiveErrors++;
 
       if (this.consecutiveErrors >= 3) {
-        console.warn('[SpeechService] Consecutive recognition errors, backing off 3s');
+        console.warn('[SpeechService] Repeated recognition errors; continuing with bounded restart backoff');
         this.setVoiceState('error', this.mapSpeechError(err));
-        return;
       }
     };
 
@@ -491,13 +498,16 @@ class SpeechService {
         return;
       }
 
-      // Safe continuous restart
+      // Recognition services can close after pauses or transient failures.
+      // Restart with bounded exponential backoff to avoid a hot error loop.
+      const delay = Math.min(5000, 300 * Math.pow(2, Math.min(this.restartAttempts, 4)));
+      this.restartAttempts = Math.min(this.restartAttempts + 1, 5);
       clearTimeout(this.restartTimeoutId);
       this.restartTimeoutId = setTimeout(() => {
-        if (this.isBackgroundListening) {
+        if (this.isBackgroundListening && !this.acousticPause && this.ttsState !== 'speaking') {
           this.launchContinuousSession();
         }
-      }, 250);
+      }, delay);
     };
 
     try {
@@ -506,6 +516,12 @@ class SpeechService {
     } catch (e: any) {
       if (this.currentSessionId !== sessionId || !this.isBackgroundListening) return;
       this.setVoiceState('error', e.message || 'Microphone error.');
+      const delay = Math.min(5000, 400 * Math.pow(2, Math.min(this.restartAttempts, 4)));
+      this.restartAttempts = Math.min(this.restartAttempts + 1, 5);
+      clearTimeout(this.restartTimeoutId);
+      this.restartTimeoutId = setTimeout(() => {
+        if (this.isBackgroundListening) this.launchContinuousSession();
+      }, delay);
     }
   }
 
@@ -514,6 +530,7 @@ class SpeechService {
    */
   public stopBackgroundListening(): void {
     this.isBackgroundListening = false;
+    this.userStoppedRecognition = true;
     this.backgroundCallback = null;
     this.backgroundErrorCallback = null;
     clearTimeout(this.restartTimeoutId);
@@ -525,6 +542,7 @@ class SpeechService {
    * Stop recognition safely.
    */
   public stopListening(): void {
+    this.userStoppedRecognition = true;
     if (this.recognition && this.voiceState === 'listening') {
       this.setVoiceState('processing');
       try {
@@ -541,6 +559,7 @@ class SpeechService {
    * Immediately abort and cancel recognition.
    */
   public abortListening(): void {
+    this.userStoppedRecognition = true;
     this.currentSessionId++;
     clearTimeout(this.restartTimeoutId);
     if (this.recognition) {
