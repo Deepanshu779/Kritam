@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.database.session import init_db
-from app.api import health, conversations, chat, actions, settings as settings_api
+from app.api import health, conversations, chat, actions, settings as settings_api, speech
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,6 +40,7 @@ app.include_router(conversations.router)
 app.include_router(chat.router)
 app.include_router(actions.router)
 app.include_router(settings_api.router)
+app.include_router(speech.router)
 
 @app.get("/")
 def root():
