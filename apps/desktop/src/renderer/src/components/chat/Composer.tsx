@@ -4,13 +4,15 @@ import { speechService, useSpeechService } from '../../services/speech-service';
 import { apiClient } from '../../services/api-client';
 
 interface ComposerProps {
-  onSend: (text: string) => void;
+  onSend: (text: string, voiceCommand?: boolean) => void;
   isGenerating: boolean;
   onStop: () => void;
+  sttModel?: 'base' | 'small';
+  microphoneDeviceId?: string;
   transcriptionLanguage?: 'auto' | 'en' | 'hi' | 'en-IN' | 'en-US' | 'en-GB';
 }
 
-export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop, transcriptionLanguage = 'auto' }) => {
+export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop, sttModel = 'base', microphoneDeviceId, transcriptionLanguage = 'auto' }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const speech = useSpeechService();
@@ -25,6 +27,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const levelFrameRef = useRef<number | null>(null);
+  const lastVoiceCommandRef = useRef<{ text: string; at: number } | null>(null);
+  const transcriptionInFlightRef = useRef(false);
+  const isUnmountedRef = useRef(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const [micTrackInfo, setMicTrackInfo] = useState('');
 
   // Auto-resize textarea height
   useEffect(() => {
@@ -80,9 +89,36 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          ...(microphoneDeviceId ? { deviceId: { exact: microphoneDeviceId } } : {}),
+          echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+        },
       });
       streamRef.current = stream;
+      const track = stream.getAudioTracks()[0];
+      const trackSettings = track?.getSettings();
+      setMicTrackInfo(trackSettings ? `${trackSettings.sampleRate || 'default'} Hz · ${trackSettings.channelCount || 1} channel(s)` : 'Microphone active');
+      try {
+        const context = new AudioContext();
+        audioContextRef.current = context;
+        const analyser = context.createAnalyser();
+        analyser.fftSize = 512;
+        context.createMediaStreamSource(stream).connect(analyser);
+        const samples = new Uint8Array(analyser.fftSize);
+        let lastLevelUpdate = 0;
+        const updateLevel = (timestamp: number) => {
+          if (context.state === 'closed') return;
+          analyser.getByteTimeDomainData(samples);
+          let sum = 0;
+          for (const sample of samples) { const value = (sample - 128) / 128; sum += value * value; }
+          if (timestamp - lastLevelUpdate >= 100) {
+            lastLevelUpdate = timestamp;
+            setMicLevel(Math.min(1, Math.sqrt(sum / samples.length) * 3.5));
+          }
+          levelFrameRef.current = requestAnimationFrame(updateLevel);
+        };
+        void context.resume().then(updateLevel).catch(() => undefined);
+      } catch { setMicLevel(0); }
       chunksRef.current = [];
       const mimeType = [
         'audio/webm;codecs=opus', 'audio/webm',
@@ -97,36 +133,76 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       recorder.onerror = () => {
         if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
         recordingTimerRef.current = null;
-        setLocalMicError('Audio recording failed. Check microphone permission and try again.');
-        setIsLocalRecording(false);
+        if (!isUnmountedRef.current) {
+          setLocalMicError('Audio recording failed. Check microphone permission and try again.');
+          setIsLocalRecording(false);
+        }
         stream.getTracks().forEach(track => track.stop());
         streamRef.current = null;
+        if (levelFrameRef.current !== null) cancelAnimationFrame(levelFrameRef.current);
+        levelFrameRef.current = null;
+        void audioContextRef.current?.close();
+        audioContextRef.current = null;
+        if (!isUnmountedRef.current) setMicLevel(0);
       };
       recorder.onstop = async () => {
         if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
         recordingTimerRef.current = null;
-        setIsLocalRecording(false);
+        if (!isUnmountedRef.current) setIsLocalRecording(false);
         stream.getTracks().forEach(track => track.stop());
         streamRef.current = null;
+        if (levelFrameRef.current !== null) cancelAnimationFrame(levelFrameRef.current);
+        levelFrameRef.current = null;
+        void audioContextRef.current?.close();
+        audioContextRef.current = null;
+        if (!isUnmountedRef.current) setMicLevel(0);
         const firstChunkType = chunksRef.current.find((chunk) => chunk instanceof Blob && chunk.type)?.type;
         const audio = new Blob(chunksRef.current, { type: recorder.mimeType || firstChunkType || '' });
         chunksRef.current = [];
+        if (isUnmountedRef.current) return;
         if (audio.size < 1200) {
           setLocalMicError('Recording was too short. Please speak for a moment and try again.');
           return;
         }
+        if (transcriptionInFlightRef.current) return;
+        transcriptionInFlightRef.current = true;
         setIsLocalTranscribing(true);
         try {
           const language = transcriptionLanguage === 'hi' || transcriptionLanguage === 'hi-IN'
             ? 'hi'
             : transcriptionLanguage === 'en' || transcriptionLanguage?.startsWith('en-') ? 'en' : 'auto';
-          const result = await apiClient.transcribeAudio(audio, language, true);
+          const result = await apiClient.transcribeAudio(audio, language, true, sttModel);
+          if (isUnmountedRef.current) return;
           const transcript = result.text?.trim();
           if (!transcript) {
             setLocalMicError('No speech detected. Please try again a little closer to the microphone.');
             return;
           }
-          setText(prev => prev.trim() ? `${prev.trim()} ${transcript}` : transcript);
+          const normalized = transcript.replace(
+            /\b(?:hey|hi|hello|okay|ok)\s+(?:grum|krim|kritum|critt?am)\b(?=[, ]+\s*(?:please\s+)?(?:open|launch|start|run|play|listen|pause|resume|stop|next)\b)/ig,
+            'Hey Kritam'
+          );
+          const commandLike = /^(?:(?:hey|hi|hello|ok|okay)\s+kritam\b[,.]?\s*)?(?:please\s+)?(?:open|launch|start|run|play|listen\s+to|pause|resume|stop|next|search\s+for|go\s+to|visit)\b/i.test(normalized)
+            || /^(?:(?:hey|hi|hello|ok|okay)\s+kritam\b[,.]?\s*)?.+\s+(?:kholo|khol\s+do|chalao|bajao)$/i.test(normalized);
+          if (commandLike) {
+            if (result.command_confident !== true) {
+              setText(normalized);
+              setLocalMicError('I heard a possible command but the recognition was uncertain. Review the transcript and send it yourself if it is correct.');
+            } else {
+              const now = Date.now();
+              const previous = lastVoiceCommandRef.current;
+              if (!previous || previous.text.toLowerCase() !== normalized.toLowerCase() || now - previous.at > 4000) {
+                lastVoiceCommandRef.current = { text: normalized, at: now };
+                if (isGenerating) setText(normalized);
+                else {
+                  onSend(normalized, true);
+                  setText('');
+                }
+              }
+            }
+          } else {
+            setText(prev => prev.trim() ? `${prev.trim()} ${normalized}` : normalized);
+          }
           requestAnimationFrame(() => {
             if (textareaRef.current) {
               textareaRef.current.focus();
@@ -136,9 +212,10 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
           });
         } catch (error: any) {
           console.error('[Composer] Local transcription failed:', error);
-          setLocalMicError(error?.message || 'Local transcription failed. Check the KRITAM backend.');
+          if (!isUnmountedRef.current) setLocalMicError(error?.message || 'Local transcription failed. Check the KRITAM backend.');
         } finally {
-          setIsLocalTranscribing(false);
+          transcriptionInFlightRef.current = false;
+          if (!isUnmountedRef.current) setIsLocalTranscribing(false);
         }
       };
       recorder.start(700);
@@ -155,10 +232,16 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
     }
   };
 
-  useEffect(() => () => {
-    if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
-    try { recorderRef.current?.state !== 'inactive' && recorderRef.current?.stop(); } catch {}
-    streamRef.current?.getTracks().forEach(track => track.stop());
+  useEffect(() => {
+    isUnmountedRef.current = false;
+    return () => {
+      isUnmountedRef.current = true;
+      if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+      try { recorderRef.current?.state !== 'inactive' && recorderRef.current?.stop(); } catch {}
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      if (levelFrameRef.current !== null) cancelAnimationFrame(levelFrameRef.current);
+      void audioContextRef.current?.close();
+    };
   }, []);
 
   const toggleBackgroundVoice = () => {
@@ -308,7 +391,10 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               </div>
             )}
             {isMicActive && (
-              <span className="composer-mic-hint">Recording · max 5 min · tap mic to finish</span>
+              <span className="composer-mic-hint" role="status" aria-live="polite">
+                Recording · max 5 min · tap mic to finish {micTrackInfo}
+                <span aria-label="Microphone level" style={{ display: 'inline-block', width: 42, height: 5, borderRadius: 5, marginLeft: 7, verticalAlign: 'middle', background: `linear-gradient(to right, var(--accent-primary) ${Math.round(micLevel * 100)}%, var(--border-subtle) ${Math.round(micLevel * 100)}%)` }} />
+              </span>
             )}
 
             {speech.ttsState === 'speaking' && (

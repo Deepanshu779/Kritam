@@ -4,6 +4,7 @@ class ChatStreamRequest(BaseModel):
     conversation_id: str
     message: str
     user_message_id: str | None = Field(default=None, min_length=1, max_length=64)
+    voice_command: bool = False
     provider: str | None = None # offline, ollama, openai, groq, openrouter
     model: str | None = None
     stream: bool = True

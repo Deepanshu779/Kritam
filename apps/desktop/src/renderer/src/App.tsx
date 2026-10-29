@@ -33,6 +33,7 @@ export const App: React.FC = () => {
     theme: 'dark',
     default_provider: 'offline',
     enable_tts_auto: false,
+    voice_response_enabled: true,
     tts_rate: 1.0,
     enable_companion: true,
     voice_language: 'auto'
@@ -186,7 +187,7 @@ export const App: React.FC = () => {
     }, 50);
   };
 
-  const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string) => {
+  const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string, voiceCommand = false) => {
     const cleanText = text.trim();
     if (!cleanText || generationInFlightRef.current) return;
     generationInFlightRef.current = true;
@@ -249,8 +250,15 @@ export const App: React.FC = () => {
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId ? { ...msg, content: fullContent, status: 'completed' } : msg
           ));
-          if (settings.enable_tts_auto && fullContent && activeConvIdRef.current === targetConvId) {
-            speechService.speak(fullContent, { voiceName: settings.tts_voice, rate: settings.tts_rate });
+          const shouldSpeak = voiceCommand
+            ? settings.voice_response_enabled !== false
+            : settings.enable_tts_auto;
+          if (shouldSpeak && fullContent && activeConvIdRef.current === targetConvId) {
+            const spokenText = fullContent
+              .replace(/```action[\s\S]*?```/g, '')
+              .replace(/^Status:.*$/gim, '')
+              .trim();
+            speechService.speak(spokenText, { voiceName: settings.tts_voice, rate: settings.tts_rate });
           }
           // Refresh sidebar metadata only; do not implicitly change the selected chat.
           apiClient.getConversations().then(setConversations).catch((e) =>
@@ -268,7 +276,8 @@ export const App: React.FC = () => {
               : msg
           ));
         },
-        userMsgId
+        userMsgId,
+        voiceCommand
       );
 
       stopStreamRef.current = stopFn;
@@ -511,10 +520,12 @@ export const App: React.FC = () => {
         )}
 
         <Composer
-          onSend={handleSendMessage}
+          onSend={(text, voiceCommand) => handleSendMessage(text, undefined, undefined, voiceCommand)}
           isGenerating={isGenerating}
           onStop={handleStopGeneration}
           transcriptionLanguage={settings.voice_language}
+          sttModel={settings.stt_model || 'base'}
+          microphoneDeviceId={settings.microphone_device_id}
         />
       </main>
 

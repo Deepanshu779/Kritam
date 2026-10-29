@@ -26,10 +26,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const speech = useSpeechService();
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
   const [runtimeInfo, setRuntimeInfo] = useState<{ platform: string; arch: string; version: string } | null>(null);
+  const [microphones, setMicrophones] = useState<MediaDeviceInfo[]>([]);
 
   useEffect(() => {
     if (!isOpen || !window.kritamAPI?.getSystemInfo) return;
     window.kritamAPI.getSystemInfo().then(setRuntimeInfo).catch(() => setRuntimeInfo(null));
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !navigator.mediaDevices?.enumerateDevices) return;
+    navigator.mediaDevices.enumerateDevices()
+      .then((devices) => setMicrophones(devices.filter((device) => device.kind === 'audioinput')))
+      .catch(() => setMicrophones([]));
   }, [isOpen]);
 
   const handlePreviewVoice = () => {
@@ -290,6 +298,55 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'voice' && (
             <>
               <div className="form-group">
+                <label className="form-label">Microphone</label>
+                <select
+                  className="form-input"
+                  value={formData.microphone_device_id || ''}
+                  onChange={(e) => setFormData({ ...formData, microphone_device_id: e.target.value || undefined })}
+                >
+                  <option value="">System default</option>
+                  {microphones.map((device, index) => (
+                    <option key={device.deviceId || index} value={device.deviceId}>
+                      {device.label || `Microphone ${index + 1}`}
+                    </option>
+                  ))}
+                </select>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  KRITAM uses the selected input when available. If its permission or device ID is no longer valid, choose System default.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Speech recognition model</label>
+                <select
+                  className="form-input"
+                  value={formData.stt_model || 'base'}
+                  onChange={(e) => setFormData({ ...formData, stt_model: e.target.value as 'base' | 'small' })}
+                >
+                  <option value="base">Base · lower memory and faster</option>
+                  <option value="small">Small · may improve recognition, slower and larger</option>
+                </select>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Model files download only after the existing consent prompt. Accuracy and speed depend on your device and language.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Preferred music platform</label>
+                <select
+                  className="form-input"
+                  value={formData.preferred_music_platform || 'youtube'}
+                  onChange={(e) => setFormData({ ...formData, preferred_music_platform: e.target.value as 'youtube' | 'spotify' })}
+                >
+                  <option value="youtube">YouTube Music (default)</option>
+                  <option value="spotify">Spotify</option>
+                </select>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                  Voice requests without a platform open a search on this service. Choose a result to begin playback; autoplay is not guaranteed.
+                </span>
+              </div>
+
+              <div className="form-group">
                 <label className="form-label">Transcription language hint</label>
                 <select
                   className="form-input"
@@ -318,6 +375,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="checkbox"
                   checked={!!formData.enable_tts_auto}
                   onChange={(e) => setFormData({ ...formData, enable_tts_auto: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
+                <div>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    Spoken feedback for voice commands
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    Speak the response after a voice command. Text responses are always shown.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.voice_response_enabled !== false}
+                  onChange={(e) => setFormData({ ...formData, voice_response_enabled: e.target.checked })}
                   style={{ width: 18, height: 18, cursor: 'pointer' }}
                 />
               </div>

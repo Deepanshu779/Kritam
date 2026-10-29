@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from starlette.concurrency import run_in_threadpool
 from app.core.security import verify_auth_token
 from app.services.speech.transcriber import UnsupportedAudioError, transcribe_bytes
 
@@ -8,6 +9,7 @@ router = APIRouter(prefix="/api/speech", tags=["speech"])
 async def transcribe_audio(
     audio: UploadFile = File(...),
     language: str | None = Form(None),
+    model: str = Form("base"),
     allow_model_download: bool = Form(False),
     _: bool = Depends(verify_auth_token),
 ):
@@ -37,8 +39,16 @@ async def transcribe_audio(
     language_hint = (language or "").strip().lower()
     if language_hint not in {"", "auto", "en", "hi"}:
         raise HTTPException(status_code=422, detail="Supported transcription language hints are auto, en, and hi.")
+    if model not in {"base", "small"}:
+        raise HTTPException(status_code=422, detail="Supported transcription models are base and small.")
     try:
-        result = transcribe_bytes(payload, suffix, language=None if language_hint in {"", "auto"} else language_hint)
+        result = await run_in_threadpool(
+            transcribe_bytes,
+            payload,
+            suffix,
+            None if language_hint in {"", "auto"} else language_hint,
+            model,
+        )
         return result
     except UnsupportedAudioError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc

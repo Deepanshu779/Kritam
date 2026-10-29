@@ -47,7 +47,8 @@ class ApiClient {
   public async transcribeAudio(
     audio: Blob,
     language: 'auto' | 'en' | 'hi' = 'auto',
-    allowModelDownload = false
+    allowModelDownload = false,
+    model: 'base' | 'small' = 'base'
   ): Promise<{ text: string; language?: string }> {
     await this.init();
     const headers = new Headers();
@@ -64,6 +65,7 @@ class ApiClient {
     const extension = extensionByMime[mediaType] || 'bin';
     form.append('audio', audio, `recording.${extension}`);
     form.append('language', language);
+    form.append('model', model);
     form.append('allow_model_download', String(allowModelDownload));
     const response = await fetch(`${this.baseUrl}/api/speech/transcribe`, {
       method: 'POST',
@@ -135,7 +137,8 @@ class ApiClient {
     onToken?: (token: string) => void,
     onDone?: (fullContent: string) => void,
     onError?: (err: Error) => void,
-    userMessageId?: string
+    userMessageId?: string,
+    voiceCommand = false
   ): Promise<() => void> {
     await this.init();
     const controller = new AbortController();
@@ -156,6 +159,7 @@ class ApiClient {
             conversation_id: conversationId,
             message,
             user_message_id: userMessageId,
+            voice_command: voiceCommand,
             provider,
             model,
             stream: true

@@ -64,6 +64,16 @@ async def test_natural_variations_and_music():
     assert intent_music is not None
     assert intent_music["type"] == "play_music"
     assert "lo-fi" in intent_music["target"]
+    assert intent_music["target"].endswith("on youtube")
+    assert router.extract_desktop_intent("play Chamma Chamma", "spotify")["target"] == "chamma chamma on spotify"
+    assert router.extract_desktop_intent("play Believer on Spotify")["target"] == "believer on spotify"
+    assert router.extract_desktop_intent("Hey Kritam, pause music")["type"] == "unsupported_media_control"
+    assert router.extract_desktop_intent("Hey Kritam, resume music")["type"] == "unsupported_media_control"
+    assert router.extract_desktop_intent("Hey Kritam, stop the music")["type"] == "unsupported_media_control"
+    assert router.extract_desktop_intent("Hey Kritam, play the next song")["type"] == "unsupported_media_control"
+    assert router.extract_desktop_intent("Hey Kritam, Chrome kholo")["target"] == "chrome"
+    assert router.extract_desktop_intent("Hey Kritam, Chamma Chamma chalao")["target"] == "chamma chamma on youtube"
+    assert router.extract_desktop_intent("Spotify par Believer bajao")["target"] == "believer on spotify"
 
     # 3. Search command
     intent_search = router.extract_desktop_intent("Search for C++ DSA tutorials")
@@ -107,4 +117,51 @@ async def test_external_open_action_is_pending_until_confirmed(monkeypatch):
     assert payload["status"] == "pending"
     assert payload["executed"] is False
     assert opened_urls == []
+
+
+@pytest.mark.asyncio
+async def test_explicit_voice_music_request_opens_search_without_extra_confirmation(monkeypatch):
+    from app.services.automation import policy_engine as policy_module
+
+    opened_urls = []
+    monkeypatch.setattr(policy_module.webbrowser, "open", lambda url: opened_urls.append(url) or True)
+    chunks = []
+    async for chunk in OfflineRouter().generate_stream(
+        [{"role": "user", "content": "Hey Kritam, play Chamma Chamma"}],
+        voice_command=True,
+    ):
+        chunks.append(chunk)
+    response = "".join(chunks)
+    payload = json.loads(re.search(r"```action\s*\n([\s\S]*?)\n```", response).group(1))
+    assert payload["status"] == "succeeded"
+    assert payload["executed"] is True
+    assert "youtube.com/search" in payload["target"]
+    assert "choose a result" in response.lower()
+    assert len(opened_urls) == 1
+
+
+@pytest.mark.asyncio
+async def test_voice_opens_youtube_but_does_not_auto_confirm_arbitrary_sites(monkeypatch):
+    from app.services.automation import policy_engine as policy_module
+
+    opened_urls = []
+    monkeypatch.setattr(policy_module.webbrowser, "open", lambda url: opened_urls.append(url) or True)
+    youtube_chunks = []
+    async for chunk in OfflineRouter().generate_stream(
+        [{"role": "user", "content": "Hey Kritam, open YouTube"}], voice_command=True
+    ):
+        youtube_chunks.append(chunk)
+    youtube_response = "".join(youtube_chunks)
+    youtube_action = json.loads(re.search(r"```action\s*\n([\s\S]*?)\n```", youtube_response).group(1))
+    assert youtube_action["status"] == "succeeded"
+    assert opened_urls == ["https://www.youtube.com"]
+
+    site_chunks = []
+    async for chunk in OfflineRouter().generate_stream(
+        [{"role": "user", "content": "Hey Kritam, open example.com"}], voice_command=True
+    ):
+        site_chunks.append(chunk)
+    site_action = json.loads(re.search(r"```action\s*\n([\s\S]*?)\n```", "".join(site_chunks)).group(1))
+    assert site_action["status"] == "pending"
+    assert opened_urls == ["https://www.youtube.com"]
 

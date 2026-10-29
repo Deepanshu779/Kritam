@@ -2,7 +2,7 @@
 
 Audit started: 2026-10-29  
 Repository: `Deepanshu779/Kritam`  
-Branch: `main` at `2aa5f04` (`origin/main`)  
+Branch: `main`; current baseline after productization is `05ae7c2`
 Initial worktree: two existing local UI edits in `EmptyState.tsx` and `theme.css`; preserved.
 
 This audit records source-level findings. A source implementation is not considered verified until its runtime behavior or automated test has been exercised.
@@ -19,9 +19,9 @@ This audit records source-level findings. A source implementation is not conside
 | Ollama integration | Implemented but unverified | HTTP adapter and model lookup exist; requires a running local Ollama instance to validate. |
 | OpenAI, Groq, OpenRouter | Implemented but unverified | OpenAI-compatible adapters exist; require user credentials and external connectivity to validate. |
 | KRITAM managed gateway | Implemented but unverified | Adapter defaults to `https://api.kritam.ai`; the endpoint could not be verified from this environment and no deployment evidence or gateway credentials were found in the repository. Quota/availability must not be assumed. The default mode is Offline until a provider is configured. |
-| Voice transcription | Implemented but unverified | Local Faster Whisper validates container signatures against declared media types, enforces a file-size limit, supports auto/English/Hindi hints, and cleans temporary files. Requires dependencies, model download, microphone and runtime validation. |
+| Voice transcription | Implemented but unverified | Local Faster Whisper validates container signatures against declared media types, enforces size limits, supports Auto/English/Hindi, selectable Base/Small models, beam search, vocabulary context, VAD padding, mic selection/level feedback and conservative decoder-diagnostic command gating. Real microphone accuracy and latency remain unmeasured. |
 | Background voice recognition | Intentionally deferred in UI | Composer shows “coming soon” and disables its control. |
-| Desktop actions and policy | Implemented but unverified | Registered apps and standard folders are allowed; external URLs/music and file inspection require confirmation. File inspection is limited to supported text/source files inside the user folder. Unsupported actions and arbitrary PATH executables are rejected. |
+| Desktop actions and policy | Implemented but unverified | Registered apps and standard folders are allowed; typed external URLs/music and file inspection require confirmation. Explicit voice requests auto-open allowlisted YouTube destinations and fixed-domain Spotify/YouTube Music search URLs; arbitrary voice-opened sites still require confirmation. File inspection is limited to supported text/source files inside the user folder. Unsupported actions and arbitrary PATH executables are rejected. |
 | Electron backend ownership | Implemented but unverified | Electron launches its own child, requires a successful health identity response authenticated with its session token, reports startup failure, and stops only its direct child. Port collision, packaging and shutdown remain unverified at runtime. |
 | Electron packaged backend | Experimental implementation, unverified | A PyInstaller one-folder build script and electron-builder `extraResources` mapping are present. No Windows package has been built or tested; dependency collection and clean-machine operation remain release blockers. |
 | Electron permission boundary | Partially implemented | Node integration is disabled, context isolation and sandbox are enabled. IPC senders and navigation are constrained, and media permission is limited to audio from the app renderer. Runtime permission behavior is unverified. |

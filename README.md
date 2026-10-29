@@ -10,9 +10,9 @@ KRITAM is an existing Windows desktop AI assistant built with Electron, React, T
 - Deterministic offline commands for supported actions, date/time and calculations. This is not a general reasoning model.
 - Ollama local model integration.
 - Optional OpenAI, Groq, OpenRouter and configurable KRITAM Gateway adapters.
-- Push-to-talk recording sent to local Faster Whisper transcription. Hands-free recognition is disabled.
+- Push-to-talk recording sent to local Faster Whisper transcription. Clear, high-confidence spoken commands are dispatched automatically; ordinary dictation stays in the composer for review. Continuous hands-free recognition is disabled.
 - Speech playback with interruption controls.
-- Application, website, standard-folder, music-search and confirmed text-file inspection actions.
+- Registered application, website, standard-folder, music-search and confirmed text-file inspection actions. Spoken YouTube/Spotify searches can open automatically; typed external actions still require confirmation.
 - React/Electron UI with conversation history and provider settings.
 
 Availability depends on installed dependencies, provider configuration, local services, and permissions. Cloud providers receive the prompts sent to them. Provider API keys entered in Settings are currently stored in the local SQLite database without OS-backed encryption.
@@ -68,7 +68,9 @@ Choose the provider in Settings:
 
 ## Voice
 
-The composer uses the runtime's supported `MediaRecorder` audio format and sends the recording to the local backend. The backend validates the audio container and uses Faster Whisper. KRITAM asks before a first-use model download from Hugging Face; size depends on the configured model. Speech accuracy varies by model, language and recording quality. Microphone permission and a working backend are required. Hands-free recognition is currently disabled. Text-to-speech uses the operating system/browser speech synthesis support.
+The composer uses the runtime's supported `MediaRecorder` audio format, displays a live microphone level, and sends the recording to the local backend. A microphone can be selected in Voice & Audio settings. The backend validates the audio container and uses Faster Whisper with beam search, command vocabulary context, and VAD speech padding. Base is the default model; Small is optional and may use more memory and take longer. KRITAM asks before first-use model downloads from Hugging Face. Recognition diagnostics gate automatic voice actions; uncertain command transcripts stay visible for manual review. This gate is not a calibrated word-confidence score. Speech accuracy varies by model, language, microphone, and environment. Microphone permission and a working backend are required. Continuous hands-free recognition is disabled. Text-to-speech uses operating system/browser speech synthesis and follows the Auto-play voice responses setting.
+
+Clear spoken requests to open registered applications or play a named song are sent automatically. Music requests open a search for the selected service (YouTube Music by default, or Spotify); the user chooses a result and playback remains subject to the service's login and autoplay controls. KRITAM does not claim playback has started. Pause, resume, stop, and skip controls are not yet integrated. See [VOICE_TEST_PLAN.md](docs/VOICE_TEST_PLAN.md) for automated and manual checks.
 
 ## Desktop automation and security
 

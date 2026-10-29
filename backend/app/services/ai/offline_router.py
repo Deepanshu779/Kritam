@@ -2,6 +2,7 @@ import re
 import uuid
 import json
 import datetime
+from urllib.parse import urlparse
 from typing import AsyncGenerator
 import asyncio
 from app.services.ai.base import BaseAIProvider
@@ -29,7 +30,7 @@ class OfflineRouter(BaseAIProvider):
         text = re.sub(r"(?:\s+for\s+me|\s+please|\s+now)[.!?]*$", "", text, flags=re.IGNORECASE)
         return text.strip()
 
-    def extract_desktop_intent(self, prompt: str) -> dict | None:
+    def extract_desktop_intent(self, prompt: str, preferred_music_platform: str = "youtube") -> dict | None:
         """Analyze if prompt is an action command (app launch, URL, music, search, folder, etc.)."""
         cleaned = self.clean_command_text(prompt)
         lower = cleaned.lower()
@@ -43,14 +44,41 @@ class OfflineRouter(BaseAIProvider):
                 provider = "spotify" if "spotify" in platform else "youtube"
                 return {"type": "play_music", "target": f"{query} on {provider}"}
             if "spotify" in platform:
-                return {"type": "play_music", "target": "spotify"}
-            return {"type": "open_url", "target": "https://www.youtube.com"}
+                return {"type": "launch_app", "target": "spotify"}
+            return {"type": "open_url", "target": "https://music.youtube.com" if "music" in platform else "https://www.youtube.com"}
+
+        hindi_open = re.match(r"^(chrome|google chrome|file explorer|visual studio code|vs code|spotify|youtube music|youtube|settings)\s+(?:kholo|khol\s+do)$", lower)
+        if hindi_open:
+            target = hindi_open.group(1)
+            if target == "spotify":
+                return {"type": "launch_app", "target": "spotify"}
+            if target in {"youtube", "youtube music"}:
+                return {"type": "open_url", "target": "https://music.youtube.com" if target == "youtube music" else "https://www.youtube.com"}
+            return {"type": "launch_app", "target": target}
+
+        hindi_music = re.match(r"^(?:youtube music|youtube|spotify)\s+par\s+(.+?)\s+(?:chalao|bajao)$", lower)
+        if hindi_music:
+            platform = "spotify" if lower.startswith("spotify") else "youtube"
+            return {"type": "play_music", "target": f"{hindi_music.group(1).strip()} on {platform}"}
+        hindi_music = re.match(r"^(.+?)\s+(youtube music|youtube|spotify)\s+par\s+(?:chalao|bajao)$", lower)
+        if hindi_music:
+            platform = "spotify" if hindi_music.group(2) == "spotify" else "youtube"
+            return {"type": "play_music", "target": f"{hindi_music.group(1).strip()} on {platform}"}
+        hindi_music = re.match(r"^(.+?)\s+(?:chalao|bajao)$", lower)
+        if hindi_music:
+            platform = "spotify" if str(preferred_music_platform).lower() == "spotify" else "youtube"
+            return {"type": "play_music", "target": f"{hindi_music.group(1).strip()} on {platform}"}
 
         media_direct = re.match(r"^(?:play|ply|listen\s+to)\s+(.+?)\s+on\s+(youtube(?:\s+music)?|spotify)$", lower)
         if media_direct:
             query, platform = media_direct.group(1).strip(), media_direct.group(2).strip()
             provider = "spotify" if "spotify" in platform else "youtube"
             return {"type": "play_music", "target": f"{query} on {provider}"}
+
+        # Media transport controls are recognized but reported unsupported: KRITAM
+        # has no reliable, app-scoped playback-control integration yet.
+        if re.search(r"^(?:(?:pause|resume|stop|next)(?:\s+(?:the\s+)?(?:music|song|track|playback))?|play\s+next\s+(?:song|track))$", lower):
+            return {"type": "unsupported_media_control", "target": lower}
 
         # 1. Cancellation / Stop speech
         if re.search(r"^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$", lower):
@@ -62,6 +90,9 @@ class OfflineRouter(BaseAIProvider):
             raw_target = play_match.group(1).strip()
             if raw_target in ["music", "a song", "some music", "songs", "tracks"]:
                 raw_target = "lo-fi chill beats"
+            if not re.search(r"\s+on\s+(?:youtube(?:\s+music)?|spotify)$", raw_target, re.IGNORECASE):
+                selected_platform = "spotify" if str(preferred_music_platform).lower() == "spotify" else "youtube"
+                raw_target = f"{raw_target} on {selected_platform}"
             return {"type": "play_music", "target": raw_target}
 
         # 3. Web Search (e.g., "search for C++ DSA tutorials", "google Python decorators")
@@ -133,7 +164,8 @@ class OfflineRouter(BaseAIProvider):
         lower = user_message.lower().strip()
         
         # 1. Action intents (e.g. "open vs code", "play music", "open chrome")
-        intent = self.extract_desktop_intent(user_message)
+        preferred_music_platform = kwargs.get("preferred_music_platform", "youtube")
+        intent = self.extract_desktop_intent(user_message, preferred_music_platform=preferred_music_platform)
         if intent:
             if intent["type"] == "cancel_speech":
                 chunks = ["I've stopped speaking. Let me know if you need anything else!"]
@@ -142,9 +174,16 @@ class OfflineRouter(BaseAIProvider):
                     await asyncio.sleep(0.02)
                 return
 
+            if intent["type"] == "unsupported_media_control":
+                yield "I can open a requested song, but I can't reliably pause, resume, stop, or skip playback across other apps yet. Please use the music app's playback controls."
+                return
+
             if intent["type"] == "play_music":
                 target = intent["target"]
-                action_res = policy_engine.execute_action(ActionRequest(action_type="play_music", target=target))
+                action_res = policy_engine.execute_action(ActionRequest(
+                    action_type="play_music", target=target,
+                    confirmed=bool(kwargs.get("voice_command")),
+                ))
                 awaiting_confirmation = action_res.requires_confirmation
                 action_payload = {
                     "action_id": str(uuid.uuid4()),
@@ -174,7 +213,7 @@ class OfflineRouter(BaseAIProvider):
                     "action_type": "launch_app",
                     "target": target_app,
                     "status": "succeeded" if action_res.success else "failed",
-                    "executed": True,
+                    "executed": action_res.success,
                     "message": action_res.message
                 }
                 if action_res.success:
@@ -197,7 +236,12 @@ class OfflineRouter(BaseAIProvider):
             elif intent["type"] == "open_url":
                 target = intent["target"]
                 url = target if target.startswith("http") else f"https://www.{target}.com" if "." not in target else f"https://{target}"
-                action_res = policy_engine.execute_action(ActionRequest(action_type="open_url", target=url))
+                host = (urlparse(url).hostname or "").lower()
+                trusted_voice_site = host in {"youtube.com", "www.youtube.com", "music.youtube.com"}
+                action_res = policy_engine.execute_action(ActionRequest(
+                    action_type="open_url", target=url,
+                    confirmed=bool(kwargs.get("voice_command")) and trusted_voice_site,
+                ))
                 awaiting_confirmation = action_res.requires_confirmation
                 action_payload = {
                     "action_id": str(uuid.uuid4()),

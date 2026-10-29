@@ -20,7 +20,7 @@ KNOWN_APPS: dict[str, list[str]] = {
     "paint": ["mspaint.exe", "mspaint"],
     "terminal": ["wt.exe", "powershell.exe"],
     "powershell": ["powershell.exe"],
-    "spotify": ["spotify.exe", "spotify"],
+    "spotify": ["spotify:"],
     "settings": ["ms-settings:"]
 }
 
@@ -66,10 +66,30 @@ class AppLauncher:
         return None
 
     @staticmethod
+    def _resolve_vscode() -> str | None:
+        found = shutil.which("code.exe")
+        if found:
+            return found
+        if os.name != "nt":
+            return None
+        roots = [os.environ.get("LOCALAPPDATA"), os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)")]
+        for root in filter(None, roots):
+            for relative in (
+                Path("Programs") / "Microsoft VS Code" / "Code.exe",
+                Path("Microsoft VS Code") / "Code.exe",
+            ):
+                candidate = Path(root) / relative
+                if candidate.is_file():
+                    return str(candidate)
+        return None
+
+    @staticmethod
     def resolve_app(target: str) -> str | None:
         target_clean = target.lower().strip()
         if target_clean in ("chrome", "google chrome"):
             return AppLauncher._resolve_chrome()
+        if target_clean in ("code", "vs code", "vscode", "visual studio code"):
+            return AppLauncher._resolve_vscode()
         candidates = KNOWN_APPS.get(target_clean)
         if candidates:
             for cmd in candidates:
@@ -89,15 +109,6 @@ class AppLauncher:
         """Launch application safely without shell=True execution."""
         resolved = cls.resolve_app(target)
         if not resolved:
-            # If Chrome is absent, still satisfy the user's browser intent using
-            # the configured default browser rather than launching a bad alias.
-            if target.strip().lower() in ("chrome", "google chrome"):
-                try:
-                    opened = webbrowser.open("https://www.google.com")
-                    if opened:
-                        return True, "Chrome was not found; opened Google in your default browser."
-                except Exception:
-                    pass
             return False, f"Could not find or resolve application '{target}'. Ensure it is installed and registered on Windows."
 
         try:

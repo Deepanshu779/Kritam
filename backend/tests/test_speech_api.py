@@ -22,3 +22,13 @@ def test_speech_endpoint_rejects_invalid_audio_container():
     )
     assert response.status_code == 415
     assert "not a supported" in response.json()["detail"]
+
+
+def test_speech_endpoint_rejects_unavailable_model_choice():
+    response = client.post(
+        "/api/speech/transcribe",
+        files={"audio": ("recording.webm", b"invalid audio", "audio/webm")},
+        data={"allow_model_download": "true", "language": "auto", "model": "large-v3"},
+    )
+    assert response.status_code == 422
+    assert "base and small" in response.json()["detail"]

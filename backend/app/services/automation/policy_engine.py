@@ -208,40 +208,30 @@ class PolicyEngine:
             clean_query = re.sub(r"^(?:play|listen\s+to|some)\s+", "", raw_target, flags=re.IGNORECASE).strip()
             if not clean_query:
                 clean_query = "lo-fi music"
-
-            lower_query = clean_query.lower()
-            if "spotify" in lower_query:
-                ok, msg = AppLauncher.launch("spotify")
-                if ok:
-                    return ActionResponse(
-                        success=True,
-                        action_type=request.action_type,
-                        target=clean_query,
-                        message=f"Launched Spotify desktop application."
-                    )
-                # Fallback to web search
-                search_term = re.sub(r"(?:\s+on\s+spotify|spotify)", "", clean_query, flags=re.IGNORECASE).strip() or "music"
-                url = f"https://open.spotify.com/search/{urllib.parse.quote_plus(search_term)}"
-                webbrowser.open(url)
-                return ActionResponse(
-                    success=True,
-                    action_type=request.action_type,
-                    target=url,
-                    message=f"Opened Spotify Web for '{search_term}'."
-                )
+            platform_match = re.search(r"\s+on\s+(youtube(?:\s+music)?|spotify)$", clean_query, re.IGNORECASE)
+            platform = platform_match.group(1).lower() if platform_match else "youtube"
+            search_term = clean_query[:platform_match.start()].strip() if platform_match else clean_query
+            search_term = search_term or "lo-fi music"
+            if platform == "spotify":
+                url = f"https://open.spotify.com/search/{urllib.parse.quote(search_term, safe='')}"
+                platform_name = "Spotify"
             else:
-                search_term = re.sub(r"(?:\s+on\s+youtube|youtube)", "", clean_query, flags=re.IGNORECASE).strip() or "lo-fi music"
                 url = f"https://music.youtube.com/search?q={urllib.parse.quote_plus(search_term)}"
-                try:
-                    webbrowser.open(url)
-                    return ActionResponse(
-                        success=True,
-                        action_type=request.action_type,
-                        target=url,
-                        message=f"Playing '{search_term}' on YouTube Music."
-                    )
-                except Exception as e:
-                    return ActionResponse(success=False, action_type=request.action_type, target=url, message=str(e))
+                platform_name = "YouTube Music"
+            try:
+                opened = webbrowser.open(url)
+                if not opened:
+                    return ActionResponse(success=False, action_type=request.action_type, target=url,
+                                          message=f"Could not open {platform_name}. Check your default browser and try again.")
+                playback_note = (
+                    "Choose a result to start playback; Spotify may ask you to sign in and controls its playback requirements."
+                    if platform == "spotify"
+                    else "Choose a result to start playback; YouTube Music controls autoplay and playback."
+                )
+                return ActionResponse(success=True, action_type=request.action_type, target=url,
+                                      message=f"Opened {platform_name} search for '{search_term}'. {playback_note}")
+            except Exception as e:
+                return ActionResponse(success=False, action_type=request.action_type, target=url, message=str(e))
 
         return ActionResponse(
             success=False,

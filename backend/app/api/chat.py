@@ -126,7 +126,12 @@ async def chat_stream(
         yield f"data: {json.dumps({'message_id': assistant_msg_id, 'delta': '', 'done': False})}\n\n"
 
         try:
-            async for token in provider_adapter.generate_stream(messages_payload, model=payload.model):
+            async for token in provider_adapter.generate_stream(
+                messages_payload,
+                model=payload.model,
+                voice_command=payload.voice_command,
+                preferred_music_platform=user_settings.get("preferred_music_platform", "youtube"),
+            ):
                 accumulated_content.append(token)
                 yield f"data: {json.dumps({'message_id': assistant_msg_id, 'delta': token, 'done': False})}\n\n"
 

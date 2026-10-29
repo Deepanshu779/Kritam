@@ -20,6 +20,8 @@ Status legend: `[x]` completed; `[~]` in progress or partially complete; `[ ]` n
 ## Stage 3 — Voice and desktop automation
 
 - [~] Audio signature/MIME matching, size limits, language hints and duration cap implemented; tests not run.
+- [~] Whisper beam search, vocabulary prompt, VAD padding, Base/Small choice, mic selection/level meter and confidence-gated voice command dispatch added; acoustic accuracy not measured.
+- [~] Voice app launch and query-specific music search can dispatch automatically after explicit confident voice input; playback is not verified and media transport controls remain unsupported.
 - [~] Microphone permission and cleanup hardened in source; hardware testing not run.
 - [~] Implemented action policy restricts file reads and requires confirmation for external actions; tests not run.
 - [~] Pending action cards now request confirmation through the policy API; UI runtime not verified.
