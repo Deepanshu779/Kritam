@@ -477,16 +477,14 @@ export const App: React.FC = () => {
         />
       </main>
 
-      {settings.enable_companion && (
-        <CompanionAvatar
-          state={companionState}
-          onClick={() => {
-            if (speechService.currentlySpeaking) {
-              speechService.stopSpeaking();
-            }
-          }}
-        />
-      )}
+      <CompanionAvatar
+        state={companionState}
+        onClick={() => {
+          if (speechService.currentlySpeaking) {
+            speechService.stopSpeaking();
+          }
+        }}
+      />
 
       <SettingsModal
         isOpen={isSettingsOpen}
