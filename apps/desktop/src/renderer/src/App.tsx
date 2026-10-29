@@ -31,11 +31,11 @@ export const App: React.FC = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [settings, setSettings] = useState<UserSettings>({
     theme: 'dark',
-    default_provider: 'kritam',
+    default_provider: 'offline',
     enable_tts_auto: false,
     tts_rate: 1.0,
     enable_companion: true,
-    voice_language: 'en-US'
+    voice_language: 'auto'
   });
   
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -98,8 +98,6 @@ export const App: React.FC = () => {
       if (s) {
         setSettings((prev) => ({ ...prev, ...s }));
         if (s.theme) applyTheme(s.theme);
-        if (s.voice_language) speechService.setLanguage(s.voice_language);
-        if (s.auto_dispatch_voice !== undefined) speechService.setAutoDispatch(s.auto_dispatch_voice);
       }
     } catch (e) {
       console.warn('[App] Load settings error:', e);
@@ -188,7 +186,7 @@ export const App: React.FC = () => {
     }, 50);
   };
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string) => {
     const cleanText = text.trim();
     if (!cleanText || generationInFlightRef.current) return;
     generationInFlightRef.current = true;
@@ -205,7 +203,7 @@ export const App: React.FC = () => {
         setMessages([]);
       }
 
-      const userMsgId = `user-${Date.now()}`;
+      const userMsgId = retryUserMessageId || crypto.randomUUID();
       const assistantMsgId = `asst-${Date.now()}`;
       const tempUserMsg: Message = {
         id: userMsgId,
@@ -223,7 +221,9 @@ export const App: React.FC = () => {
         created_at: new Date().toISOString()
       };
 
-      setMessages((prev) => [...prev, tempUserMsg, tempAssistantMsg]);
+      setMessages((prev) => retryUserMessageId
+        ? [...prev.filter((msg) => msg.id !== retryAssistantMessageId), tempAssistantMsg]
+        : [...prev, tempUserMsg, tempAssistantMsg]);
       setIsGenerating(true);
       setLastTaskStatus(null);
       setCompanionState('thinking');
@@ -264,10 +264,11 @@ export const App: React.FC = () => {
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId
-              ? { ...msg, content: msg.content + `\n\n[Error: ${err.message}]`, status: 'failed' }
+              ? { ...msg, content: `${msg.content}\n\nError: ${err.message}`, status: 'failed' }
               : msg
           ));
-        }
+        },
+        userMsgId
       );
 
       stopStreamRef.current = stopFn;
@@ -296,6 +297,7 @@ export const App: React.FC = () => {
     }
     generationInFlightRef.current = false;
     setIsGenerating(false);
+    setMessages((prev) => prev.map((msg) => msg.status === 'generating' ? { ...msg, status: 'cancelled' } : msg));
     setLastTaskStatus(null);
     setCompanionState('idle');
   };
@@ -324,15 +326,41 @@ export const App: React.FC = () => {
           id: `tool-${Date.now()}`,
           conversation_id: activeConvId || '',
           role: 'system',
-          content: `**Action Executed**: ${res.message}${res.output ? `\n\n\`\`\`\n${res.output}\n\`\`\`` : ''}`,
+          content: `**${res.success ? 'Action Complete' : 'Action Failed'}**: ${res.message}${res.output ? `\n\n\`\`\`\n${res.output}\n\`\`\`` : ''}`,
           created_at: new Date().toISOString()
         };
-        setMessages((prev) => [...prev, resultMsg]);
+        setMessages((prev) => [
+          ...prev.map((message) => {
+            if (message.role !== 'assistant') return message;
+            const match = message.content.match(/```action\s*\n([\s\S]*?)\n```/);
+            if (!match) return message;
+            try {
+              const action = JSON.parse(match[1]);
+              if (action.action_type !== actionType || action.target !== target) return message;
+              const updatedAction = {
+                ...action,
+                status: res.success ? 'succeeded' : 'failed',
+                executed: Boolean(res.success),
+                message: res.message
+              };
+              return { ...message, content: message.content.replace(match[0], `\`\`\`action\n${JSON.stringify(updatedAction)}\n\`\`\``) };
+            } catch {
+              return message;
+            }
+          }),
+          resultMsg
+        ]);
         scrollToBottom();
       }
     } catch (e: any) {
       setLastTaskStatus('needs_attention');
-      alert(`Action failed: ${e.message}`);
+      setMessages((prev) => [...prev, {
+        id: `action-error-${Date.now()}`,
+        conversation_id: activeConvId || '',
+        role: 'system',
+        content: `**Action Failed**: ${e?.message || 'The action could not be completed.'}`,
+        created_at: new Date().toISOString()
+      }]);
     } finally {
       setIsExecutingAction(false);
     }
@@ -436,8 +464,15 @@ export const App: React.FC = () => {
             )}
 
             <div className="model-pill">
-              <span className={`model-dot ${settings.default_provider === 'offline' ? 'offline' : ''}`} />
-              <span style={{ textTransform: 'capitalize' }}>{settings.default_provider}</span>
+              <span className={`model-dot ${activeConv?.model_used === 'offline' || (!activeConv && settings.default_provider === 'offline') ? 'offline' : ''}`} />
+              <span
+                style={{ textTransform: 'capitalize' }}
+                title={['kritam', 'openai', 'groq', 'openrouter'].includes(activeConv?.model_used || settings.default_provider)
+                  ? 'Prompts are sent to this configured cloud provider.'
+                  : 'Processing stays on this device.'}
+              >
+                {['kritam', 'openai', 'groq', 'openrouter'].includes(activeConv?.model_used || settings.default_provider) ? 'Cloud · ' : 'Local · '}{activeConv?.model_used || settings.default_provider}
+              </span>
             </div>
 
             {speech.ttsState === 'speaking' && (
@@ -464,6 +499,11 @@ export const App: React.FC = () => {
                 key={msg.id}
                 message={msg}
                 onExecuteAction={handleExecuteAction}
+                onRetry={msg.status === 'failed' ? () => {
+                  const index = messages.findIndex((item) => item.id === msg.id);
+                  const userMessage = messages.slice(0, index).reverse().find((item) => item.role === 'user');
+                  if (userMessage) void handleSendMessage(userMessage.content, userMessage.id, msg.id);
+                } : undefined}
               />
             ))}
             <div ref={messagesEndRef} />
@@ -474,6 +514,7 @@ export const App: React.FC = () => {
           onSend={handleSendMessage}
           isGenerating={isGenerating}
           onStop={handleStopGeneration}
+          transcriptionLanguage={settings.voice_language}
         />
       </main>
 

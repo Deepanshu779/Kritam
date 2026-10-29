@@ -24,6 +24,13 @@
       "dist/**/*",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "backend-dist/kritam-backend",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
     "win": {
       "target": [
         "dir"

@@ -145,16 +145,17 @@ class OfflineRouter(BaseAIProvider):
             if intent["type"] == "play_music":
                 target = intent["target"]
                 action_res = policy_engine.execute_action(ActionRequest(action_type="play_music", target=target))
+                awaiting_confirmation = action_res.requires_confirmation
                 action_payload = {
                     "action_id": str(uuid.uuid4()),
                     "action_type": "play_music",
                     "target": target,
-                    "status": "succeeded" if action_res.success else "failed",
-                    "executed": True,
+                    "status": "pending" if awaiting_confirmation else "succeeded" if action_res.success else "failed",
+                    "executed": action_res.success and not awaiting_confirmation,
                     "message": action_res.message
                 }
                 chunks = [
-                    f"{action_res.message}\n\n",
+                    f"{'Please confirm before I open the music service.' if awaiting_confirmation else action_res.message}\n\n",
                     f"```action\n{json.dumps(action_payload)}\n```\n",
                     f"Status: {action_res.message}"
                 ]
@@ -197,15 +198,16 @@ class OfflineRouter(BaseAIProvider):
                 target = intent["target"]
                 url = target if target.startswith("http") else f"https://www.{target}.com" if "." not in target else f"https://{target}"
                 action_res = policy_engine.execute_action(ActionRequest(action_type="open_url", target=url))
+                awaiting_confirmation = action_res.requires_confirmation
                 action_payload = {
                     "action_id": str(uuid.uuid4()),
                     "action_type": "open_url",
                     "target": url,
-                    "status": "succeeded" if action_res.success else "failed",
-                    "executed": True,
+                    "status": "pending" if awaiting_confirmation else "succeeded" if action_res.success else "failed",
+                    "executed": action_res.success and not awaiting_confirmation,
                     "message": action_res.message
                 }
-                label = intent.get("label", f"Opening **{url}** in your default browser.")
+                label = "Please confirm before I open this external website." if awaiting_confirmation else intent.get("label", f"Opening **{url}** in your default browser.")
                 chunks = [
                     f"{label}\n\n",
                     f"```action\n{json.dumps(action_payload)}\n```\n",
@@ -264,7 +266,7 @@ class OfflineRouter(BaseAIProvider):
                 "### What I can do:\n"
                 "- **Conversations & Learning**: Answer questions, explain concepts, and brainstorm.\n"
                 "- **Coding Assistance**: Guide project architecture, debug issues, and format code.\n"
-                "- **Desktop Actions**: Launch approved applications (e.g., VS Code, Chrome, Calculator), open safe URLs, and navigate folders.\n"
+                "- **Desktop Actions**: Launch registered applications and navigate standard folders; external websites and music searches require confirmation.\n"
                 "- **Voice Interaction**: Talk to me via speech and interrupt me whenever you want.\n"
                 "- **Hybrid AI**: Run locally via Ollama, connect to cloud AI models (OpenAI/Groq/OpenRouter), or work completely offline."
             )

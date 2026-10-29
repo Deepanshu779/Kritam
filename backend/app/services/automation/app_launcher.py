@@ -80,11 +80,8 @@ class AppLauncher:
                     return resolved
             return candidates[0] # Return default candidate name for start-process
 
-        # If not in known list, check if executable exists on PATH
-        resolved = shutil.which(target_clean)
-        if resolved:
-            return resolved
-
+        # Only registered application names are launchable. Do not turn an
+        # arbitrary model-produced string into a PATH executable.
         return None
 
     @classmethod

@@ -5,6 +5,11 @@ from app.services.ai.router import ai_router
 
 router = APIRouter(prefix="/api/health", tags=["health"])
 
+@router.get("/ping")
+def ping(_: bool = Depends(verify_auth_token)):
+    """Lightweight authenticated identity probe for Electron backend ownership checks."""
+    return {"status": "healthy", "service": settings.PROJECT_NAME, "version": settings.VERSION}
+
 @router.get("")
 async def get_health(_: bool = Depends(verify_auth_token)):
     """Health check endpoint providing backend status and AI providers availability."""

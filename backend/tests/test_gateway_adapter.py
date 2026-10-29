@@ -55,7 +55,7 @@ async def test_gateway_streaming_success():
             assert full_text == "Hello, I am Kritam!"
 
 @pytest.mark.asyncio
-async def test_gateway_quota_exhausted():
+async def test_gateway_quota_exhausted_is_a_provider_error():
     adapter = KritamGatewayAdapter(gateway_url="http://test-gateway.local")
 
     class MockQuotaContext:
@@ -69,24 +69,15 @@ async def test_gateway_quota_exhausted():
 
     with patch("httpx.AsyncClient.stream", return_value=MockQuotaContext()):
         with patch.object(adapter, "get_or_create_session", return_value="valid-token"):
-            chunks = []
-            async for chunk in adapter.generate_stream([{"role": "user", "content": "test"}]):
-                chunks.append(chunk)
-
-            text = "".join(chunks)
-            assert "daily free limit" in text.lower()
-            assert "ollama" in text.lower()
-            assert "offline engine" in text.lower()
+            with pytest.raises(RuntimeError, match="quota or rate limit"):
+                async for _ in adapter.generate_stream([{"role": "user", "content": "test"}]):
+                    pass
 
 @pytest.mark.asyncio
-async def test_gateway_network_down():
+async def test_gateway_network_down_is_a_provider_error():
     adapter = KritamGatewayAdapter(gateway_url="http://unreachable-gateway.local")
 
     with patch.object(adapter, "get_or_create_session", return_value=None):
-        chunks = []
-        async for chunk in adapter.generate_stream([{"role": "user", "content": "test"}]):
-            chunks.append(chunk)
-
-        text = "".join(chunks)
-        assert "unable to connect" in text.lower()
-        assert "offline engine" in text.lower()
+        with pytest.raises(RuntimeError, match="did not provide a session"):
+            async for _ in adapter.generate_stream([{"role": "user", "content": "test"}]):
+                pass

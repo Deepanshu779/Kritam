@@ -10,6 +10,8 @@ build/
 out/
 release/
 .electron-vite/
+.pyinstaller-work/
+apps/desktop/backend-dist/
 
 # Database & local data
 *.db

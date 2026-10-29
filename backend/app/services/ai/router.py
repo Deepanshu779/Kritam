@@ -19,7 +19,7 @@ class AIRouter:
         model: str | None = None,
         api_keys: dict | None = None
     ) -> BaseAIProvider:
-        provider = (provider_name or settings.DEFAULT_PROVIDER).lower()
+        provider = (provider_name or settings.DEFAULT_PROVIDER).strip().lower()
         api_keys = api_keys or {}
 
         if provider == "kritam":
@@ -30,8 +30,9 @@ class AIRouter:
         elif provider in ["openai", "groq", "openrouter"]:
             key = api_keys.get(f"{provider}_api_key") or getattr(settings, f"{provider.upper()}_API_KEY", "")
             return CloudAIAdapter(provider=provider, api_key=key, model=model)
-        else:
+        elif provider == "offline":
             return self.offline_router
+        raise ValueError(f"Unsupported AI provider '{provider}'. Choose Kritam Gateway, Ollama, Offline, OpenAI, Groq, or OpenRouter in Settings.")
 
     async def check_all_providers(self, api_keys: dict | None = None) -> dict:
         """Check status of each available provider."""
@@ -49,9 +50,9 @@ class AIRouter:
         return {
             "kritam": {
                 "available": gateway_ok,
-                "name": "Kritam AI (Online Default)",
+                "name": "KRITAM Gateway",
                 "model": "kritam-default",
-                "details": "Managed zero-config online AI (Free daily quota)" if gateway_ok else "Cloud gateway currently unreachable (check connection or use Offline/Ollama)"
+                "details": "Configured remote gateway health check succeeded" if gateway_ok else "Configured gateway is unavailable; deployment and service terms are unverified"
             },
             "offline": {
                 "available": True,

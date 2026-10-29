@@ -21,6 +21,8 @@ class KritamGatewayAdapter(BaseAIProvider):
 
     async def is_available(self) -> bool:
         """Check if gateway service is reachable."""
+        if not settings.KRITAM_GATEWAY_ENABLED:
+            return False
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 res = await client.get(f"{self.gateway_url}/v1/health")
@@ -34,7 +36,9 @@ class KritamGatewayAdapter(BaseAIProvider):
         if self.session_token and self.session_expires_at and self.session_expires_at > (now + datetime.timedelta(minutes=5)):
             return self.session_token
 
-        device_id = device_id or f"win-{uuid.getnode():012x}"
+        # Use a per-process random identifier instead of deriving an identifier
+        # from the network interface's hardware address.
+        device_id = device_id or f"win-{uuid.uuid4().hex}"
         payload = {
             "device_id": device_id,
             "platform": "windows",
@@ -73,18 +77,12 @@ class KritamGatewayAdapter(BaseAIProvider):
         model: str | None = None,
         **kwargs
     ) -> AsyncGenerator[str, None]:
+        if not settings.KRITAM_GATEWAY_ENABLED:
+            raise RuntimeError("The KRITAM Gateway is disabled. Choose Ollama, Offline, or configure another provider in Settings.")
         # 1. Obtain or refresh session token
         token = await self.get_or_create_session()
         if not token:
-            yield (
-                "Unable to connect to the **Kritam AI Gateway**.\n\n"
-                "**Options:**\n"
-                "- Check your internet connection.\n"
-                "- Switch to **Offline Engine** in Settings for local commands.\n"
-                "- Switch to **Local AI (Ollama)** to run models locally on your PC.\n"
-                "- If you have personal API keys, enable **Developer Mode** in Settings."
-            )
-            return
+            raise RuntimeError("The KRITAM Gateway did not provide a session. Check your connection or select Ollama, Offline, or a configured cloud provider.")
 
         endpoint = f"{self.gateway_url}/v1/chat/completions"
         headers = {
@@ -105,14 +103,12 @@ class KritamGatewayAdapter(BaseAIProvider):
                         self.session_token = None
                         token = await self.get_or_create_session()
                         if not token:
-                            yield "Your Kritam AI session expired and could not be renewed. Please check your connection."
-                            return
+                            raise RuntimeError("The KRITAM Gateway session expired and could not be renewed. Check your connection and retry.")
                         # Re-stream with new token
                         headers["Authorization"] = f"Bearer {token}"
                         async with client.stream("POST", endpoint, headers=headers, json=payload) as retry_res:
                             if retry_res.status_code != 200:
-                                yield f"Gateway returned status {retry_res.status_code}."
-                                return
+                                raise RuntimeError(f"The KRITAM Gateway retry returned HTTP {retry_res.status_code}. Try again later or select another provider.")
                             async for line in retry_res.aiter_lines():
                                 if line.startswith("data: "):
                                     chunk = line[6:].strip()
@@ -128,27 +124,14 @@ class KritamGatewayAdapter(BaseAIProvider):
 
                     # Quota exceeded / rate limited
                     if response.status_code in [402, 429]:
-                        yield (
-                            "You have reached your daily free limit for **Kritam AI**.\n\n"
-                            "Your free quota will automatically refresh tomorrow. In the meantime, you can:\n"
-                            "1. Switch to **Local AI via Ollama** (unlimited private local queries).\n"
-                            "2. Switch to **Offline Engine** for local actions and assistance.\n"
-                            "3. Add your own API key under **Developer Settings** in Settings."
-                        )
-                        return
+                        raise RuntimeError(f"The KRITAM Gateway returned HTTP {response.status_code} (quota or rate limit). Try later or select another provider.")
 
                     # Service unavailable / Provider outage
                     if response.status_code >= 500:
-                        yield (
-                            "Kritam AI Cloud is momentarily undergoing maintenance or experiencing upstream provider delay. "
-                            "Please try again shortly or use Offline mode."
-                        )
-                        return
+                        raise RuntimeError("The KRITAM Gateway is temporarily unavailable. Try again later or select another provider.")
 
                     if response.status_code != 200:
-                        err_text = await response.aread()
-                        yield f"Kritam Gateway error ({response.status_code}): {err_text.decode('utf-8', errors='ignore')}"
-                        return
+                        raise RuntimeError(f"The KRITAM Gateway returned HTTP {response.status_code}. Check the gateway configuration or select another provider.")
 
                     async for line in response.aiter_lines():
                         if not line:
@@ -166,8 +149,10 @@ class KritamGatewayAdapter(BaseAIProvider):
                                 continue
 
         except httpx.ConnectError:
-            yield (
-                "Could not reach the Kritam AI Gateway. Please verify your internet connection or switch to Offline Mode."
-            )
+            raise RuntimeError("Could not reach the KRITAM Gateway. Check your internet connection or select another provider.")
+        except httpx.TimeoutException:
+            raise RuntimeError("The KRITAM Gateway timed out. Try again later or select another provider.")
         except Exception as e:
-            yield f"Error connecting to Kritam AI: {str(e)}"
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError("The KRITAM Gateway could not complete the request. Check gateway availability and try again.") from e

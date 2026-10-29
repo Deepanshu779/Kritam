@@ -4,21 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://api.openai.com https://api.groq.com https://openrouter.ai; img-src 'self' data: https:;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://api.openai.com https://api.groq.com https://openrouter.ai; img-src 'self' data: https:;" />
     <title>KRITAM - Personal AI Assistant</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script>
-      (function() {
-        const storedTheme = localStorage.getItem('kritam-theme') || 'dark';
-        document.documentElement.setAttribute('data-theme', storedTheme);
-        const meta = document.querySelector('meta[name="color-scheme"]');
-        if (meta) {
-          meta.content = storedTheme === 'system' ? 'light dark' : storedTheme;
-        }
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

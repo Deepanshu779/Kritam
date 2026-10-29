@@ -49,8 +49,7 @@ class OllamaAdapter(BaseAIProvider):
             async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=3.0)) as client:
                 async with client.stream("POST", f"{self.base_url}/api/chat", json=payload) as response:
                     if response.status_code != 200:
-                        yield f"Ollama returned error status {response.status_code}. Is model '{target_model}' downloaded?"
-                        return
+                        raise RuntimeError(f"Ollama returned HTTP {response.status_code}. Check that the Ollama service is running and model '{target_model}' is installed.")
 
                     async for line in response.aiter_lines():
                         if not line:
@@ -65,6 +64,10 @@ class OllamaAdapter(BaseAIProvider):
                         except json.JSONDecodeError:
                             continue
         except httpx.ConnectError:
-            yield f"Could not connect to Ollama at {self.base_url}. Please ensure Ollama is installed and running (`ollama serve`)."
+            raise RuntimeError("Could not connect to Ollama. Start the local Ollama service and check its configured address.")
+        except httpx.TimeoutException:
+            raise RuntimeError("Ollama did not finish within the response timeout. Try a smaller model or ask a shorter question.")
         except Exception as e:
-            yield f"Error communicating with local model: {str(e)}"
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError("Ollama could not complete the response. Check its service and model, then try again.") from e

@@ -44,12 +44,27 @@ class ApiClient {
     return res.json();
   }
 
-  public async transcribeAudio(audio: Blob): Promise<{ text: string; language?: string }> {
+  public async transcribeAudio(
+    audio: Blob,
+    language: 'auto' | 'en' | 'hi' = 'auto',
+    allowModelDownload = false
+  ): Promise<{ text: string; language?: string }> {
     await this.init();
     const headers = new Headers();
     if (this.authToken) headers.set('X-Kritam-Auth-Token', this.authToken);
     const form = new FormData();
-    form.append('audio', audio, audio.type.includes('mp4') ? 'recording.mp4' : 'recording.webm');
+    const extensionByMime: Record<string, string> = {
+      'audio/webm': 'webm', 'video/webm': 'webm',
+      'audio/wav': 'wav', 'audio/x-wav': 'wav',
+      'audio/ogg': 'ogg', 'application/ogg': 'ogg',
+      'audio/mp4': 'mp4', 'video/mp4': 'mp4', 'audio/x-m4a': 'm4a',
+      'audio/mpeg': 'mp3', 'audio/mp3': 'mp3'
+    };
+    const mediaType = audio.type.split(';', 1)[0].trim().toLowerCase();
+    const extension = extensionByMime[mediaType] || 'bin';
+    form.append('audio', audio, `recording.${extension}`);
+    form.append('language', language);
+    form.append('allow_model_download', String(allowModelDownload));
     const response = await fetch(`${this.baseUrl}/api/speech/transcribe`, {
       method: 'POST',
       headers,
@@ -119,7 +134,8 @@ class ApiClient {
     model?: string,
     onToken?: (token: string) => void,
     onDone?: (fullContent: string) => void,
-    onError?: (err: Error) => void
+    onError?: (err: Error) => void,
+    userMessageId?: string
   ): Promise<() => void> {
     await this.init();
     const controller = new AbortController();
@@ -139,6 +155,7 @@ class ApiClient {
           body: JSON.stringify({
             conversation_id: conversationId,
             message,
+            user_message_id: userMessageId,
             provider,
             model,
             stream: true
@@ -164,10 +181,15 @@ class ApiClient {
           buffer = lines.pop() || '';
 
           for (const block of lines) {
-            const line = block.trim();
-            if (line.startsWith('data: ')) {
+            for (const line of block.split(/\r?\n/)) {
+              const trimmedLine = line.trim();
+              if (!trimmedLine.startsWith('data:')) continue;
               try {
-                const data = JSON.parse(line.substring(6));
+                const data = JSON.parse(trimmedLine.slice(5).trim());
+                if (data.error) {
+                  onError?.(new Error(data.error));
+                  return;
+                }
                 if (data.delta) {
                   fullContent += data.delta;
                   onToken?.(data.delta);
@@ -176,17 +198,13 @@ class ApiClient {
                   onDone?.(data.content || fullContent);
                   return;
                 }
-                if (data.error) {
-                  onError?.(new Error(data.error));
-                  return;
-                }
               } catch (e) {
                 // Ignore parse errors on partial chunks
               }
             }
           }
         }
-        onDone?.(fullContent);
+        throw new Error('The response stream ended before KRITAM reported completion. Try again.');
       } catch (err: any) {
         if (err.name !== 'AbortError') {
           onError?.(err);

@@ -8,6 +8,7 @@
     "desktop:dev": "npm --prefix apps/desktop run electron:dev",
     "desktop:web": "npm --prefix apps/desktop run dev",
     "backend:start": ".\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8765 --reload",
+    "release:win": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
     "dev": "npx --prefix apps/desktop concurrently -k -n \"BACKEND,DESKTOP\" -c \"cyan,magenta\" \"npm run backend:start\" \"npm run desktop:dev\""
   },
   "devDependencies": {

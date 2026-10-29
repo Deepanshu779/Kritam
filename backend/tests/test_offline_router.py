@@ -1,3 +1,5 @@
+import json
+import re
 import pytest
 from app.services.ai.offline_router import OfflineRouter
 
@@ -86,4 +88,23 @@ async def test_natural_variations_and_music():
     assert "```action" in stream_out
     assert '"executed": true' in stream_out.lower()
     assert '"status": "succeeded"' in stream_out.lower() or '"status": "failed"' in stream_out.lower()
+
+
+@pytest.mark.asyncio
+async def test_external_open_action_is_pending_until_confirmed(monkeypatch):
+    from app.services.automation import policy_engine as policy_module
+
+    opened_urls = []
+    monkeypatch.setattr(policy_module.webbrowser, "open", lambda url: opened_urls.append(url) or True)
+    chunks = []
+    async for chunk in OfflineRouter().generate_stream([{"role": "user", "content": "open youtube"}]):
+        chunks.append(chunk)
+
+    response = "".join(chunks)
+    match = re.search(r"```action\s*\n([\s\S]*?)\n```", response)
+    assert match is not None
+    payload = json.loads(match.group(1))
+    assert payload["status"] == "pending"
+    assert payload["executed"] is False
+    assert opened_urls == []
 

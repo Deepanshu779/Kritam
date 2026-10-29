@@ -19,16 +19,34 @@ export class BackendManager {
     return `http://${this.host}:${this.port}`;
   }
 
-  public async isAlreadyRunning(): Promise<boolean> {
+  private async isOwnedBackendHealthy(): Promise<boolean> {
     return new Promise((resolve) => {
-      // Check the root endpoint '/' which returns {service: "KRITAM AI", status: "online"} without auth headers
-      const req = http.get(`${this.baseUrl}/`, { timeout: 1500 }, (res) => {
-        // Any HTTP response from our port means a backend is listening
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
-          resolve(true);
-        } else {
+      const req = http.get(`${this.baseUrl}/api/health/ping`, {
+        timeout: 1200,
+        headers: { 'X-Kritam-Auth-Token': this.authToken }
+      }, (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
           resolve(false);
+          return;
         }
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk: string) => {
+          body += chunk;
+          if (body.length > 4096) {
+            req.destroy();
+            resolve(false);
+          }
+        });
+        res.on('end', () => {
+          try {
+            const health = JSON.parse(body);
+            resolve(res.statusCode === 200 && health.status === 'healthy' && health.service === 'KRITAM AI');
+          } catch {
+            resolve(false);
+          }
+        });
       });
       req.on('error', () => resolve(false));
       req.on('timeout', () => {
@@ -39,31 +57,35 @@ export class BackendManager {
   }
 
   public async start(): Promise<void> {
-    const running = await this.isAlreadyRunning();
-    if (running) {
-      console.log('[BackendManager] Backend is already running at', this.baseUrl);
+    if (this.process?.pid && await this.isOwnedBackendHealthy()) {
+      console.log('[BackendManager] Owned backend is healthy at', this.baseUrl);
       return;
     }
 
     let projectRoot = path.resolve(__dirname, '../../../..');
     let venvPython = path.join(projectRoot, '.venv', 'Scripts', 'python.exe');
     let backendDir = path.join(projectRoot, 'backend');
+    let dataDir = path.join(projectRoot, 'backend', 'data');
+    let packagedBackendExecutable: string | null = null;
 
     if (app && app.isPackaged) {
       const resourcesDir = process.resourcesPath;
-      if (fs.existsSync(path.join(resourcesDir, 'backend'))) {
-        projectRoot = resourcesDir;
-        backendDir = path.join(resourcesDir, 'backend');
-        const packagedVenv = path.join(resourcesDir, '.venv', 'Scripts', 'python.exe');
-        if (fs.existsSync(packagedVenv)) {
-          venvPython = packagedVenv;
-        }
+      backendDir = path.join(resourcesDir, 'backend');
+      packagedBackendExecutable = path.join(backendDir, 'kritam-backend.exe');
+      dataDir = path.join(app.getPath('userData'), 'data');
+      if (!fs.existsSync(packagedBackendExecutable)) {
+        throw new Error('The KRITAM backend runtime is missing from this installation. Rebuild the Windows package using the release build script.');
       }
     }
 
-    if (!fs.existsSync(venvPython)) {
+    if (!packagedBackendExecutable && !fs.existsSync(venvPython)) {
       venvPython = 'python';
     }
+
+    if (!packagedBackendExecutable && !fs.existsSync(backendDir)) {
+      throw new Error(`KRITAM backend source directory was not found at ${backendDir}.`);
+    }
+    fs.mkdirSync(dataDir, { recursive: true });
 
     console.log('[BackendManager] Spawning backend server with Python:', venvPython);
 
@@ -72,58 +94,77 @@ export class BackendManager {
       KRITAM_BACKEND_HOST: this.host,
       KRITAM_BACKEND_PORT: this.port.toString(),
       KRITAM_AUTH_TOKEN: this.authToken,
+      KRITAM_ENV: app?.isPackaged ? 'production' : (process.env.KRITAM_ENV || 'development'),
+      KRITAM_DATA_DIR: dataDir,
       PYTHONPATH: backendDir
     };
 
+    const backendCommand = packagedBackendExecutable || venvPython;
+    const backendArgs = packagedBackendExecutable
+      ? []
+      : ['-m', 'uvicorn', 'app.main:app', '--host', this.host, '--port', this.port.toString(), '--no-access-log'];
+    this.process = spawn(
+      backendCommand,
+      backendArgs,
+      { cwd: backendDir, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }
+    );
+    const child = this.process;
+
+    child.stdout?.on('data', (data) => console.log(`[Backend stdout]: ${data}`));
+    child.stderr?.on('data', (data) => console.error(`[Backend stderr]: ${data}`));
+    let spawnError: Error | null = null;
+    child.on('error', (error) => { spawnError = error; });
+    child.on('close', (code) => {
+      console.log(`[BackendManager] Owned backend process exited with code ${code}`);
+      if (this.process === child) this.process = null;
+    });
+
     try {
-      this.process = spawn(
-        venvPython,
-        ['-m', 'uvicorn', 'app.main:app', '--host', this.host, '--port', this.port.toString()],
-        {
-          cwd: backendDir,
-          env,
-          stdio: ['ignore', 'pipe', 'pipe']
-        }
-      );
-
-      this.process.stdout?.on('data', (data) => {
-        console.log(`[Backend stdout]: ${data}`);
-      });
-
-      this.process.stderr?.on('data', (data) => {
-        console.error(`[Backend stderr]: ${data}`);
-      });
-
-      this.process.on('close', (code) => {
-        console.log(`[BackendManager] Backend process exited with code ${code}`);
-        this.process = null;
-      });
-
-      // Poll until healthy or 15s timeout
-      await this.waitForHealth(15000);
+      await this.waitForHealth(child, 15000, () => spawnError);
     } catch (err) {
-      console.error('[BackendManager] Failed to spawn backend process:', err);
+      if (this.process === child) {
+        child.kill();
+        this.process = null;
+      }
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`Could not start the KRITAM backend: ${detail}`);
     }
   }
 
-  private async waitForHealth(timeoutMs: number): Promise<void> {
+  private async waitForHealth(child: ChildProcess, timeoutMs: number, getSpawnError: () => Error | null): Promise<void> {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-      const healthy = await this.isAlreadyRunning();
+      const spawnError = getSpawnError();
+      if (spawnError) throw new Error(`Python could not be started: ${spawnError.message}`);
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error('The backend process exited before becoming healthy. Check the Python backend dependencies and logs.');
+      }
+      const healthy = await this.isOwnedBackendHealthy();
       if (healthy) {
-        console.log('[BackendManager] Backend is healthy at', this.baseUrl);
+        console.log('[BackendManager] Owned backend is healthy at', this.baseUrl);
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
     }
-    console.warn('[BackendManager] Health check timed out, continuing anyway.');
+    throw new Error('The backend did not pass its authenticated health check within 15 seconds. The port may be occupied by another service.');
   }
 
-  public stop(): void {
-    if (this.process) {
-      console.log('[BackendManager] Terminating backend process...');
-      this.process.kill('SIGINT');
-      this.process = null;
-    }
+  public async stop(): Promise<void> {
+    const child = this.process;
+    if (!child || child.exitCode !== null || child.signalCode !== null) return;
+
+    console.log('[BackendManager] Terminating owned backend process...');
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        child.kill();
+        resolve();
+      }, 2500);
+      child.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      child.kill('SIGTERM');
+    });
+    if (this.process === child) this.process = null;
   }
 }

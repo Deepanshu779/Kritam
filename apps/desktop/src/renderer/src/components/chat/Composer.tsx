@@ -7,18 +7,24 @@ interface ComposerProps {
   onSend: (text: string) => void;
   isGenerating: boolean;
   onStop: () => void;
+  transcriptionLanguage?: 'auto' | 'en' | 'hi' | 'en-IN' | 'en-US' | 'en-GB';
 }
 
-export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop }) => {
+export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop, transcriptionLanguage = 'auto' }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const speech = useSpeechService();
   const [isLocalRecording, setIsLocalRecording] = useState(false);
   const [isLocalTranscribing, setIsLocalTranscribing] = useState(false);
+  const [hasModelDownloadConsent, setHasModelDownloadConsent] = useState(
+    () => localStorage.getItem('kritam-whisper-download-consent') === 'accepted'
+  );
+  const [showModelDownloadConsent, setShowModelDownloadConsent] = useState(false);
   const [localMicError, setLocalMicError] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
 
   // Auto-resize textarea height
   useEffect(() => {
@@ -37,7 +43,7 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
 
   const handleSend = () => {
     const trimmed = text.trim();
-    if (!trimmed || isGenerating) return;
+    if (!trimmed || isGenerating || isLocalRecording || isLocalTranscribing) return;
 
     // Interruption: Stop active speech playback if user sends new message
     if (speech.ttsState === 'speaking') {
@@ -64,6 +70,10 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       return;
     }
     if (isLocalTranscribing) return;
+    if (!hasModelDownloadConsent && localStorage.getItem('kritam-whisper-download-consent') !== 'accepted') {
+      setShowModelDownloadConsent(true);
+      return;
+    }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setLocalMicError('Audio recording is unavailable in this runtime.');
       return;
@@ -74,25 +84,32 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       });
       streamRef.current = stream;
       chunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+      const mimeType = [
+        'audio/webm;codecs=opus', 'audio/webm',
+        'audio/mp4;codecs=mp4a.40.2', 'audio/mp4',
+        'audio/ogg;codecs=opus', 'audio/ogg'
+      ].find((candidate) => MediaRecorder.isTypeSupported(candidate));
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onerror = () => {
+        if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
         setLocalMicError('Audio recording failed. Check microphone permission and try again.');
         setIsLocalRecording(false);
         stream.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       };
       recorder.onstop = async () => {
+        if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
+        recordingTimerRef.current = null;
         setIsLocalRecording(false);
         stream.getTracks().forEach(track => track.stop());
         streamRef.current = null;
-        const audio = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const firstChunkType = chunksRef.current.find((chunk) => chunk instanceof Blob && chunk.type)?.type;
+        const audio = new Blob(chunksRef.current, { type: recorder.mimeType || firstChunkType || '' });
         chunksRef.current = [];
         if (audio.size < 1200) {
           setLocalMicError('Recording was too short. Please speak for a moment and try again.');
@@ -100,7 +117,10 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
         }
         setIsLocalTranscribing(true);
         try {
-          const result = await apiClient.transcribeAudio(audio);
+          const language = transcriptionLanguage === 'hi' || transcriptionLanguage === 'hi-IN'
+            ? 'hi'
+            : transcriptionLanguage === 'en' || transcriptionLanguage?.startsWith('en-') ? 'en' : 'auto';
+          const result = await apiClient.transcribeAudio(audio, language, true);
           const transcript = result.text?.trim();
           if (!transcript) {
             setLocalMicError('No speech detected. Please try again a little closer to the microphone.');
@@ -123,7 +143,12 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       };
       recorder.start(700);
       setIsLocalRecording(true);
+      recordingTimerRef.current = window.setTimeout(() => {
+        if (recorder.state !== 'inactive') recorder.stop();
+      }, 5 * 60 * 1000);
     } catch (error: any) {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
       setLocalMicError(error?.name === 'NotAllowedError'
         ? 'Microphone permission denied. Allow microphone access for KRITAM.'
         : error?.message || 'Unable to access the microphone.');
@@ -131,6 +156,7 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
   };
 
   useEffect(() => () => {
+    if (recordingTimerRef.current !== null) window.clearTimeout(recordingTimerRef.current);
     try { recorderRef.current?.state !== 'inactive' && recorderRef.current?.stop(); } catch {}
     streamRef.current?.getTracks().forEach(track => track.stop());
   }, []);
@@ -159,6 +185,33 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
 
   return (
     <div className="composer-wrapper">
+      {showModelDownloadConsent && (
+        <div className="modal-overlay" role="presentation" onClick={() => setShowModelDownloadConsent(false)}>
+          <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="speech-download-title" onClick={(event) => event.stopPropagation()}>
+            <div className="modal-header">
+              <h2 id="speech-download-title">Enable local speech transcription?</h2>
+            </div>
+            <div className="modal-body" style={{ lineHeight: 1.6 }}>
+              KRITAM uses Faster Whisper on your device. On first use it may download model files from Hugging Face. Continue to allow this download and open microphone access?
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn-secondary" onClick={() => setShowModelDownloadConsent(false)}>Not now</button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  localStorage.setItem('kritam-whisper-download-consent', 'accepted');
+                  setHasModelDownloadConsent(true);
+                  setShowModelDownloadConsent(false);
+                  void toggleMic();
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {(localMicError || speech.error) && (
         <div className="composer-voice-error" role="alert">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -255,7 +308,7 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               </div>
             )}
             {isMicActive && (
-              <span className="composer-mic-hint">Recording · tap mic to finish</span>
+              <span className="composer-mic-hint">Recording · max 5 min · tap mic to finish</span>
             )}
 
             {speech.ttsState === 'speaking' && (
@@ -285,7 +338,7 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               <button
                 type="button"
                 className="btn-icon btn-send"
-                disabled={!text.trim()}
+              disabled={!text.trim() || isLocalRecording || isLocalTranscribing}
                 onClick={handleSend}
                 title="Send message (Enter)"
               >

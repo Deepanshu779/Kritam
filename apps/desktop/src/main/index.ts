@@ -1,10 +1,38 @@
-import { app, BrowserWindow, ipcMain, shell, session } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, session, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import path from 'path';
 import http from 'http';
+import { fileURLToPath } from 'url';
 import { BackendManager } from './backend-manager';
 
 const backendManager = new BackendManager();
 let mainWindow: BrowserWindow | null = null;
+let shutdownInProgress = false;
+
+function isTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  const contents = mainWindow?.webContents;
+  const frame = event.senderFrame;
+  if (!contents || event.sender !== contents || !frame || frame !== contents.mainFrame) return false;
+  try {
+    const current = new URL(frame.url);
+    if (current.origin === 'http://127.0.0.1:5173') return true;
+    if (current.protocol !== 'file:') return false;
+    const expected = path.resolve(__dirname, '../renderer/index.html');
+    return path.resolve(fileURLToPath(current)) === expected;
+  } catch {
+    return false;
+  }
+}
+
+function isTrustedRendererUrl(url: string, isDev: boolean): boolean {
+  try {
+    const current = new URL(url);
+    if (isDev && current.origin === 'http://127.0.0.1:5173') return true;
+    if (current.protocol !== 'file:') return false;
+    return path.resolve(fileURLToPath(current)) === path.resolve(__dirname, '../renderer/index.html');
+  } catch {
+    return false;
+  }
+}
 
 async function createWindow(): Promise<void> {
   const isDev = process.env.NODE_ENV !== 'production' && !app.isPackaged;
@@ -34,21 +62,39 @@ async function createWindow(): Promise<void> {
 
   // Handle external link clicks safely in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:') || url.startsWith('http:')) {
-      shell.openExternal(url);
-    }
+    try {
+      const parsed = new URL(url);
+      if (!parsed.username && !parsed.password && (parsed.protocol === 'https:' || parsed.protocol === 'http:')) {
+        void shell.openExternal(parsed.toString());
+      }
+    } catch { /* Malformed URLs are denied. */ }
     return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (isTrustedRendererUrl(url, isDev)) return;
+    event.preventDefault();
+    try {
+      const parsed = new URL(url);
+      if (!parsed.username && !parsed.password && ['https:', 'http:'].includes(parsed.protocol)) {
+        void shell.openExternal(parsed.toString());
+      }
+    } catch { /* Invalid navigation is denied. */ }
+  });
+  mainWindow.webContents.on('will-redirect', (event, url) => {
+    if (!isTrustedRendererUrl(url, isDev)) event.preventDefault();
   });
 
   // IPC handlers
-  ipcMain.handle('kritam:get-backend-config', () => {
+  ipcMain.handle('kritam:get-backend-config', (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted renderer');
     return {
       baseUrl: backendManager.baseUrl,
       authToken: backendManager.authToken
     };
   });
 
-  ipcMain.handle('kritam:get-system-info', () => {
+  ipcMain.handle('kritam:get-system-info', (event) => {
+    if (!isTrustedSender(event)) throw new Error('Untrusted renderer');
     return {
       platform: process.platform,
       arch: process.arch,
@@ -56,11 +102,13 @@ async function createWindow(): Promise<void> {
     };
   });
 
-  ipcMain.on('kritam:minimize', () => {
+  ipcMain.on('kritam:minimize', (event) => {
+    if (!isTrustedSender(event)) return;
     mainWindow?.minimize();
   });
 
-  ipcMain.on('kritam:maximize', () => {
+  ipcMain.on('kritam:maximize', (event) => {
+    if (!isTrustedSender(event)) return;
     if (mainWindow?.isMaximized()) {
       mainWindow.unmaximize();
     } else {
@@ -68,7 +116,8 @@ async function createWindow(): Promise<void> {
     }
   });
 
-  ipcMain.on('kritam:close', () => {
+  ipcMain.on('kritam:close', (event) => {
+    if (!isTrustedSender(event)) return;
     mainWindow?.close();
   });
 
@@ -107,21 +156,30 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
-  // Allow microphone and audio capture for Web Speech API in renderer
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    if (permission === 'media') {
-      callback(true);
-      return;
-    }
-    callback(false);
+  // Grant only microphone access requested by KRITAM's main frame. Deny camera
+  // and media permissions from external or untrusted frames.
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const isDevRenderer = process.env.NODE_ENV !== 'production' && !app.isPackaged;
+    const trusted = webContents === mainWindow?.webContents && isTrustedRendererUrl(details.requestingUrl || webContents.getURL(), isDevRenderer);
+    const mediaTypes = details.mediaTypes || [];
+    const audioOnly = mediaTypes.includes('audio') && !mediaTypes.includes('video');
+    callback(permission === 'media' && trusted && Boolean(audioOnly));
   });
 
-  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === 'media';
-  });
-
-  await backendManager.start();
-  await createWindow();
+  try {
+    await backendManager.start();
+    await createWindow();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown backend startup error.';
+    await dialog.showMessageBox({
+      type: 'error',
+      title: 'KRITAM could not start',
+      message: 'The local KRITAM service did not start.',
+      detail: `${detail}\n\nCheck that Python and the backend dependencies are installed, and that port 8765 is available. KRITAM will not connect to an unrelated service on that port.`
+    });
+    app.quit();
+    return;
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -130,13 +188,15 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('before-quit', () => {
-  backendManager.stop();
+app.on('before-quit', (event) => {
+  if (shutdownInProgress) return;
+  event.preventDefault();
+  shutdownInProgress = true;
+  void backendManager.stop().finally(() => app.exit(0));
 });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    backendManager.stop();
     app.quit();
   }
 });

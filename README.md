@@ -1,70 +1,114 @@
 # KRITAM
 
-**KRITAM** is a personal AI companion for Windows 10/11 designed to help you think, learn, research, code, organize tasks, and safely operate your computer through natural conversation.
+KRITAM is an existing Windows desktop AI assistant built with Electron, React, TypeScript, FastAPI, and SQLite. This repository includes deterministic offline commands, local Ollama and Faster Whisper adapters, optional cloud provider adapters, conversation history, text-to-speech, and a policy-controlled set of desktop actions.
 
----
+**Release status:** development source is available. A Windows standalone package is being prepared, but it is not yet verified for installation or release. See [the release checklist](docs/RELEASE_CHECKLIST.md) and [known limitations](docs/KNOWN_LIMITATIONS.md). No test or package result is claimed unless recorded in [the test report](docs/TEST_REPORT.md).
 
-## 🌟 Key Features
+## Features in the current source
 
-* **Hybrid AI Engine**:
-  * **Offline Mode**: Deterministic zero-network local assistant for app launching, date/time, calculations, and local queries.
-  * **Local AI**: Direct integration with local **Ollama** models (Qwen, Llama) running entirely on your PC.
-  * **Cloud AI**: Support for OpenAI, Groq, and OpenRouter for high-speed streaming reasoning.
-* **Three-Tier Desktop Automation Policy**:
-  * **Low Risk**: Launch registered apps (VS Code, Chrome, Terminal, Calculator, etc.), open verified URLs, inspect approved directories.
-  * **Medium Risk**: File creation or schedule modification with user notification.
-  * **High Risk**: File deletion, script execution, or system changes requiring an explicit pre-execution confirmation modal.
-* **Voice Companion**:
-  * Push-to-talk speech recognition.
-  * Text-to-speech with real-time interruption capability.
-* **Local Privacy**:
-  * All chat history, reminders, and user settings stored locally in SQLite (`backend/data/kritam.db`).
-  * No continuous audio streaming; zero unsolicited cloud uploads.
+- Streamed chat with local conversation persistence.
+- Deterministic offline commands for supported actions, date/time and calculations. This is not a general reasoning model.
+- Ollama local model integration.
+- Optional OpenAI, Groq, OpenRouter and configurable KRITAM Gateway adapters.
+- Push-to-talk recording sent to local Faster Whisper transcription. Hands-free recognition is disabled.
+- Speech playback with interruption controls.
+- Application, website, standard-folder, music-search and confirmed text-file inspection actions.
+- React/Electron UI with conversation history and provider settings.
 
----
+Availability depends on installed dependencies, provider configuration, local services, and permissions. Cloud providers receive the prompts sent to them. Provider API keys entered in Settings are currently stored in the local SQLite database without OS-backed encryption.
 
-## 🚀 Quick Start Guide
+## Architecture
 
-### Prerequisites
-* Windows 10 or 11
-* Node.js v18+ (tested on Node v24)
-* Python 3.11+
-* (Optional) [Ollama](https://ollama.ai) for 100% private local models
+Electron runs a sandboxed renderer and starts a local FastAPI service. The React renderer calls the backend through a narrow preload-provided endpoint and session header. FastAPI owns provider routing, conversation/settings persistence, speech transcription and desktop action policy. See [ARCHITECTURE.md](docs/ARCHITECTURE.md) and [RELEASE_AUDIT.md](docs/RELEASE_AUDIT.md).
 
-### 1. Environment Setup
+## Screenshots
+
+Screenshots are not included yet. Capture them from a successfully built application after the renderer and packaged backend have been verified; no mock images are presented as product screenshots.
+
+## Technology
+
+- Windows 10/11 target
+- Electron 31, React 18, TypeScript, Vite, Lucide
+- Python 3.11+, FastAPI, SQLAlchemy, SQLite, HTTPX
+- Ollama, optional OpenAI-compatible providers, Faster Whisper
+- PyInstaller is used by the current experimental Windows packaging script
+
+## Development setup
+
+Prerequisites: Windows 10/11, Python 3.11+, Node.js 18+, npm, and (optionally) Ollama.
+
 ```powershell
-# Set up Python virtual environment
 python -m venv .venv
-.\.venv\Scripts\pip.exe install -r backend\requirements.txt
-
-# Install Desktop dependencies
-npm --prefix apps/desktop install
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+npm --prefix apps/desktop ci
 ```
 
-### 2. Run Automated Test Suite
+Start the backend from the repository root:
+
 ```powershell
-# Verify backend unit and integration tests (100% passing)
-.\.venv\Scripts\pytest.exe backend -v
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8765
 ```
 
-### 3. Launch Development Server
+In a second PowerShell window, start the desktop application:
+
 ```powershell
-# Start Python backend and Electron Desktop app together
-npm run dev
+npm --prefix apps/desktop run electron:dev
 ```
 
-Alternatively, run each service independently:
+For development, `.env.example` can be copied to `.env` and edited. Do not commit `.env` or credentials. The backend loads this file for local development. Environment variables override values from `.env`.
+
+## AI configuration
+
+Choose the provider in Settings:
+
+- **Offline** supports only implemented deterministic commands and does not provide open-ended reasoning.
+- **Ollama** uses the configured local address and model. Install Ollama and download a model yourself; KRITAM does not download models automatically.
+- **OpenAI, Groq, and OpenRouter** require provider credentials. Prompts and conversation history are sent to the chosen cloud provider.
+- **KRITAM Gateway** works only if the configured remote service is deployed and reachable. This repository does not verify its service terms, quotas, authentication model or production availability.
+
+## Voice
+
+The composer uses the runtime's supported `MediaRecorder` audio format and sends the recording to the local backend. The backend validates the audio container and uses Faster Whisper. KRITAM asks before a first-use model download from Hugging Face; size depends on the configured model. Speech accuracy varies by model, language and recording quality. Microphone permission and a working backend are required. Hands-free recognition is currently disabled. Text-to-speech uses the operating system/browser speech synthesis support.
+
+## Desktop automation and security
+
+Only registered application names are launchable. Website URLs are restricted to HTTP(S), folder paths are checked, and text-file inspection requires confirmation and is limited to supported text/source files under the user folder. Unsupported action types are rejected. The renderer disables Node integration, enables context isolation and sandboxing, restricts navigation and validates IPC senders. The local backend binds to loopback and Electron authenticates its own child process with a per-session token. These measures do not replace OS account security or protect against malware running as the same user.
+
+## Tests and builds
+
+Run the backend suite:
+
 ```powershell
-# Terminal 1: Backend service
-npm run backend:start
-
-# Terminal 2: Desktop application
-npm run desktop:dev
+.\.venv\Scripts\python.exe -m pytest backend -v
 ```
 
----
+Build the desktop renderer and Electron main/preload:
 
-## 🔒 Security Architecture
-* **Sandboxed Electron Renderer**: `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`. The UI has zero arbitrary OS shell access.
-* **Local Handshake Token**: Electron generates a per-session random token passed via `X-Kritam-Auth-Token` to prevent rogue local processes from calling the backend.
-* **Path Traversal Protection**: All filesystem actions validate paths against canonical boundaries.
+```powershell
+npm --prefix apps/desktop run build
+```
+
+Prepare an experimental Windows portable package (downloads Python packages and can take significant disk space):
+
+```powershell
+npm run release:win
+```
+
+The release script uses PyInstaller to bundle the backend and electron-builder to package it. It has not yet been validated on a clean Windows machine. The resulting application is unsigned unless a signing setup is added. Do not distribute the package until build, install, microphone, provider, upgrade and uninstall checks pass and the checklist is updated.
+
+## Troubleshooting
+
+- **Backend startup fails:** install the Python dependencies, verify port 8765 is free, and review the backend console output. KRITAM will not trust another service already using that port.
+- **Ollama unavailable:** start Ollama and check the configured endpoint/model. Install the model separately.
+- **Cloud provider errors:** verify the provider selection, API key, model name, internet access and rate limits. Keys are currently stored unencrypted in SQLite.
+- **Voice transcription fails:** confirm microphone permission, supported recording type, Python speech dependencies and available disk space for the local model.
+- **Build/package errors:** inspect the terminal output and [test report](docs/TEST_REPORT.md). Packaging dependencies and PyInstaller data collection still need clean-machine verification.
+
+## Project and release records
+
+- [Release audit](docs/RELEASE_AUDIT.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Test report](docs/TEST_REPORT.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Known limitations](docs/KNOWN_LIMITATIONS.md)
+- [Changelog](CHANGELOG.md)

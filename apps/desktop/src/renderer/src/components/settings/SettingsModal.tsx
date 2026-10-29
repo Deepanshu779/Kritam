@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Sparkles, Cpu, Volume2, Shield, Check, ChevronDown, ChevronUp, Terminal, Play, Square } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, Sparkles, Cpu, Volume2, Shield, Check, ChevronDown, ChevronUp, Terminal, Play, Square, SlidersHorizontal, Info } from 'lucide-react';
 import { UserSettings, ThemeMode } from '../../types/settings';
 import { HealthStatus } from '../../types/chat';
 import { speechService, useSpeechService } from '../../services/speech-service';
@@ -19,12 +19,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSave,
   health
 }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'voice' | 'privacy'>('ai');
+  const [activeTab, setActiveTab] = useState<'general' | 'ai' | 'voice' | 'privacy' | 'automation' | 'about'>('ai');
   const [formData, setFormData] = useState<UserSettings>({ ...settings });
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [showDeveloperMode, setShowDeveloperMode] = useState<boolean>(!!settings.enable_developer_mode);
   const speech = useSpeechService();
   const [isPreviewingVoice, setIsPreviewingVoice] = useState(false);
+  const [runtimeInfo, setRuntimeInfo] = useState<{ platform: string; arch: string; version: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !window.kritamAPI?.getSystemInfo) return;
+    window.kritamAPI.getSystemInfo().then(setRuntimeInfo).catch(() => setRuntimeInfo(null));
+  }, [isOpen]);
 
   const handlePreviewVoice = () => {
     if (speech.ttsState === 'speaking') {
@@ -69,10 +75,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <nav className="settings-tabs" aria-label="Settings sections">
           {[
-            { id: 'ai', label: 'AI Provider', icon: <Cpu size={17} /> },
-            { id: 'general', label: 'Appearance', icon: <Sparkles size={17} /> },
+            { id: 'general', label: 'General', icon: <SlidersHorizontal size={17} /> },
+            { id: 'ai', label: 'AI Providers', icon: <Cpu size={17} /> },
             { id: 'voice', label: 'Voice & Audio', icon: <Volume2 size={17} /> },
-            { id: 'privacy', label: 'Security', icon: <Shield size={17} /> }
+            { id: 'privacy', label: 'Privacy & Security', icon: <Shield size={17} /> },
+            { id: 'automation', label: 'Desktop Automation', icon: <Terminal size={17} /> },
+            { id: 'about', label: 'About KRITAM', icon: <Info size={17} /> }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -97,7 +105,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   value={formData.default_provider}
                   onChange={(e) => setFormData({ ...formData, default_provider: e.target.value as any })}
                 >
-                  <option value="kritam">Kritam AI (Online Default — No API Key Required)</option>
+                  <option value="kritam">KRITAM Gateway (requires an available service)</option>
                   <option value="ollama">Local AI via Ollama (GPU / CPU)</option>
                   <option value="offline">Offline Engine (Deterministic, Zero-Network)</option>
                   {showDeveloperMode && (
@@ -109,10 +117,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   )}
                 </select>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  {formData.default_provider === 'kritam' && 'Free managed cloud intelligence. No account setup or provider API keys required.'}
-                  {formData.default_provider === 'ollama' && 'Runs 100% locally on your computer with complete privacy.'}
-                  {formData.default_provider === 'offline' && 'Instant zero-network commands, calculations, and date/time queries.'}
-                  {['openai', 'groq', 'openrouter'].includes(formData.default_provider) && 'Direct connection using your personal provider API key.'}
+                  {formData.default_provider === 'kritam' && 'Uses the configured KRITAM cloud gateway when available. Prompts are sent to that remote service.'}
+                  {formData.default_provider === 'ollama' && 'Runs through your configured local Ollama endpoint. Prompts are not sent to a cloud AI provider by KRITAM.'}
+                  {formData.default_provider === 'offline' && 'Deterministic on-device commands, calculations, and date/time queries; not open-ended AI reasoning.'}
+                  {['openai', 'groq', 'openrouter'].includes(formData.default_provider) && 'Prompts are sent to the selected cloud provider. Provider API keys are stored locally without OS-backed encryption.'}
                 </span>
               </div>
 
@@ -123,13 +131,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       Kritam AI Service
                     </span>
                     <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: 9999, backgroundColor: health?.providers?.kritam?.available ? 'var(--success-bg)' : 'var(--warning-bg)', color: health?.providers?.kritam?.available ? 'var(--success)' : 'var(--warning)', fontWeight: 600 }}>
-                      {health?.providers?.kritam?.available ? 'Online (Free Tier)' : 'Gateway Offline'}
+                      {health?.providers?.kritam?.available ? 'Available' : 'Unavailable'}
                     </span>
                   </div>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
                     {health?.providers?.kritam?.available
-                      ? 'Connected to Kritam Cloud Gateway. Ready to chat out-of-the-box.'
-                      : 'Remote gateway host is currently unreachable. You can continue using Desktop Actions & Offline Engine, connect Local AI (Ollama), or configure an endpoint/API key in Developer Settings below.'}
+                      ? 'The configured gateway health endpoint responded. Availability, authentication, quotas, and service terms depend on the gateway deployment.'
+                      : 'The configured gateway did not respond. Continue with Offline or Ollama, or choose a configured cloud provider in Developer Settings.'}
                   </p>
                 </div>
               )}
@@ -282,36 +290,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {activeTab === 'voice' && (
             <>
               <div className="form-group">
-                <label className="form-label">Speech Recognition Language & Accent</label>
+                <label className="form-label">Transcription language hint</label>
                 <select
                   className="form-input"
-                  value={formData.voice_language || 'en-US'}
+                  value={formData.voice_language?.startsWith('en-') ? 'en' : formData.voice_language || 'auto'}
                   onChange={(e) => setFormData({ ...formData, voice_language: e.target.value as any })}
                 >
-                  <option value="en-IN">English (India) — en-IN</option>
-                  <option value="en-US">English (United States) — en-US</option>
-                  <option value="en-GB">English (United Kingdom) — en-GB</option>
+                  <option value="auto">Auto-detect</option>
+                  <option value="en">English</option>
+                  <option value="hi">Hindi</option>
                 </select>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                  Optimizes speech recognition accuracy for Indian English and regional accents.
+                  Selects a local Whisper language hint. Auto-detect is recommended for mixed-language speech; accuracy varies by model and recording.
                 </span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
-                <div>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                    Auto-dispatch voice commands
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Automatically submit recognized commands to the agent without pressing Enter
-                  </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={formData.auto_dispatch_voice !== false}
-                  onChange={(e) => setFormData({ ...formData, auto_dispatch_voice: e.target.checked })}
-                  style={{ width: 18, height: 18, cursor: 'pointer' }}
-                />
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderTop: '1px solid var(--border-subtle)' }}>
@@ -320,7 +311,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Auto-play voice responses (Text-to-Speech)
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    Automatically read assistant replies aloud using local speech synthesis
+                    Read assistant replies aloud using system speech synthesis
                   </div>
                 </div>
                 <input
@@ -348,7 +339,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                     {speech.availableVoices.length > 0
-                      ? `${speech.availableVoices.length} local Windows voice(s) detected`
+                      ? `${speech.availableVoices.length} system voice(s) available`
                       : 'Detecting available system voices...'}
                   </span>
                   <button
@@ -380,9 +371,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   Voice Architecture & Status
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  <div>● <strong>Speech Recognition:</strong> Chromium Web Speech API (Push-to-talk & Hands-Free Voice Mode).</div>
+                  <div>● <strong>Speech Recognition:</strong> Local backend transcription with Faster Whisper. KRITAM asks before allowing a first-use model download. Hands-free recognition is disabled.</div>
                   <div>● <strong>Acoustic Echo Suppression:</strong> Automatically pauses microphone while assistant speaks to prevent feedback loops.</div>
-                  <div>● <strong>Speech Synthesis:</strong> Local Windows Speech Engine (Zero cloud latency, offline capable).</div>
+                  <div>● <strong>Speech Synthesis:</strong> Uses voices exposed by the system. Voice availability and processing behavior depend on Windows and installed voices.</div>
                 </div>
               </div>
             </>
@@ -392,17 +383,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={{ padding: 12, backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                  Three-Tier Execution Policy
+                  Where your data goes
                 </h4>
-                <ul style={{ paddingLeft: 18, fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  <li><strong>Low Risk:</strong> Launching approved apps (VS Code, Chrome, etc.), opening safe URLs. Allowed without interruption.</li>
-                  <li><strong>Medium Risk:</strong> Modifying files or workspace documents. Requires prompt.</li>
-                  <li><strong>High Risk:</strong> File deletion or script execution. Requires explicit confirmation modal showing exact target.</li>
-                </ul>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  Conversations and settings are stored in a local SQLite database. Offline commands and Ollama use local processing. KRITAM Gateway, OpenAI, Groq, and OpenRouter send prompts to their configured remote service. Provider keys saved in Settings are currently stored in SQLite without OS-backed encryption.
+                </p>
               </div>
+              <div style={{ padding: 12, backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px' }}>Local application boundary</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  The renderer runs with Node integration disabled, context isolation enabled, and a sandbox. The local backend accepts authenticated requests from the KRITAM session. These controls do not protect against malware running as the same Windows user.
+                </p>
+              </div>
+            </div>
+          )}
 
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                All conversations, settings, and keys are stored locally on your PC in SQLite (<code>backend/data/kritam.db</code>).
+          {activeTab === 'automation' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ padding: 12, backgroundColor: 'var(--bg-app)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 6px' }}>Available actions</h4>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+                  KRITAM can launch registered applications and open standard folders. Opening websites, searching music services, and reading supported text files requires confirmation. File inspection is limited to supported text/source files inside your user folder.
+                </p>
+              </div>
+              <div style={{ padding: 12, backgroundColor: 'var(--warning-bg)', borderRadius: 'var(--radius-md)', color: 'var(--text-secondary)', fontSize: '0.8rem', lineHeight: 1.6 }}>
+                File creation, modification, deletion, script execution, and system command actions are not implemented and are rejected. Never paste credentials or sensitive data into an action request.
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'about' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 13, padding: 16, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)' }}>
+                <span className="settings-heading-icon"><Sparkles size={20} /></span>
+                <div>
+                  <div style={{ fontSize: '1rem', fontWeight: 650, color: 'var(--text-primary)' }}>KRITAM</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Personal desktop AI companion</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gap: 10, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                <div><strong>Version:</strong> {runtimeInfo?.version || 'Unavailable in browser preview'}</div>
+                <div><strong>Platform:</strong> {runtimeInfo ? `${runtimeInfo.platform} · ${runtimeInfo.arch}` : 'Desktop runtime not connected'}</div>
+                <div><strong>Current AI mode:</strong> {formData.default_provider}</div>
+                <div><strong>Backend status:</strong> {health?.status || 'Not connected'}</div>
               </div>
             </div>
           )}

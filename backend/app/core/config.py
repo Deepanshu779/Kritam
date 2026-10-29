@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Root project paths
 BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = BACKEND_DIR / "data"
+load_dotenv(BACKEND_DIR.parent / ".env", override=False)
+DATA_DIR = Path(os.getenv("KRITAM_DATA_DIR", str(BACKEND_DIR / "data"))).expanduser()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DEFAULT_DB_PATH = DATA_DIR / "kritam.db"
 
@@ -19,10 +21,10 @@ class Settings:
     AUTH_TOKEN: str = os.getenv("KRITAM_AUTH_TOKEN", "")
     
     # SQLite Database URI
-    DATABASE_URL: str = os.getenv("KRITAM_DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH}")
+    DATABASE_URL: str = os.getenv("KRITAM_DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH.as_posix()}")
     
     # Default AI settings
-    DEFAULT_PROVIDER: str = os.getenv("DEFAULT_AI_PROVIDER", "kritam")
+    DEFAULT_PROVIDER: str = os.getenv("DEFAULT_AI_PROVIDER", "offline")
     KRITAM_GATEWAY_URL: str = os.getenv("KRITAM_GATEWAY_URL", "https://api.kritam.ai").rstrip("/")
     KRITAM_GATEWAY_ENABLED: bool = os.getenv("KRITAM_GATEWAY_ENABLED", "true").lower() in ("true", "1", "yes")
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")

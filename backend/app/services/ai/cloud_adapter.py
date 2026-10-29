@@ -36,11 +36,7 @@ class CloudAIAdapter(BaseAIProvider):
         **kwargs
     ) -> AsyncGenerator[str, None]:
         if not self.api_key:
-            yield (
-                f"No API key configured for {self.provider.upper()}.\n\n"
-                "Please open **Settings** (gear icon) and add your API key to enable cloud intelligence."
-            )
-            return
+            raise RuntimeError(f"No API key is configured for {self.provider.upper()}. Add one in Settings or select a local provider.")
 
         endpoint = self.ENDPOINTS.get(self.provider, self.ENDPOINTS["openai"])
         target_model = model or self.model
@@ -63,15 +59,11 @@ class CloudAIAdapter(BaseAIProvider):
             async with httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0)) as client:
                 async with client.stream("POST", endpoint, headers=headers, json=payload) as response:
                     if response.status_code == 401:
-                        yield f"Authentication failed (401 Unauthorized) for {self.provider.upper()}. Please verify your API key in Settings."
-                        return
+                        raise RuntimeError(f"{self.provider.upper()} rejected the API key. Check the key in Settings.")
                     if response.status_code == 429:
-                        yield f"Rate limit reached (429) for {self.provider.upper()}. Please try again in a moment."
-                        return
+                        raise RuntimeError(f"{self.provider.upper()} rate limit reached. Wait briefly and try again.")
                     if response.status_code != 200:
-                        error_text = await response.aread()
-                        yield f"Cloud API error ({response.status_code}): {error_text.decode('utf-8', errors='ignore')}"
-                        return
+                        raise RuntimeError(f"{self.provider.upper()} returned HTTP {response.status_code}. Check the configured model and provider status.")
 
                     async for line in response.aiter_lines():
                         if not line:
@@ -90,6 +82,10 @@ class CloudAIAdapter(BaseAIProvider):
                             except json.JSONDecodeError:
                                 continue
         except httpx.ConnectError:
-            yield f"Could not reach {self.provider.upper()} API. Please check your internet connection."
+            raise RuntimeError(f"Could not reach {self.provider.upper()}. Check your internet connection and try again.")
+        except httpx.TimeoutException:
+            raise RuntimeError(f"{self.provider.upper()} timed out before completing the response. Try again.")
         except Exception as e:
-            yield f"Cloud provider error: {str(e)}"
+            if isinstance(e, RuntimeError):
+                raise
+            raise RuntimeError(f"{self.provider.upper()} could not complete the request. Check the provider settings and try again.") from e

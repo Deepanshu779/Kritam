@@ -6,6 +6,11 @@ from pathlib import Path
 from app.schemas.action import ActionRequest, ActionResponse, ActionPlan, RiskLevel
 from app.services.automation.app_launcher import AppLauncher
 
+TEXT_FILE_EXTENSIONS = {
+    ".txt", ".md", ".csv", ".json", ".yaml", ".yml", ".log", ".py", ".pyw",
+    ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".xml", ".ini", ".toml", ".sql"
+}
+
 ALLOWED_STANDARD_FOLDERS = {
     "downloads": Path.home() / "Downloads",
     "documents": Path.home() / "Documents",
@@ -22,19 +27,52 @@ class PolicyEngine:
     @staticmethod
     def evaluate_risk(action_type: str, target: str) -> tuple[RiskLevel, bool, str]:
         """Determine risk tier and whether affirmative user confirmation is required."""
-        if action_type in ["launch_app", "open_url", "open_folder", "inspect_file", "play_music"]:
+        if action_type in ["launch_app", "open_folder"]:
             return RiskLevel.LOW, False, f"Read-only or approved application action: {action_type}"
         
-        if action_type in ["create_file", "modify_file", "schedule_reminder"]:
-            return RiskLevel.MEDIUM, True, f"Modifies local state or schedule: {action_type}"
+        if action_type in ["create_file", "modify_file", "schedule_reminder", "inspect_file", "open_url", "play_music"]:
+            return RiskLevel.MEDIUM, True, f"Reads sensitive data or opens an external destination: {action_type}"
 
         if action_type in ["delete_file", "run_script", "execute_system_command"]:
             return RiskLevel.HIGH, True, f"Potentially destructive or system modifying action: {action_type}"
 
         return RiskLevel.HIGH, True, f"Unknown action requires full confirmation: {action_type}"
 
+    @staticmethod
+    def normalize_http_url(target: str) -> tuple[str | None, str | None]:
+        raw_url = target.strip()
+        if not raw_url or any(char.isspace() or ord(char) < 32 for char in raw_url):
+            return None, "Invalid or untrusted URL. Only valid http/https URLs are permitted."
+        if ":" in raw_url:
+            prefix = raw_url.split(":", 1)[0].lower()
+            if prefix not in {"http", "https"}:
+                return None, f"Invalid or untrusted URL scheme '{prefix}'. Only http/https URLs are permitted."
+        if not raw_url.startswith(("http://", "https://")):
+            raw_url = "https://" + raw_url
+        try:
+            parsed = urlparse(raw_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+                return None, "Invalid or untrusted URL. Only http/https URLs are permitted."
+            _ = parsed.port
+        except ValueError:
+            return None, "Invalid URL port or hostname."
+        return raw_url, None
+
     @classmethod
     def execute_action(cls, request: ActionRequest) -> ActionResponse:
+        supported_actions = {"launch_app", "open_url", "open_folder", "inspect_file", "play_music"}
+        if request.action_type not in supported_actions:
+            return ActionResponse(
+                success=False,
+                action_type=request.action_type,
+                target=request.target,
+                message=f"The action '{request.action_type}' is not implemented and was not run."
+            )
+        normalized_url = None
+        if request.action_type == "open_url":
+            normalized_url, url_error = cls.normalize_http_url(request.target)
+            if url_error:
+                return ActionResponse(success=False, action_type=request.action_type, target=request.target, message=url_error)
         risk_level, requires_confirmation, desc = cls.evaluate_risk(request.action_type, request.target)
 
         # High or Medium risk requires confirmation before running
@@ -46,7 +84,7 @@ class PolicyEngine:
                 description=desc,
                 risk_level=risk_level,
                 requires_confirmation=True,
-                consequences=f"Executing '{request.action_type}' targeting '{request.target}' will modify local files or settings."
+                consequences=f"KRITAM will perform '{request.action_type}' on the selected target only after you confirm."
             )
             return ActionResponse(
                 success=False,
@@ -64,41 +102,17 @@ class PolicyEngine:
 
         # 2. Open URL
         elif request.action_type == "open_url":
-            raw_url = request.target.strip()
-            
-            # Check for dangerous or forbidden schemes
-            if ":" in raw_url:
-                prefix = raw_url.split(":", 1)[0].lower()
-                if prefix not in ["http", "https"]:
-                    return ActionResponse(
-                        success=False,
-                        action_type=request.action_type,
-                        target=request.target,
-                        message=f"Invalid or untrusted URL scheme '{prefix}'. Only http/https URLs are permitted."
-                    )
-            
-            if not raw_url.startswith(("http://", "https://")):
-                raw_url = "https://" + raw_url
-            
-            parsed = urlparse(raw_url)
-            if parsed.scheme not in ["http", "https"] or not parsed.netloc:
-                return ActionResponse(
-                    success=False,
-                    action_type=request.action_type,
-                    target=request.target,
-                    message="Invalid or untrusted URL. Only http/https URLs are permitted."
-                )
-
             try:
-                webbrowser.open(raw_url)
+                assert normalized_url is not None
+                webbrowser.open(normalized_url)
                 return ActionResponse(
                     success=True,
                     action_type=request.action_type,
-                    target=raw_url,
-                    message=f"Opened {raw_url} in your default browser."
+                    target=normalized_url,
+                    message=f"Opened {normalized_url} in your default browser."
                 )
             except Exception as e:
-                return ActionResponse(success=False, action_type=request.action_type, target=raw_url, message=str(e))
+                return ActionResponse(success=False, action_type=request.action_type, target=normalized_url or request.target, message=str(e))
 
         # 3. Open Folder
         elif request.action_type == "open_folder":
@@ -124,6 +138,8 @@ class PolicyEngine:
                     target=str(target_path),
                     message=f"Directory '{target_path}' does not exist."
                 )
+            if not target_path.is_dir():
+                return ActionResponse(success=False, action_type=request.action_type, target=str(target_path), message="The selected target is not a directory.")
 
             try:
                 os.startfile(str(target_path))
@@ -146,6 +162,17 @@ class PolicyEngine:
                     target=request.target,
                     message=f"File not found: '{file_path}'"
                 )
+            home = Path.home().resolve()
+            if file_path != home and home not in file_path.parents:
+                return ActionResponse(
+                    success=False, action_type=request.action_type, target=request.target,
+                    message="For privacy, KRITAM can inspect files only inside your user folder."
+                )
+            if file_path.suffix.lower() not in TEXT_FILE_EXTENSIONS:
+                return ActionResponse(
+                    success=False, action_type=request.action_type, target=str(file_path),
+                    message="For safety, KRITAM can inspect only supported text and source files."
+                )
             # Size limit: 2MB for safe inspection
             if file_path.stat().st_size > 2 * 1024 * 1024:
                 return ActionResponse(
@@ -156,6 +183,11 @@ class PolicyEngine:
                 )
             try:
                 content = file_path.read_text(encoding="utf-8", errors="replace")
+                if "\0" in content:
+                    return ActionResponse(
+                        success=False, action_type=request.action_type, target=str(file_path),
+                        message="The selected file appears to be binary and cannot be previewed as text."
+                    )
                 # Truncate if very long
                 preview = content[:2000] + ("\n... [Truncated]" if len(content) > 2000 else "")
                 return ActionResponse(

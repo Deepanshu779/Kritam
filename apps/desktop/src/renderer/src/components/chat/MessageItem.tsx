@@ -7,9 +7,10 @@ import { speechService, useSpeechService } from '../../services/speech-service';
 interface MessageItemProps {
   message: Message;
   onExecuteAction?: (actionType: string, target: string) => void;
+  onRetry?: () => void;
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteAction }) => {
+export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteAction, onRetry }) => {
   const [copied, setCopied] = useState(false);
   const [isSpeakingThis, setIsSpeakingThis] = useState(false);
   const speech = useSpeechService();
@@ -180,6 +181,11 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message, onExecuteActi
               {isSpeakingThis ? <Square size={14} /> : <Volume2 size={14} />}
             </button>
           </div>
+        )}
+        {isAssistant && message.status === 'failed' && onRetry && (
+          <button className="btn-secondary" style={{ marginTop: 6, fontSize: '0.76rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 5 }} onClick={onRetry}>
+            <RotateCcw size={12} /> Retry response
+          </button>
         )}
       </div>
 

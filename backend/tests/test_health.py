@@ -18,3 +18,8 @@ def test_health():
     assert data["status"] == "healthy"
     assert "offline" in data["providers"]
     assert data["providers"]["offline"]["available"] is True
+
+def test_authenticated_ping_reports_backend_identity():
+    response = client.get("/api/health/ping")
+    assert response.status_code == 200
+    assert response.json()["service"] == "KRITAM AI"
