@@ -18,7 +18,8 @@ export const App: React.FC = () => {
   // Keep a synchronous source of truth for async sends and conversation switching.
   const activeConvIdRef = useRef<string | null>(null);
   const generationInFlightRef = useRef(false);
-  const pendingVoiceTurnsRef = useRef<string[]>([]);
+  const pendingVoiceTurnsRef = useRef<Array<{ text: string; conversationId: string | null }>>([]);
+  const generationRunIdRef = useRef(0);
   const selectionRequestRef = useRef(0);
   const setActiveConversation = (id: string | null) => {
     activeConvIdRef.current = id;
@@ -187,21 +188,22 @@ export const App: React.FC = () => {
     }, 50);
   };
 
-  const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string, voiceCommand = false) => {
+  const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string, voiceCommand = false, pinnedConversationId?: string | null) => {
     const cleanText = text.trim();
     if (!cleanText) return;
     if (generationInFlightRef.current) {
       if (voiceCommand && !retryUserMessageId) {
-        if (pendingVoiceTurnsRef.current.length < 3) pendingVoiceTurnsRef.current.push(cleanText);
+        if (pendingVoiceTurnsRef.current.length < 3) pendingVoiceTurnsRef.current.push({ text: cleanText, conversationId: activeConvIdRef.current });
         else console.warn('[App] Pending voice turn limit reached.');
       }
       return;
     }
     generationInFlightRef.current = true;
+    const runId = ++generationRunIdRef.current;
 
     speechService.stopSpeaking();
 
-    let targetConvId = activeConvIdRef.current;
+    let targetConvId = pinnedConversationId === undefined ? activeConvIdRef.current : pinnedConversationId;
     try {
       if (!targetConvId) {
         const created = await apiClient.createConversation(cleanText.slice(0, 30), settings.default_provider);
@@ -243,6 +245,7 @@ export const App: React.FC = () => {
         settings.default_provider,
         settings.default_provider === 'ollama' ? settings.ollama_model : undefined,
         (token) => {
+          if (runId !== generationRunIdRef.current) return;
           setCompanionState('speaking');
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
@@ -250,10 +253,17 @@ export const App: React.FC = () => {
           if (activeConvIdRef.current === targetConvId) scrollToBottom();
         },
         (fullContent) => {
+          if (runId !== generationRunIdRef.current) return;
           generationInFlightRef.current = false;
           setIsGenerating(false);
           const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
-          if (queuedVoiceTurn) window.setTimeout(() => void handleSendMessage(queuedVoiceTurn, undefined, undefined, true), 0);
+          if (queuedVoiceTurn) window.setTimeout(() => {
+            if (queuedVoiceTurn.conversationId !== activeConvIdRef.current) {
+              console.info('[App] Dropping queued voice turn because its conversation is no longer active.');
+              return;
+            }
+            void handleSendMessage(queuedVoiceTurn.text, undefined, undefined, true, queuedVoiceTurn.conversationId);
+          }, 0);
           setLastTaskStatus('completed');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
@@ -275,6 +285,7 @@ export const App: React.FC = () => {
           );
         },
         (err) => {
+          if (runId !== generationRunIdRef.current) return;
           generationInFlightRef.current = false;
           setIsGenerating(false);
           const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
@@ -293,6 +304,7 @@ export const App: React.FC = () => {
 
       stopStreamRef.current = stopFn;
     } catch (e: any) {
+      if (runId !== generationRunIdRef.current) return;
       generationInFlightRef.current = false;
       setIsGenerating(false);
       setLastTaskStatus('needs_attention');
@@ -309,6 +321,9 @@ export const App: React.FC = () => {
   };
 
   const handleStopGeneration = () => {
+    // Invalidate late callbacks and deliberately discard queued voice turns.
+    generationRunIdRef.current += 1;
+    pendingVoiceTurnsRef.current = [];
     // Interruption: stop generation and cancel any speech immediately
     speechService.stopSpeaking();
     if (stopStreamRef.current) {
