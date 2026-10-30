@@ -5,7 +5,6 @@ import { Composer } from './components/chat/Composer';
 import { EmptyState } from './components/chat/EmptyState';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ConfirmationModal } from './components/common/ConfirmationModal';
-import { CompanionAvatar, CompanionState } from './components/companion/CompanionAvatar';
 import { apiClient } from './services/api-client';
 import { speechService, useSpeechService } from './services/speech-service';
 import { Conversation, HealthStatus, Message } from './types/chat';
@@ -392,22 +391,6 @@ export const App: React.FC = () => {
   }, [isSettingsOpen, isGenerating]);
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
-
-  // Compute live agent activity state: Listening -> Understanding -> Working -> Completed / Needs Attention
-  let agentStatus: 'idle' | 'listening' | 'understanding' | 'working' | 'completed' | 'needs_attention' = 'idle';
-  if (confirmModal.isOpen || speech.error) {
-    agentStatus = 'needs_attention';
-  } else if (speech.voiceState === 'listening') {
-    agentStatus = 'listening';
-  } else if (speech.voiceState === 'processing') {
-    agentStatus = 'understanding';
-  } else if (isGenerating || isExecutingAction) {
-    agentStatus = 'working';
-  } else if (lastTaskStatus === 'completed') {
-    agentStatus = 'completed';
-  } else if (lastTaskStatus === 'needs_attention') {
-    agentStatus = 'needs_attention';
-  }
 
   return (
     <div className="app-container">
