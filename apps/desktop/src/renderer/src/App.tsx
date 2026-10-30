@@ -18,6 +18,8 @@ export const App: React.FC = () => {
   // Keep a synchronous source of truth for async sends and conversation switching.
   const activeConvIdRef = useRef<string | null>(null);
   const generationInFlightRef = useRef(false);
+  // Invalidates callbacks from cancelled or superseded stream requests.
+  const generationIdRef = useRef(0);
   const selectionRequestRef = useRef(0);
   const setActiveConversation = (id: string | null) => {
     activeConvIdRef.current = id;
@@ -190,6 +192,7 @@ export const App: React.FC = () => {
     const cleanText = text.trim();
     if (!cleanText || generationInFlightRef.current) return;
     generationInFlightRef.current = true;
+    const generationId = ++generationIdRef.current;
 
     speechService.stopSpeaking();
 
@@ -235,6 +238,7 @@ export const App: React.FC = () => {
         settings.default_provider,
         settings.default_provider === 'ollama' ? settings.ollama_model : undefined,
         (token) => {
+          if (generationIdRef.current !== generationId) return;
           setCompanionState('speaking');
           setMessages((prev) => prev.map((msg) =>
             msg.id === assistantMsgId ? { ...msg, content: msg.content + token } : msg
@@ -242,6 +246,7 @@ export const App: React.FC = () => {
           if (activeConvIdRef.current === targetConvId) scrollToBottom();
         },
         (fullContent) => {
+          if (generationIdRef.current !== generationId) return;
           generationInFlightRef.current = false;
           setIsGenerating(false);
           setLastTaskStatus('completed');
@@ -265,6 +270,7 @@ export const App: React.FC = () => {
           );
         },
         (err) => {
+          if (generationIdRef.current !== generationId) return;
           generationInFlightRef.current = false;
           setIsGenerating(false);
           setLastTaskStatus('needs_attention');
@@ -279,8 +285,13 @@ export const App: React.FC = () => {
         voiceCommand
       );
 
+      if (generationIdRef.current !== generationId) {
+        stopFn();
+        return;
+      }
       stopStreamRef.current = stopFn;
     } catch (e: any) {
+      if (generationIdRef.current !== generationId) return;
       generationInFlightRef.current = false;
       setIsGenerating(false);
       setLastTaskStatus('needs_attention');
@@ -297,6 +308,8 @@ export const App: React.FC = () => {
   };
 
   const handleStopGeneration = () => {
+    // Invalidate pending stream callbacks before stopping transport/TTS.
+    generationIdRef.current += 1;
     // Interruption: stop generation and cancel any speech immediately
     speechService.stopSpeaking();
     if (stopStreamRef.current) {
