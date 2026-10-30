@@ -29,6 +29,15 @@ export function sanitizeTextForSpeech(text: string): string {
     .trim();
 }
 
+export type VoiceInterruptIntent = 'cancel_generation' | 'stop_speech';
+
+export function classifyVoiceInterrupt(transcript: string): VoiceInterruptIntent | null {
+  const phrase = transcript.trim().toLowerCase().replace(/[.!?]+$/g, '').replace(/\\s+/g, ' ');
+  if (/^(?:stop|cancel|cancel that|stop generating|cancel response|stop response)$/.test(phrase)) return 'cancel_generation';
+  if (/^(?:stop speaking|stop talking|be quiet|shut up|pause|mute)$/.test(phrase)) return 'stop_speech';
+  return null;
+}
+
 type StateListener = (state: SpeechServiceState) => void;
 
 class SpeechService {
@@ -49,6 +58,7 @@ class SpeechService {
   private interimTranscript: string = '';
   private backgroundCallback: ((text: string) => void) | null = null;
   private backgroundErrorCallback: ((err: string) => void) | null = null;
+  private backgroundInterruptCallback: ((intent: VoiceInterruptIntent) => void) | null = null;
   private lastDispatchedTranscript: string = '';
   private lastDispatchedTime: number = 0;
   private consecutiveErrors: number = 0;
@@ -333,7 +343,8 @@ class SpeechService {
    */
   public startBackgroundListening(
     onCommand: (text: string) => void,
-    onError?: (err: string) => void
+    onError?: (err: string) => void,
+    onInterrupt?: (intent: VoiceInterruptIntent) => void
   ): void {
     if (!this.isSTTSupported) {
       const err = 'Speech recognition is not supported in this environment.';
@@ -345,6 +356,7 @@ class SpeechService {
     this.isBackgroundListening = true;
     this.backgroundCallback = onCommand;
     this.backgroundErrorCallback = onError || null;
+    this.backgroundInterruptCallback = onInterrupt || null;
     this.clearError();
     this.notifyListeners();
 
@@ -432,10 +444,13 @@ class SpeechService {
         this.lastDispatchedTranscript = cleanFinal;
         this.lastDispatchedTime = now;
 
-        // Immediate stop/cancellation interception
-        const lower = cleanFinal.toLowerCase();
-        if (/^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$/.test(lower)) {
+        const interrupt = classifyVoiceInterrupt(cleanFinal);
+        if (interrupt === 'stop_speech') {
           this.stopSpeaking();
+          return;
+        }
+        if (interrupt === 'cancel_generation') {
+          this.backgroundInterruptCallback?.(interrupt);
           return;
         }
 
@@ -533,6 +548,7 @@ class SpeechService {
     this.userStoppedRecognition = true;
     this.backgroundCallback = null;
     this.backgroundErrorCallback = null;
+    this.backgroundInterruptCallback = null;
     clearTimeout(this.restartTimeoutId);
     this.abortListening();
     this.setVoiceState('idle');
