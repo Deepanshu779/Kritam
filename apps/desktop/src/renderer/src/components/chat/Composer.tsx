@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, Square, Mic, MicOff, AlertCircle, X, Loader2, VolumeX, Radio } from 'lucide-react';
+import { ArrowUp, Square, Mic, MicOff, AlertCircle, X, Loader2, VolumeX, Radio, Sparkles } from 'lucide-react';
 import { speechService, useSpeechService } from '../../services/speech-service';
 import { apiClient } from '../../services/api-client';
 
@@ -423,12 +423,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
             ) : (
               <button
                 type="button"
-                className="btn-icon btn-send"
-              disabled={!text.trim() || isLocalRecording || isLocalTranscribing}
+                className={`btn-icon btn-send ${text.trim() ? 'has-text' : 'assistant-idle'}`}
+                disabled={!text.trim() || isLocalRecording || isLocalTranscribing}
                 onClick={handleSend}
-                title="Send message (Enter)"
+                title={text.trim() ? 'Send message (Enter)' : 'KRITAM assistant'}
+                aria-label={text.trim() ? 'Send message' : 'KRITAM assistant'}
               >
-                <ArrowUp size={18} />
+                {text.trim() ? <ArrowUp size={18} /> : <Sparkles size={18} />}
               </button>
             )}
           </div>
