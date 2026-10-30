@@ -161,13 +161,14 @@ app.whenReady().then(async () => {
 
   // Grant only microphone access requested by KRITAM's main frame. Deny camera
   // and media permissions from external or untrusted frames.
-  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
-    const isDevRenderer = process.env.NODE_ENV !== 'production' && !app.isPackaged;
-    const trusted = webContents === mainWindow?.webContents && isTrustedRendererUrl(details.requestingUrl || webContents.getURL(), isDevRenderer);
-    const mediaTypes = details.mediaTypes || [];
-    const audioOnly = mediaTypes.includes('audio') && !mediaTypes.includes('video');
-    callback(permission === 'media' && trusted && Boolean(audioOnly));
-  });
+  session.defaultSession.setPermissionRequestHandler(
+    (webContents, permission, callback, details) => {
+      const isDevRenderer = process.env.NODE_ENV !== 'production' && !app.isPackaged;
+      const trusted = webContents === mainWindow?.webContents && isTrustedRendererUrl(details.requestingUrl || webContents.getURL(), isDevRenderer);
+      const mediaTypes = 'mediaTypes' in details ? details.mediaTypes || [] : [];
+      const audioOnly = mediaTypes.includes('audio') && !mediaTypes.includes('video');
+      callback(permission === 'media' && trusted && Boolean(audioOnly));
+    });
 
   try {
     await backendManager.start();
