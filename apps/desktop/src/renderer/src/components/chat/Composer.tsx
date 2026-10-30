@@ -193,11 +193,10 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               const previous = lastVoiceCommandRef.current;
               if (!previous || previous.text.toLowerCase() !== normalized.toLowerCase() || now - previous.at > 4000) {
                 lastVoiceCommandRef.current = { text: normalized, at: now };
-                if (isGenerating) setText(normalized);
-                else {
-                  onSend(normalized, true);
-                  setText('');
-                }
+                // Forward confident spoken turns even while generation is active.
+                // App owns the bounded voice-turn queue; keep typed input untouched.
+                onSend(normalized, true);
+                setText('');
               }
             }
           } else {
