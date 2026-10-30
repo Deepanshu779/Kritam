@@ -15,6 +15,8 @@ interface ComposerProps {
 export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop, sttModel = 'base', microphoneDeviceId, transcriptionLanguage = 'auto' }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const onStopRef = useRef(onStop);
+  onStopRef.current = onStop;
   const speech = useSpeechService();
   const [isLocalRecording, setIsLocalRecording] = useState(false);
   const [isLocalTranscribing, setIsLocalTranscribing] = useState(false);
@@ -258,6 +260,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
         },
         (error) => {
           console.warn('[Composer] Background voice error:', error);
+        },
+        (intent) => {
+          // A spoken cancellation must invalidate the active generation and
+          // discard queued turns through App's single cancellation path.
+          if (intent === 'cancel_generation') {
+            onStopRef.current();
+          }
         }
       );
     }
