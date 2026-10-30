@@ -84,6 +84,11 @@ export class VoiceSessionController {
 
   /** Invalidate async callbacks synchronously before adapter resources are closed. */
   stop(): number {
+    // A repeated Stop must not advance the generation again: doing so would
+    // invalidate the cleanup token returned by the first call and could leave
+    // the controller stuck in "stopping".
+    if (this.snapshot.phase === 'stopping') return this.snapshot.sessionId;
+
     const nextId = this.snapshot.sessionId + 1;
     this.publish({
       phase: 'stopping',
