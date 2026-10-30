@@ -54,6 +54,8 @@ class SpeechService {
   private voices: SpeechSynthesisVoice[] = [];
   private listeners: Set<StateListener> = new Set();
   private ttsWatchdogTimer: any = null;
+  // Invalidates delayed TTS starts and callbacks when speech is cancelled/replaced.
+  private ttsRunId = 0;
   private sessionHasError: boolean = false;
 
   // Background listening & natural voice state
@@ -608,6 +610,7 @@ class SpeechService {
 
     // Cancel any current speaking immediately
     this.stopSpeaking();
+    const ttsRunId = ++this.ttsRunId;
 
     const cleanText = sanitizeTextForSpeech(text);
     if (!cleanText) return;
@@ -623,6 +626,8 @@ class SpeechService {
     }
 
     setTimeout(() => {
+      // stopSpeaking() may have been called during the scheduling delay.
+      if (ttsRunId !== this.ttsRunId) return;
       try {
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.rate = Math.max(0.7, Math.min(1.8, options.rate || 1.0));
@@ -650,12 +655,14 @@ class SpeechService {
         }
 
         utterance.onstart = () => {
+          if (ttsRunId !== this.ttsRunId) return;
           this.setTTSState('speaking');
           this.startTTSWatchdog();
           options.onStart?.();
         };
 
         const handleSpeechDone = () => {
+          if (ttsRunId !== this.ttsRunId) return;
           this.stopTTSWatchdog();
           this.setTTSState('idle');
           options.onEnd?.();
@@ -685,6 +692,8 @@ class SpeechService {
    * Stop current speech playback immediately and resume background listening.
    */
   public stopSpeaking(): void {
+    // Cancel both active utterances and any speak() still waiting on its start timer.
+    this.ttsRunId++;
     this.stopTTSWatchdog();
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       try {
