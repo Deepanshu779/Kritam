@@ -5,7 +5,6 @@ import { Composer } from './components/chat/Composer';
 import { EmptyState } from './components/chat/EmptyState';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { ConfirmationModal } from './components/common/ConfirmationModal';
-import { CompanionAvatar, CompanionState } from './components/companion/CompanionAvatar';
 import { apiClient } from './services/api-client';
 import { speechService, useSpeechService } from './services/speech-service';
 import { Conversation, HealthStatus, Message } from './types/chat';
@@ -393,22 +392,6 @@ export const App: React.FC = () => {
 
   const activeConv = conversations.find((c) => c.id === activeConvId);
 
-  // Compute live agent activity state: Listening -> Understanding -> Working -> Completed / Needs Attention
-  let agentStatus: 'idle' | 'listening' | 'understanding' | 'working' | 'completed' | 'needs_attention' = 'idle';
-  if (confirmModal.isOpen || speech.error) {
-    agentStatus = 'needs_attention';
-  } else if (speech.voiceState === 'listening') {
-    agentStatus = 'listening';
-  } else if (speech.voiceState === 'processing') {
-    agentStatus = 'understanding';
-  } else if (isGenerating || isExecutingAction) {
-    agentStatus = 'working';
-  } else if (lastTaskStatus === 'completed') {
-    agentStatus = 'completed';
-  } else if (lastTaskStatus === 'needs_attention') {
-    agentStatus = 'needs_attention';
-  }
-
   return (
     <div className="app-container">
       <Sidebar
@@ -430,32 +413,6 @@ export const App: React.FC = () => {
             <span style={{ fontWeight: 600, fontSize: '0.96rem', color: 'var(--text-primary)' }}>
               {activeConv?.title || 'Kritam Assistant'}
             </span>
-
-            {/* Real-time Agent State Stepper Pill */}
-            <div className={`agent-state-pill ${agentStatus}`}>
-              <span
-                className="model-dot"
-                style={{
-                  backgroundColor:
-                    agentStatus === 'listening' ? '#ef4444' :
-                    agentStatus === 'understanding' ? '#f59e0b' :
-                    agentStatus === 'working' ? 'var(--accent-primary)' :
-                    agentStatus === 'completed' ? '#10b981' :
-                    agentStatus === 'needs_attention' ? '#ef4444' :
-                    'var(--text-muted)',
-                  width: 7,
-                  height: 7
-                }}
-              />
-              <span style={{ textTransform: 'capitalize' }}>
-                {agentStatus === 'listening' ? 'Listening...' :
-                 agentStatus === 'understanding' ? 'Understanding...' :
-                 agentStatus === 'working' ? 'Working...' :
-                 agentStatus === 'completed' ? 'Completed' :
-                 agentStatus === 'needs_attention' ? 'Needs Attention' :
-                 'Ready'}
-              </span>
-            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -471,18 +428,6 @@ export const App: React.FC = () => {
                 <span>Hands-Free ({settings.voice_language || 'en-US'})</span>
               </button>
             )}
-
-            <div className="model-pill">
-              <span className={`model-dot ${activeConv?.model_used === 'offline' || (!activeConv && settings.default_provider === 'offline') ? 'offline' : ''}`} />
-              <span
-                style={{ textTransform: 'capitalize' }}
-                title={['kritam', 'openai', 'groq', 'openrouter'].includes(activeConv?.model_used || settings.default_provider)
-                  ? 'Prompts are sent to this configured cloud provider.'
-                  : 'Processing stays on this device.'}
-              >
-                {['kritam', 'openai', 'groq', 'openrouter'].includes(activeConv?.model_used || settings.default_provider) ? 'Cloud · ' : 'Local · '}{activeConv?.model_used || settings.default_provider}
-              </span>
-            </div>
 
             {speech.ttsState === 'speaking' && (
               <button
@@ -528,15 +473,6 @@ export const App: React.FC = () => {
           microphoneDeviceId={settings.microphone_device_id}
         />
       </main>
-
-      <CompanionAvatar
-        state={companionState}
-        onClick={() => {
-          if (speechService.currentlySpeaking) {
-            speechService.stopSpeaking();
-          }
-        }}
-      />
 
       <SettingsModal
         isOpen={isSettingsOpen}
