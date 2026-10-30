@@ -356,7 +356,8 @@ class SpeechService {
    */
   public startBackgroundListening(
     onCommand: (text: string) => void,
-    onError?: (err: string) => void
+    onError?: (err: string) => void,
+    onInterrupt?: (intent: VoiceInterruptIntent) => void
   ): void {
     if (!this.isSTTSupported) {
       const err = 'Speech recognition is not supported in this environment.';
@@ -368,6 +369,7 @@ class SpeechService {
     this.isBackgroundListening = true;
     this.backgroundCallback = onCommand;
     this.backgroundErrorCallback = onError || null;
+    this.backgroundInterruptCallback = onInterrupt || null;
     this.clearError();
     this.notifyListeners();
 
@@ -455,10 +457,16 @@ class SpeechService {
         this.lastDispatchedTranscript = cleanFinal;
         this.lastDispatchedTime = now;
 
-        // Immediate stop/cancellation interception
-        const lower = cleanFinal.toLowerCase();
-        if (/^(?:stop(?:\s+speaking|\s+talking)?|cancel(?:\s+that)?|be\s+quiet|shut\s+up|pause)$/.test(lower)) {
+        // Route explicit interrupts consistently. Playback-only phrases stop
+        // TTS; generation cancellation is delegated to App's cancellation path.
+        const interrupt = classifyVoiceInterrupt(cleanFinal);
+        if (interrupt === 'stop_speech') {
           this.stopSpeaking();
+          this.backgroundInterruptCallback?.(interrupt);
+          return;
+        }
+        if (interrupt === 'cancel_generation') {
+          this.backgroundInterruptCallback?.(interrupt);
           return;
         }
 
@@ -556,6 +564,7 @@ class SpeechService {
     this.userStoppedRecognition = true;
     this.backgroundCallback = null;
     this.backgroundErrorCallback = null;
+    this.backgroundInterruptCallback = null;
     clearTimeout(this.restartTimeoutId);
     this.abortListening();
     this.setVoiceState('idle');
