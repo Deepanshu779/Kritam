@@ -20,7 +20,23 @@ export const App: React.FC = () => {
   const generationInFlightRef = useRef(false);
   const pendingVoiceTurnsRef = useRef<Array<{ text: string; conversationId: string | null }>>([]);
   const generationRunIdRef = useRef(0);
+  const settledRunIdRef = useRef(0);
   const selectionRequestRef = useRef(0);
+
+  // Advance one queued voice turn only after a generation has settled.
+  // Each turn stays bound to the conversation in which it was captured.
+  const drainPendingVoiceTurn = () => {
+    const queued = pendingVoiceTurnsRef.current.shift();
+    if (!queued) return;
+    window.setTimeout(() => {
+      if (queued.conversationId !== activeConvIdRef.current) {
+        console.info('[App] Dropping queued voice turn because its conversation is no longer active.');
+        drainPendingVoiceTurn();
+        return;
+      }
+      void handleSendMessage(queued.text, undefined, undefined, true, queued.conversationId);
+    }, 0);
+  };
   const setActiveConversation = (id: string | null) => {
     activeConvIdRef.current = id;
     setActiveConvId(id);
@@ -253,17 +269,11 @@ export const App: React.FC = () => {
           if (activeConvIdRef.current === targetConvId) scrollToBottom();
         },
         (fullContent) => {
-          if (runId !== generationRunIdRef.current) return;
+          if (runId !== generationRunIdRef.current || settledRunIdRef.current === runId) return;
+          settledRunIdRef.current = runId;
           generationInFlightRef.current = false;
           setIsGenerating(false);
-          const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
-          if (queuedVoiceTurn) window.setTimeout(() => {
-            if (queuedVoiceTurn.conversationId !== activeConvIdRef.current) {
-              console.info('[App] Dropping queued voice turn because its conversation is no longer active.');
-              return;
-            }
-            void handleSendMessage(queuedVoiceTurn.text, undefined, undefined, true, queuedVoiceTurn.conversationId);
-          }, 0);
+          drainPendingVoiceTurn();
           setLastTaskStatus('completed');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
@@ -285,11 +295,11 @@ export const App: React.FC = () => {
           );
         },
         (err) => {
-          if (runId !== generationRunIdRef.current) return;
+          if (runId !== generationRunIdRef.current || settledRunIdRef.current === runId) return;
+          settledRunIdRef.current = runId;
           generationInFlightRef.current = false;
           setIsGenerating(false);
-          const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
-          if (queuedVoiceTurn) window.setTimeout(() => void handleSendMessage(queuedVoiceTurn, undefined, undefined, true), 0);
+          drainPendingVoiceTurn();
           setLastTaskStatus('needs_attention');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
@@ -302,11 +312,18 @@ export const App: React.FC = () => {
         voiceCommand
       );
 
-      stopStreamRef.current = stopFn;
+      // A very fast completion/stop can invalidate this run before the stream API returns its cancellation handle.
+      if (runId !== generationRunIdRef.current || settledRunIdRef.current === runId) {
+        stopFn();
+      } else {
+        stopStreamRef.current = stopFn;
+      }
     } catch (e: any) {
-      if (runId !== generationRunIdRef.current) return;
+      if (runId !== generationRunIdRef.current || settledRunIdRef.current === runId) return;
+      settledRunIdRef.current = runId;
       generationInFlightRef.current = false;
       setIsGenerating(false);
+      drainPendingVoiceTurn();
       setLastTaskStatus('needs_attention');
       setCompanionState('idle');
       console.error('[App] Failed to send message:', e);
