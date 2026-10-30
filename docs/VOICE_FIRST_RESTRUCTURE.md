@@ -111,3 +111,22 @@ Invariants:
 ## Validation gate
 
 This plan does not imply the app has been built or runtime-tested. Before a user-facing release, run renderer and main-process builds, available backend tests, and hands-on microphone/speaker tests on the target Windows environment.
+
+
+## Barge-in engineering decision (next implementation gate)
+
+**Current behavior:** `speech-service.ts` pauses/aborts browser recognition while TTS plays. This intentionally suppresses echo, but it also means a user cannot genuinely interrupt spoken output. Calling `stopSpeaking()` from a button is cancellation, not microphone-driven barge-in.
+
+**Do not ship an RMS-only interruption detector as speech recognition.** A loudness threshold can mistake KRITAM's speaker output, keyboard noise, or room noise for the user. The browser speech-recognition API does not expose reliable acoustic echo cancellation/reference audio or the already-spoken interruption transcript.
+
+**Preferred implementation path:**
+1. Add an explicit audio-capture adapter with one owned microphone stream and deterministic teardown.
+2. Prefer a supported VAD + streaming STT pipeline that can continue capturing while TTS plays and expose partial transcripts. Reuse the configured local/cloud policy and disclose the selected processing route.
+3. Use the platform's echo-cancellation constraints where available; treat them as best-effort, not a guarantee. Add a configurable headphones recommendation/fallback for poor acoustic environments.
+4. Require speech evidence (VAD onset plus a short transcript/quality threshold) before interrupting. On confirmed onset, cancel TTS immediately, retain the captured speech frames, finalize transcription, then submit exactly one conversational turn. Never dispatch a desktop action based only on a partial transcript.
+5. Give stop/cancel phrases a fast path only when recognized confidently; preserve authorization and confirmation for sensitive actions.
+6. If the chosen STT path cannot capture during playback reliably, present a clear “Tap to interrupt” fallback instead of claiming hands-free barge-in.
+
+**Test matrix before enabling by default:** laptop speakers at low/high volume; headphones; user speech during TTS; no speech; TV/music in room; echo/reverberant room; STT/network loss; repeated onset events; stop during transcription; app close and device unplug. Assert one transcript/turn at most and zero leaked tracks/timers.
+
+**Status:** decision documented only. No interruption detector or VAD/STT pipeline has been implemented or validated yet.
