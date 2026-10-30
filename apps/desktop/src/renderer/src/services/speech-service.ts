@@ -34,8 +34,14 @@ export type VoiceInterruptIntent = 'cancel_generation' | 'stop_speech';
 
 export function classifyVoiceInterrupt(transcript: string): VoiceInterruptIntent | null {
   const phrase = transcript.trim().toLowerCase().replace(/[.!?]+$/g, '').replace(/\s+/g, ' ');
-  if (/^(?:stop|cancel|cancel that)$/.test(phrase)) return 'cancel_generation';
-  if (/^(?:stop speaking|stop talking|be quiet|shut up|pause)$/.test(phrase)) return 'stop_speech';
+  // Explicit generation-stop phrases cancel the active response.
+  if (/^(?:stop|cancel|cancel that|stop generating|cancel response|stop response)$/.test(phrase)) {
+    return 'cancel_generation';
+  }
+  // Playback-only phrases never cancel the underlying model generation.
+  if (/^(?:stop speaking|stop talking|be quiet|shut up|pause|mute)$/.test(phrase)) {
+    return 'stop_speech';
+  }
   return null;
 }
 
