@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, session, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, session, Menu, IpcMainEvent, IpcMainInvokeEvent } from 'electron';
 import path from 'path';
 import http from 'http';
 import { fileURLToPath } from 'url';
@@ -156,6 +156,9 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Keep the native window frame controls while hiding Electron's default menu bar.
+  Menu.setApplicationMenu(null);
+
   // Grant only microphone access requested by KRITAM's main frame. Deny camera
   // and media permissions from external or untrusted frames.
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
