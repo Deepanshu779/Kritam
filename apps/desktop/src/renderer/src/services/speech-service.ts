@@ -319,8 +319,14 @@ class SpeechService {
       if (this.currentSessionId !== sessionId) return;
       this.interimTranscript = '';
       this.notifyListeners();
-      this.setVoiceState('idle');
-      if (!this.sessionHasError) onEnd();
+
+      // The browser commonly emits onend after onerror. Preserve the useful
+      // error state instead of immediately replacing it with "idle".
+      if (!this.sessionHasError) {
+        this.setVoiceState('idle');
+        onEnd();
+      }
+
       // Restore prior hands-free mode only if it is still desired.
       if (wasBackground && this.isBackgroundListening) {
         clearTimeout(this.restartTimeoutId);
