@@ -364,11 +364,13 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
               type="button"
               className={`btn-handsfree ${speech.isBackgroundListening ? 'active' : ''}`}
               onClick={toggleBackgroundVoice}
-              disabled
-              title="Hands-free browser recognition is temporarily disabled while local speech mode is being introduced"
+              aria-pressed={speech.isBackgroundListening}
+              title={speech.isBackgroundListening
+                ? 'Hands-free listening is active. Click to pause microphone listening.'
+                : 'Enable optional hands-free listening. Browser speech recognition may use its own service.'}
             >
               <Radio size={14} className={speech.isBackgroundListening ? 'animate-pulse' : ''} />
-              <span>Hands-Free (coming soon)</span>
+              <span>{speech.isBackgroundListening ? 'Hands-Free On' : 'Enable Hands-Free'}</span>
             </button>
 
             {isMicActive && (
@@ -384,7 +386,7 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
                 <span>Transcribing...</span>
               </div>
             )}
-            {false && speech.isBackgroundListening && (
+            {speech.isBackgroundListening && (
               <div className="composer-voice-status listening" role="status" aria-live="polite">
                 <span className="model-dot" style={{ backgroundColor: 'var(--success)', width: 6, height: 6 }} />
                 <span>Hands-free active · speak naturally; pause when finished</span>
