@@ -30,6 +30,14 @@ export function sanitizeTextForSpeech(text: string): string {
 }
 
 type StateListener = (state: SpeechServiceState) => void;
+export type VoiceInterruptIntent = 'cancel_generation' | 'stop_speech';
+
+export function classifyVoiceInterrupt(transcript: string): VoiceInterruptIntent | null {
+  const phrase = transcript.trim().toLowerCase().replace(/[.!?]+$/g, '').replace(/\\s+/g, ' ');
+  if (/^(?:stop|cancel|cancel that)$/.test(phrase)) return 'cancel_generation';
+  if (/^(?:stop speaking|stop talking|be quiet|shut up|pause)$/.test(phrase)) return 'stop_speech';
+  return null;
+}
 
 class SpeechService {
   private recognition: any = null;
@@ -49,6 +57,7 @@ class SpeechService {
   private interimTranscript: string = '';
   private backgroundCallback: ((text: string) => void) | null = null;
   private backgroundErrorCallback: ((err: string) => void) | null = null;
+  private backgroundInterruptCallback: ((intent: VoiceInterruptIntent) => void) | null = null;
   private lastDispatchedTranscript: string = '';
   private lastDispatchedTime: number = 0;
   private consecutiveErrors: number = 0;
