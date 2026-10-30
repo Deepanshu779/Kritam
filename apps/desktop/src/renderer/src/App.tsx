@@ -18,6 +18,7 @@ export const App: React.FC = () => {
   // Keep a synchronous source of truth for async sends and conversation switching.
   const activeConvIdRef = useRef<string | null>(null);
   const generationInFlightRef = useRef(false);
+  const pendingVoiceTurnsRef = useRef<string[]>([]);
   const selectionRequestRef = useRef(0);
   const setActiveConversation = (id: string | null) => {
     activeConvIdRef.current = id;
@@ -188,7 +189,14 @@ export const App: React.FC = () => {
 
   const handleSendMessage = async (text: string, retryUserMessageId?: string, retryAssistantMessageId?: string, voiceCommand = false) => {
     const cleanText = text.trim();
-    if (!cleanText || generationInFlightRef.current) return;
+    if (!cleanText) return;
+    if (generationInFlightRef.current) {
+      if (voiceCommand && !retryUserMessageId) {
+        if (pendingVoiceTurnsRef.current.length < 3) pendingVoiceTurnsRef.current.push(cleanText);
+        else console.warn('[App] Pending voice turn limit reached.');
+      }
+      return;
+    }
     generationInFlightRef.current = true;
 
     speechService.stopSpeaking();
@@ -244,6 +252,8 @@ export const App: React.FC = () => {
         (fullContent) => {
           generationInFlightRef.current = false;
           setIsGenerating(false);
+          const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
+          if (queuedVoiceTurn) window.setTimeout(() => void handleSendMessage(queuedVoiceTurn, undefined, undefined, true), 0);
           setLastTaskStatus('completed');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
@@ -267,6 +277,8 @@ export const App: React.FC = () => {
         (err) => {
           generationInFlightRef.current = false;
           setIsGenerating(false);
+          const queuedVoiceTurn = pendingVoiceTurnsRef.current.shift();
+          if (queuedVoiceTurn) window.setTimeout(() => void handleSendMessage(queuedVoiceTurn, undefined, undefined, true), 0);
           setLastTaskStatus('needs_attention');
           setCompanionState('idle');
           setMessages((prev) => prev.map((msg) =>
