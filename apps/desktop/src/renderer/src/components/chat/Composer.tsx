@@ -259,6 +259,9 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
         },
         (error) => {
           console.warn('[Composer] Background voice error:', error);
+        },
+        (intent) => {
+          if (intent === 'cancel_generation') onStop();
         }
       );
     }
