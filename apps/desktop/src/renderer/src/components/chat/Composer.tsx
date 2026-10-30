@@ -251,10 +251,11 @@ export const Composer: React.FC<ComposerProps> = ({ onSend, isGenerating, onStop
       speechService.clearError();
       speechService.startBackgroundListening(
         (transcript) => {
-          // Auto-dispatch voice command directly to agent
-          if (transcript.trim()) {
-            onSend(transcript.trim());
-          }
+          // Treat hands-free speech as a conversational user turn, not a
+          // one-off desktop command. This routes it through the same thread,
+          // context, safety checks, and voice-response path as push-to-talk.
+          const utterance = transcript.trim();
+          if (utterance) onSend(utterance, true);
         },
         (error) => {
           console.warn('[Composer] Background voice error:', error);
